@@ -39,3 +39,12 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+#Mis documentos
+/doc
+# scripts con datos sensibles de infraestructura
+doc/*.sh
+
+# Claude Code local settings
+.claude/settings.local.json
+
