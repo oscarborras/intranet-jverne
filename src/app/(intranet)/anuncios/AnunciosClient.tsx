@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Edit2, Trash2, Megaphone } from "lucide-react";
+import { Plus, Edit2, Trash2, Megaphone, EyeOff } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { Anuncio, AnuncioPrioridad } from "@/lib/types";
 
@@ -102,11 +102,19 @@ export function AnunciosClient({ initialAnuncios, canManage, userId }: Props) {
   }
 
   function formatDate(d: string) {
-    return new Date(d).toLocaleDateString("es-ES", {
+    const date = d.includes("T") ? new Date(d) : new Date(d + "T12:00:00");
+    return date.toLocaleDateString("es-ES", {
       day: "numeric",
       month: "short",
       year: "numeric",
     });
+  }
+
+  function isExpired(visible_hasta: string | null): boolean {
+    if (!visible_hasta) return false;
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    return visible_hasta < today;
   }
 
   return (
@@ -211,16 +219,36 @@ export function AnunciosClient({ initialAnuncios, canManage, userId }: Props) {
         <div className="space-y-3">
           {anuncios.map((a) => {
             const pc = priorityConfig[a.prioridad];
+            const expired = canManage && isExpired(a.visible_hasta);
             return (
-              <div key={a.id} className="bg-white rounded-xl border border-gray-100 px-5 py-4">
+              <div
+                key={a.id}
+                className={
+                  expired
+                    ? "bg-gray-50 rounded-xl border border-dashed border-gray-300 px-5 py-4 opacity-70"
+                    : "bg-white rounded-xl border border-gray-100 px-5 py-4"
+                }
+              >
+                {/* Expired banner */}
+                {expired && (
+                  <div className="flex items-center gap-1.5 mb-3 text-xs font-medium text-gray-500 bg-gray-100 border border-gray-200 rounded-lg px-3 py-1.5 w-fit">
+                    <EyeOff size={13} />
+                    No visible · Caducado el {formatDate(a.visible_hasta!)}
+                  </div>
+                )}
+
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-start gap-3 flex-1 min-w-0">
-                    <span className={`text-xs px-2.5 py-1 rounded-full border font-medium flex-shrink-0 ${pc.cls}`}>
+                    <span className={`text-xs px-2.5 py-1 rounded-full border font-medium flex-shrink-0 ${expired ? "bg-gray-100 text-gray-400 border-gray-200" : pc.cls}`}>
                       {pc.label}
                     </span>
                     <div className="min-w-0">
-                      <h3 className="font-semibold text-gray-900 text-sm">{a.titulo}</h3>
-                      <p className="text-sm text-gray-600 mt-1 whitespace-pre-line">{a.contenido}</p>
+                      <h3 className={`font-semibold text-sm ${expired ? "text-gray-400" : "text-gray-900"}`}>
+                        {a.titulo}
+                      </h3>
+                      <p className={`text-sm mt-1 whitespace-pre-line ${expired ? "text-gray-400" : "text-gray-600"}`}>
+                        {a.contenido}
+                      </p>
                       <p className="text-xs text-gray-400 mt-2">{formatDate(a.created_at)}</p>
                     </div>
                   </div>
