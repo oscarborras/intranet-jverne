@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import Image from "next/image";
 import Link from "next/link";
 import {
   LogOut,
@@ -116,23 +117,31 @@ export function Header({ userName, userEmail, userRoles }: HeaderProps) {
   return (
     <>
       <header className="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-4 md:px-6 flex-shrink-0">
-        {/* Hamburger — mobile only */}
-        <button
-          onClick={() => setDrawerOpen(true)}
-          className="md:hidden p-2 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors"
-          aria-label="Abrir menú"
-        >
-          <Menu size={22} />
-        </button>
-
+        {/* Left side: hamburger (mobile) + logo + title */}
         <div className="flex items-center gap-2">
-          <h1 className="text-sm font-medium text-gray-500 hidden md:block">
-            Panel de gestión de la Intranet IES Julio Verne
+          <button
+            onClick={() => setDrawerOpen(true)}
+            className="md:hidden p-2 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors"
+            aria-label="Abrir menú"
+          >
+            <Menu size={22} />
+          </button>
+          <Image
+            src="/logo.jpg"
+            alt="Logo IES Julio Verne"
+            width={36}
+            height={36}
+            className="rounded-lg object-contain flex-shrink-0"
+            priority
+          />
+          <h1 className="text-base font-semibold text-gray-800 tracking-tight">
+            Intranet IES Julio Verne
           </h1>
         </div>
 
-        {/* User menu */}
-        <div className="relative">
+        {/* Right side: user menu */}
+        <div className="flex items-center gap-1">
+          <div className="relative">
           <button
             onClick={() => setUserMenuOpen((o) => !o)}
             className="flex items-center gap-2 pl-3 pr-2 py-1.5 rounded-lg hover:bg-gray-100 transition-colors"
@@ -178,6 +187,7 @@ export function Header({ userName, userEmail, userRoles }: HeaderProps) {
               </div>
             </>
           )}
+          </div>
         </div>
       </header>
 
