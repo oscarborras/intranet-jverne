@@ -4,6 +4,7 @@ import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
 import { MobileNav } from "@/components/layout/MobileNav";
 import type { Perfil } from "@/lib/types";
+import { version } from "../../../package.json";
 
 export default async function IntranetLayout({
   children,
@@ -47,7 +48,7 @@ export default async function IntranetLayout({
     <div className="flex h-screen overflow-hidden bg-gray-50">
       {/* Sidebar — hidden on mobile */}
       <div className="hidden md:flex flex-shrink-0">
-        <Sidebar userRoles={roles} userName={userName} inactiveModuleSlugs={inactiveModuleSlugs} />
+        <Sidebar userRoles={roles} userName={userName} inactiveModuleSlugs={inactiveModuleSlugs} version={version} />
       </div>
 
       {/* Main content */}

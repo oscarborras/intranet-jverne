@@ -79,9 +79,10 @@ interface SidebarProps {
   userRoles: Perfil[];
   userName: string;
   inactiveModuleSlugs: string[];
+  version: string;
 }
 
-export function Sidebar({ userRoles, userName, inactiveModuleSlugs }: SidebarProps) {
+export function Sidebar({ userRoles, userName, inactiveModuleSlugs, version }: SidebarProps) {
   const pathname = usePathname();
   const roleNames = userRoles.map((r) => r.nombre);
   const isAdmin = roleNames.includes("Admin");
@@ -116,7 +117,7 @@ export function Sidebar({ userRoles, userName, inactiveModuleSlugs }: SidebarPro
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 py-3 px-3 space-y-1">
+      <nav className="flex-1 overflow-y-auto py-3 px-3 space-y-1">
         {navGroups.map((group) => {
           // Hide admin groups from non-admins
           if (group.roles && !group.roles.some((r) => roleNames.includes(r)) && !isAdmin) {
@@ -169,6 +170,11 @@ export function Sidebar({ userRoles, userName, inactiveModuleSlugs }: SidebarPro
           );
         })}
       </nav>
+
+      {/* Version */}
+      <div className="flex-shrink-0 px-5 py-3 border-t border-blue-800 text-center">
+        <p className="text-blue-400 text-xs">v{version}</p>
+      </div>
     </aside>
   );
 }

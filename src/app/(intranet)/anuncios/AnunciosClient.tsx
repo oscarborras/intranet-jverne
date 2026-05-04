@@ -65,6 +65,7 @@ export function AnunciosClient({ initialAnuncios, canManage, userId }: Props) {
           contenido: form.contenido,
           prioridad: form.prioridad,
           visible_hasta: form.visible_hasta || null,
+          updated_at: new Date().toISOString(),
         })
         .eq("id", editing.id);
 
