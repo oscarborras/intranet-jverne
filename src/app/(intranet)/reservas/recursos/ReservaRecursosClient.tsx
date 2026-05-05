@@ -190,7 +190,7 @@ export function ReservaRecursosClient({
   }
 
   return (
-    <div className="space-y-4 max-w-5xl mx-auto">
+    <div className="space-y-4 max-w-7xl mx-auto">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <BookOpen size={24} className="text-gray-700" />

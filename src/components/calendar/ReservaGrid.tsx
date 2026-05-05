@@ -127,9 +127,9 @@ export function ReservaGrid({
         <p className="text-sm text-gray-500">{subtitle}</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Calendar */}
-        <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+        <div className="bg-white rounded-xl border border-gray-100 overflow-hidden lg:col-span-1">
           <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
             <button onClick={prevMonth} className="p-2 hover:bg-gray-100 rounded-lg">
               <ChevronLeft size={18} />
@@ -180,7 +180,7 @@ export function ReservaGrid({
         </div>
 
         {/* Schedule grid for selected day */}
-        <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+        <div className="bg-white rounded-xl border border-gray-100 overflow-hidden lg:col-span-2">
           <div className="px-4 py-3 border-b border-gray-100">
             <p className="text-sm font-semibold text-gray-700">
               Horario ({new Date(selectedDate + "T12:00:00").toLocaleDateString("es-ES", {

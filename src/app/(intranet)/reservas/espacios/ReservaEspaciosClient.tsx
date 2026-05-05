@@ -192,7 +192,7 @@ export function ReservaEspaciosClient({
   }
 
   return (
-    <div className="space-y-4 max-w-5xl mx-auto">
+    <div className="space-y-4 max-w-7xl mx-auto">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <Building2 size={24} className="text-emerald-500" />
