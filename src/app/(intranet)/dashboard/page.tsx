@@ -7,6 +7,7 @@ import {
   Wrench,
   Building2,
   BookOpen,
+  Laptop,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import type { Anuncio, PeticionTIC, PeticionMantenimiento } from "@/lib/types";
@@ -46,6 +47,14 @@ const moduleCards = [
     href: "/peticiones-mantenimiento",
   },
   {
+    slug: "reservas/carros",
+    nombre: "Carros de Portátiles",
+    descripcion: "Reserva carros de portátiles",
+    icono: Laptop,
+    color: "bg-blue-500",
+    href: "/reservas/carros",
+  },
+  {
     slug: "reservas/espacios",
     nombre: "Reserva de Espacios",
     descripcion: "SUM y sala de visitas",
@@ -56,7 +65,7 @@ const moduleCards = [
   {
     slug: "reservas/recursos",
     nombre: "Reserva de Recursos",
-    descripcion: "Carros de portátiles y equipos",
+    descripcion: "Otros recursos del centro",
     icono: BookOpen,
     color: "bg-gray-700",
     href: "/reservas/recursos",
@@ -135,11 +144,12 @@ export default async function DashboardPage() {
     (m) => isAdmin || activeModuleSlugs.has(m.slug)
   );
 
-  const showAnuncios     = isAdmin || activeModuleSlugs.has("anuncios");
-  const showReservas     = isAdmin || activeModuleSlugs.has("reservas/espacios") || activeModuleSlugs.has("reservas/recursos");
-  const showReservaEsp   = isAdmin || activeModuleSlugs.has("reservas/espacios");
-  const showReservaRec   = isAdmin || activeModuleSlugs.has("reservas/recursos");
-  const showTIC          = isAdmin || activeModuleSlugs.has("peticiones-tic");
+  const showAnuncios      = isAdmin || activeModuleSlugs.has("anuncios");
+  const showReservaCar    = isAdmin || activeModuleSlugs.has("reservas/carros");
+  const showReservaEsp    = isAdmin || activeModuleSlugs.has("reservas/espacios");
+  const showReservaRec    = isAdmin || activeModuleSlugs.has("reservas/recursos");
+  const showReservas      = showReservaCar || showReservaEsp || showReservaRec;
+  const showTIC           = isAdmin || activeModuleSlugs.has("peticiones-tic");
   const showMantenimiento = isAdmin || activeModuleSlugs.has("peticiones-mantenimiento");
 
   const _now = new Date();
@@ -148,6 +158,7 @@ export default async function DashboardPage() {
   // Fetch only data for active modules
   const [
     anunciosResult,
+    reservasCarrosResult,
     reservasEspaciosResult,
     reservasRecursosResult,
     peticionesResult,
@@ -155,6 +166,9 @@ export default async function DashboardPage() {
   ] = await Promise.all([
     showAnuncios
       ? supabase.from("anuncios").select("id, titulo, prioridad, created_at, autor_id").or(`visible_hasta.is.null,visible_hasta.gte.${todayStr}`).order("created_at", { ascending: false }).limit(3)
+      : Promise.resolve({ data: [] }),
+    showReservaCar
+      ? supabase.from("reservas_carros").select("id, fecha, aula, carro_id, tramo_id, carros(nombre), tramos_horarios(nombre, hora_inicio, hora_fin, orden)").eq("user_id", user.id).gte("fecha", todayStr).order("fecha", { ascending: true }).limit(5)
       : Promise.resolve({ data: [] }),
     showReservaEsp
       ? supabase.from("reservas_espacios").select("id, fecha, motivo, espacio_id, tramo_id, espacios(nombre), tramos_horarios(nombre, hora_inicio, hora_fin, orden)").eq("user_id", user.id).gte("fecha", todayStr).order("fecha", { ascending: true }).limit(5)
@@ -171,6 +185,24 @@ export default async function DashboardPage() {
   ]);
 
   const anuncios = anunciosResult.data;
+
+  const reservasCarros: ReservaDashboard[] = ((reservasCarrosResult.data ?? []) as Record<string, unknown>[]).map((r) => {
+    const carro = r.carros as { nombre: string } | null;
+    const tramo = r.tramos_horarios as { nombre: string; hora_inicio: string; hora_fin: string; orden: number } | null;
+    return {
+      id: r.id as number,
+      fecha: r.fecha as string,
+      nombre: carro?.nombre ?? "Carro",
+      tramo: tramo?.nombre ?? "",
+      hora_inicio: tramo?.hora_inicio ?? "",
+      hora_fin: tramo?.hora_fin ?? "",
+      tramo_orden: tramo?.orden ?? 0,
+      info: (r.aula as string) ?? "",
+      tipo: "carro",
+      href: "/reservas/carros",
+      user_name: userName,
+    };
+  });
 
   const reservasEspacios: ReservaDashboard[] = ((reservasEspaciosResult.data ?? []) as Record<string, unknown>[]).map((r) => {
     const espacio = r.espacios as { nombre: string } | null;
@@ -208,7 +240,7 @@ export default async function DashboardPage() {
     };
   });
 
-  const proximasReservas = [...reservasEspacios, ...reservasRecursos].sort((a, b) => {
+  const proximasReservas = [...reservasCarros, ...reservasEspacios, ...reservasRecursos].sort((a, b) => {
     const dateCompare = a.fecha.localeCompare(b.fecha);
     return dateCompare !== 0 ? dateCompare : a.tramo_orden - b.tramo_orden;
   }).slice(0, 6);

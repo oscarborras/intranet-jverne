@@ -95,17 +95,17 @@ export function ReservaEspaciosClient({
     user_name: r.user_id === userId ? currentUserName : (localUserNames[r.user_id] ?? "Otro usuario"),
   }));
 
-  async function handleReserve(resourceId: number, tramoId: number, fecha: string, motivo: string) {
+  async function handleReserve(resourceId: number, tramoId: number, fecha: string, motivo: string): Promise<boolean> {
     const supabase = createClient();
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("reservas_espacios")
       .insert({ espacio_id: resourceId, tramo_id: tramoId, fecha, motivo: motivo || "Sin motivo", user_id: userId })
       .select()
       .single();
-    if (data) {
-      setLocalUserNames((prev) => ({ ...prev, [userId]: currentUserName }));
-      setReservas((prev) => [...prev, data as ReservaEspacio]);
-    }
+    if (error || !data) return false;
+    setLocalUserNames((prev) => ({ ...prev, [userId]: currentUserName }));
+    setReservas((prev) => [...prev, data as ReservaEspacio]);
+    return true;
   }
 
   async function handleCancel(id: number) {

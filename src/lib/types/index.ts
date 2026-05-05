@@ -101,6 +101,27 @@ export interface TramoHorario {
 
 export type EspacioTipo = "sum" | "sala_visitas" | "otro";
 
+export interface Carro {
+  id: number;
+  nombre: string;
+  ubicacion: string | null;
+  descripcion: string | null;
+  activo: boolean;
+}
+
+export interface ReservaCarro {
+  id: number;
+  carro_id: number;
+  user_id: string;
+  fecha: string;
+  tramo_id: number;
+  aula: string | null;
+  created_at: string;
+  carros?: Carro;
+  tramos_horarios?: TramoHorario;
+  usuario?: { full_name: string };
+}
+
 export interface Espacio {
   id: number;
   nombre: string;

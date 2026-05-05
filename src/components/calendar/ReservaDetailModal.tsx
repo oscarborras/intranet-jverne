@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { X, Building2, BookOpen, Calendar, Clock, Tag, User, ExternalLink, Trash2 } from "lucide-react";
+import { X, Building2, BookOpen, Laptop, Calendar, Clock, Tag, User, ExternalLink, Trash2 } from "lucide-react";
 
 export interface ReservaDetailData {
   id: number;
@@ -11,7 +11,7 @@ export interface ReservaDetailData {
   fecha: string;
   tramo: string;
   info: string;
-  tipo: "espacio" | "recurso";
+  tipo: "espacio" | "recurso" | "carro";
   isOwn: boolean;
   href?: string;
 }
@@ -54,7 +54,9 @@ export function ReservaDetailModal({ data, onClose, onCancel }: Props) {
           <div className="flex items-center gap-2 min-w-0">
             {data.tipo === "espacio"
               ? <Building2 size={18} className="text-emerald-500 flex-shrink-0" />
-              : <BookOpen size={18} className="text-gray-500 flex-shrink-0" />
+              : data.tipo === "carro"
+                ? <Laptop size={18} className="text-blue-500 flex-shrink-0" />
+                : <BookOpen size={18} className="text-gray-500 flex-shrink-0" />
             }
             <h2 className="font-semibold text-gray-900 truncate">{data.resourceName}</h2>
           </div>
@@ -97,7 +99,7 @@ export function ReservaDetailModal({ data, onClose, onCancel }: Props) {
               <Tag size={15} className="text-gray-400 mt-0.5 flex-shrink-0" />
               <div>
                 <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">
-                  {data.tipo === "espacio" ? "Motivo" : "Aula"}
+                  {data.tipo === "espacio" ? "Motivo" : data.tipo === "carro" ? "Aula" : "Aula"}
                 </p>
                 <p className="text-sm text-gray-800">{data.info}</p>
               </div>
@@ -108,9 +110,11 @@ export function ReservaDetailModal({ data, onClose, onCancel }: Props) {
             <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
               data.tipo === "espacio"
                 ? "bg-emerald-100 text-emerald-700"
-                : "bg-gray-100 text-gray-600"
+                : data.tipo === "carro"
+                  ? "bg-blue-100 text-blue-700"
+                  : "bg-gray-100 text-gray-600"
             }`}>
-              {data.tipo === "espacio" ? "Espacio" : "Recurso"}
+              {data.tipo === "espacio" ? "Espacio" : data.tipo === "carro" ? "Carro de portátiles" : "Recurso"}
             </span>
           </div>
         </div>

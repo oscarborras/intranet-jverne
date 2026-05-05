@@ -14,8 +14,8 @@ export interface BulkSlot {
 }
 
 interface Props {
-  table: "reservas_espacios" | "reservas_recursos";
-  resourceKey: "espacio_id" | "recurso_id";
+  table: "reservas_espacios" | "reservas_recursos" | "reservas_carros";
+  resourceKey: "espacio_id" | "recurso_id" | "carro_id";
   resources: { id: number; nombre: string }[];
   tramos: TramoHorario[];
   extraLabel: string;

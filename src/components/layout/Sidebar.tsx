@@ -10,6 +10,7 @@ import {
   Wrench,
   Building2,
   BookOpen,
+  Laptop,
   Users,
   Building,
   HelpCircle,
@@ -53,6 +54,7 @@ const navGroups: NavGroup[] = [
   {
     title: "RESERVAS",
     items: [
+      { label: "Carros de Portátiles", href: "/reservas/carros", icon: <Laptop size={18} />, slug: "reservas/carros" },
       { label: "Reserva de Espacios", href: "/reservas/espacios", icon: <Building2 size={18} />, slug: "reservas/espacios" },
       { label: "Reserva de Recursos", href: "/reservas/recursos", icon: <BookOpen size={18} />, slug: "reservas/recursos" },
     ],

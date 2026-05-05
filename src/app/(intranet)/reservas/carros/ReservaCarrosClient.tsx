@@ -1,16 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { BookOpen, Settings, Plus, Pencil, Trash2, X, Check, CalendarRange } from "lucide-react";
+import { Laptop, Settings, Plus, Pencil, Trash2, X, Check, CalendarRange } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { ReservaGrid, type Reservation, type ReservationClickData } from "@/components/calendar/ReservaGrid";
 import { ReservaDetailModal } from "@/components/calendar/ReservaDetailModal";
 import { ReservaBulkModal, type BulkSlot } from "@/components/calendar/ReservaBulkModal";
-import type { Recurso, ReservaRecurso, TramoHorario } from "@/lib/types";
+import type { Carro, ReservaCarro, TramoHorario } from "@/lib/types";
 
 interface Props {
-  recursos: Recurso[];
-  initialReservas: ReservaRecurso[];
+  carros: Carro[];
+  initialReservas: ReservaCarro[];
   tramos: TramoHorario[];
   userId: string;
   isAdmin: boolean;
@@ -19,39 +19,38 @@ interface Props {
   currentUserName: string;
 }
 
-interface RecursoForm {
+interface CarroForm {
   nombre: string;
   ubicacion: string;
   descripcion: string;
   activo: boolean;
 }
 
-const emptyForm: RecursoForm = { nombre: "", ubicacion: "", descripcion: "", activo: true };
+const emptyForm: CarroForm = { nombre: "", ubicacion: "", descripcion: "", activo: true };
 
-export function ReservaRecursosClient({
-  recursos: initialRecursos, initialReservas, tramos,
+export function ReservaCarrosClient({
+  carros: initialCarros, initialReservas, tramos,
   userId, isAdmin, canBulkReserve, userNames, currentUserName,
 }: Props) {
-  const [reservas, setReservas] = useState<ReservaRecurso[]>(initialReservas);
+  const [reservas, setReservas] = useState<ReservaCarro[]>(initialReservas);
   const [localUserNames, setLocalUserNames] = useState<Record<string, string>>(userNames);
-  const [recursos, setRecursos] = useState<Recurso[]>(initialRecursos);
+  const [carros, setCarros] = useState<Carro[]>(initialCarros);
   const [selectedRes, setSelectedRes] = useState<ReservationClickData | null>(null);
   const [showBulk, setShowBulk] = useState(false);
 
-  // Manage modal
   const [managing, setManaging] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [editForm, setEditForm] = useState<RecursoForm>(emptyForm);
-  const [addForm, setAddForm] = useState<RecursoForm>(emptyForm);
+  const [editForm, setEditForm] = useState<CarroForm>(emptyForm);
+  const [addForm, setAddForm] = useState<CarroForm>(emptyForm);
   const [showAdd, setShowAdd] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [manageError, setManageError] = useState<string | null>(null);
 
-  const resources = recursos.filter((r) => r.activo).map((r) => ({
-    id: r.id,
-    nombre: r.nombre,
-    subtitulo: r.ubicacion ?? undefined,
+  const resources = carros.filter((c) => c.activo).map((c) => ({
+    id: c.id,
+    nombre: c.nombre,
+    subtitulo: c.ubicacion ?? undefined,
   }));
 
   async function handleMonthChange(yr: number, mo: number) {
@@ -60,7 +59,7 @@ export function ReservaRecursosClient({
     const daysInMonth = new Date(yr, mo, 0).getDate();
     const lastDay = `${yr}-${String(mo).padStart(2, "0")}-${String(daysInMonth).padStart(2, "0")}`;
     const { data } = await supabase
-      .from("reservas_recursos")
+      .from("reservas_carros")
       .select("*")
       .gte("fecha", firstDay)
       .lte("fecha", lastDay);
@@ -80,12 +79,12 @@ export function ReservaRecursosClient({
         }));
       }
     }
-    setReservas(data as ReservaRecurso[]);
+    setReservas(data as ReservaCarro[]);
   }
 
   const reservations: Reservation[] = reservas.map((r) => ({
     id: r.id,
-    resource_id: r.recurso_id,
+    resource_id: r.carro_id,
     tramo_id: r.tramo_id,
     fecha: r.fecha,
     user_id: r.user_id,
@@ -96,48 +95,48 @@ export function ReservaRecursosClient({
   async function handleReserve(resourceId: number, tramoId: number, fecha: string, aula: string): Promise<boolean> {
     const supabase = createClient();
     const { data, error } = await supabase
-      .from("reservas_recursos")
-      .insert({ recurso_id: resourceId, tramo_id: tramoId, fecha, aula: aula || null, user_id: userId })
+      .from("reservas_carros")
+      .insert({ carro_id: resourceId, tramo_id: tramoId, fecha, aula: aula || null, user_id: userId })
       .select()
       .single();
     if (error || !data) return false;
     setLocalUserNames((prev) => ({ ...prev, [userId]: currentUserName }));
-    setReservas((prev) => [...prev, data as ReservaRecurso]);
+    setReservas((prev) => [...prev, data as ReservaCarro]);
     return true;
   }
 
   async function handleCancel(id: number) {
     const supabase = createClient();
-    const { error } = await supabase.from("reservas_recursos").delete().eq("id", id);
+    const { error } = await supabase.from("reservas_carros").delete().eq("id", id);
     if (!error) setReservas((prev) => prev.filter((r) => r.id !== id));
   }
 
   async function handleBulkReserve(slots: BulkSlot[], aula: string) {
     const supabase = createClient();
-    const rows = slots.map(s => ({
-      recurso_id: s.resourceId,
+    const rows = slots.map((s) => ({
+      carro_id: s.resourceId,
       tramo_id: s.tramoId,
       fecha: s.fecha,
       aula: aula || null,
       user_id: userId,
     }));
     const { data } = await supabase
-      .from("reservas_recursos")
-      .upsert(rows, { onConflict: "recurso_id,fecha,tramo_id", ignoreDuplicates: true })
+      .from("reservas_carros")
+      .upsert(rows, { onConflict: "carro_id,fecha,tramo_id", ignoreDuplicates: true })
       .select();
     if (data) {
-      setLocalUserNames(prev => ({ ...prev, [userId]: currentUserName }));
-      setReservas(prev => [...prev, ...(data as ReservaRecurso[])]);
+      setLocalUserNames((prev) => ({ ...prev, [userId]: currentUserName }));
+      setReservas((prev) => [...prev, ...(data as ReservaCarro[])]);
     }
   }
 
-  function startEdit(recurso: Recurso) {
-    setEditingId(recurso.id);
+  function startEdit(carro: Carro) {
+    setEditingId(carro.id);
     setEditForm({
-      nombre: recurso.nombre,
-      ubicacion: recurso.ubicacion ?? "",
-      descripcion: recurso.descripcion ?? "",
-      activo: recurso.activo,
+      nombre: carro.nombre,
+      ubicacion: carro.ubicacion ?? "",
+      descripcion: carro.descripcion ?? "",
+      activo: carro.activo,
     });
   }
 
@@ -152,9 +151,9 @@ export function ReservaRecursosClient({
       descripcion: editForm.descripcion || null,
       activo: editForm.activo,
     };
-    const { data, error } = await supabase.from("recursos").update(payload).eq("id", editingId).select().single();
-    if (error) { setManageError("No se pudo guardar el recurso."); }
-    else if (data) { setRecursos((prev) => prev.map((r) => (r.id === editingId ? (data as Recurso) : r))); setEditingId(null); }
+    const { data, error } = await supabase.from("carros").update(payload).eq("id", editingId).select().single();
+    if (error) { setManageError("No se pudo guardar el carro."); }
+    else if (data) { setCarros((prev) => prev.map((c) => (c.id === editingId ? (data as Carro) : c))); setEditingId(null); }
     setSaving(false);
   }
 
@@ -162,9 +161,9 @@ export function ReservaRecursosClient({
     setSaving(true);
     setManageError(null);
     const supabase = createClient();
-    const { error } = await supabase.from("recursos").update({ activo: false }).eq("id", id);
-    if (error) { setManageError("No se pudo desactivar el recurso."); }
-    else { setRecursos((prev) => prev.map((r) => (r.id === id ? { ...r, activo: false } : r))); }
+    const { error } = await supabase.from("carros").update({ activo: false }).eq("id", id);
+    if (error) { setManageError("No se pudo desactivar el carro."); }
+    else { setCarros((prev) => prev.map((c) => (c.id === id ? { ...c, activo: false } : c))); }
     setSaving(false);
     setDeletingId(null);
   }
@@ -175,7 +174,7 @@ export function ReservaRecursosClient({
     setManageError(null);
     const supabase = createClient();
     const { data, error } = await supabase
-      .from("recursos")
+      .from("carros")
       .insert({
         nombre: addForm.nombre,
         ubicacion: addForm.ubicacion || null,
@@ -184,8 +183,8 @@ export function ReservaRecursosClient({
       })
       .select()
       .single();
-    if (error) { setManageError("No se pudo añadir el recurso."); }
-    else if (data) { setRecursos((prev) => [...prev, data as Recurso]); setAddForm(emptyForm); setShowAdd(false); }
+    if (error) { setManageError("No se pudo añadir el carro."); }
+    else if (data) { setCarros((prev) => [...prev, data as Carro]); setAddForm(emptyForm); setShowAdd(false); }
     setSaving(false);
   }
 
@@ -193,10 +192,10 @@ export function ReservaRecursosClient({
     <div className="space-y-4 max-w-5xl mx-auto">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <BookOpen size={24} className="text-gray-700" />
+          <Laptop size={24} className="text-blue-600" />
           <div>
-            <h1 className="text-xl font-bold text-gray-900">Reserva de Recursos</h1>
-            <p className="text-sm text-gray-500">Reserva de otros recursos</p>
+            <h1 className="text-xl font-bold text-gray-900">Reserva de Carros de Portátiles</h1>
+            <p className="text-sm text-gray-500">Reserva carros de portátiles para tus clases</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -215,7 +214,7 @@ export function ReservaRecursosClient({
               className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
             >
               <Settings size={16} />
-              <span className="hidden sm:inline">Gestionar recursos</span>
+              <span className="hidden sm:inline">Gestionar carros</span>
             </button>
           )}
         </div>
@@ -236,7 +235,7 @@ export function ReservaRecursosClient({
 
       {selectedRes && (
         <ReservaDetailModal
-          data={{ ...selectedRes, tipo: "recurso" }}
+          data={{ ...selectedRes, tipo: "carro" }}
           onClose={() => setSelectedRes(null)}
           onCancel={(selectedRes.isOwn || isAdmin) ? async () => {
             await handleCancel(selectedRes.id);
@@ -247,8 +246,8 @@ export function ReservaRecursosClient({
 
       {showBulk && (
         <ReservaBulkModal
-          table="reservas_recursos"
-          resourceKey="recurso_id"
+          table="reservas_carros"
+          resourceKey="carro_id"
           resources={resources}
           tramos={tramos}
           extraLabel="Aula"
@@ -262,7 +261,7 @@ export function ReservaRecursosClient({
         <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-16 bg-black/40 overflow-y-auto">
           <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-              <h2 className="font-semibold text-gray-900">Gestionar Recursos</h2>
+              <h2 className="font-semibold text-gray-900">Gestionar Carros de Portátiles</h2>
               <button onClick={() => { setManaging(false); setEditingId(null); setShowAdd(false); setManageError(null); }}
                 className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100">
                 <X size={18} />
@@ -275,9 +274,9 @@ export function ReservaRecursosClient({
             )}
 
             <div className="divide-y divide-gray-50">
-              {recursos.map((recurso) => (
-                <div key={recurso.id} className="px-6 py-3">
-                  {editingId === recurso.id ? (
+              {carros.map((carro) => (
+                <div key={carro.id} className="px-6 py-3">
+                  {editingId === carro.id ? (
                     <div className="space-y-2">
                       <div>
                         <label className="block text-xs font-medium text-gray-500 mb-1">Nombre</label>
@@ -329,30 +328,30 @@ export function ReservaRecursosClient({
                   ) : (
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">{recurso.nombre}</p>
+                        <p className="text-sm font-medium text-gray-900 truncate">{carro.nombre}</p>
                         <p className="text-xs text-gray-400">
-                          {recurso.ubicacion ?? "Sin ubicación"}
-                          {!recurso.activo && <span className="text-orange-500 ml-1">· Inactivo</span>}
+                          {carro.ubicacion ?? "Sin ubicación"}
+                          {!carro.activo && <span className="text-orange-500 ml-1">· Inactivo</span>}
                         </p>
-                        {recurso.descripcion && (
-                          <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{recurso.descripcion}</p>
+                        {carro.descripcion && (
+                          <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{carro.descripcion}</p>
                         )}
                       </div>
                       <div className="flex items-center gap-1 flex-shrink-0">
-                        <button onClick={() => startEdit(recurso)}
+                        <button onClick={() => startEdit(carro)}
                           className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
                           <Pencil size={15} />
                         </button>
-                        {deletingId === recurso.id ? (
+                        {deletingId === carro.id ? (
                           <div className="flex items-center gap-1">
                             <span className="text-xs text-red-600">¿Borrar?</span>
-                            <button onClick={() => handleDelete(recurso.id)} disabled={saving}
+                            <button onClick={() => handleDelete(carro.id)} disabled={saving}
                               className="px-2 py-1 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50">Sí</button>
                             <button onClick={() => setDeletingId(null)}
                               className="px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 rounded-lg">No</button>
                           </div>
                         ) : (
-                          <button onClick={() => setDeletingId(recurso.id)}
+                          <button onClick={() => setDeletingId(carro.id)}
                             className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
                             <Trash2 size={15} />
                           </button>
@@ -364,11 +363,10 @@ export function ReservaRecursosClient({
               ))}
             </div>
 
-            {/* Add new */}
             <div className="px-6 py-4 border-t border-gray-100">
               {showAdd ? (
                 <div className="space-y-2">
-                  <p className="text-sm font-medium text-gray-700">Nuevo recurso</p>
+                  <p className="text-sm font-medium text-gray-700">Nuevo carro</p>
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-1">Nombre</label>
                     <input
@@ -411,7 +409,7 @@ export function ReservaRecursosClient({
               ) : (
                 <button onClick={() => setShowAdd(true)}
                   className="flex items-center gap-2 w-full px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
-                  <Plus size={16} /> Añadir recurso
+                  <Plus size={16} /> Añadir carro
                 </button>
               )}
             </div>

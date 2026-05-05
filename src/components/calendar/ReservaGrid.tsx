@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, CheckCircle, AlertCircle, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { TramoHorario } from "@/lib/types";
 
@@ -44,7 +44,7 @@ interface Props {
   tramos: TramoHorario[];
   reservations: Reservation[];
   userId: string;
-  onReserve: (resourceId: number, tramoId: number, fecha: string, extra: string) => Promise<void>;
+  onReserve: (resourceId: number, tramoId: number, fecha: string, extra: string) => Promise<boolean>;
   onMonthChange?: (year: number, month: number) => void;
   reserveExtraLabel?: string;
   onReservationClick?: (data: ReservationClickData) => void;
@@ -76,6 +76,8 @@ export function ReservaGrid({
   const [reserveModal, setReserveModal] = useState<{ resourceId: number; tramoId: number } | null>(null);
   const [extraValue, setExtraValue] = useState("");
   const [saving, setSaving] = useState(false);
+  const [reserveError, setReserveError] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
 
   const daysInMonth = getDaysInMonth(year, month);
   const firstDayOffset = getFirstDayOfMonth(year, month);
@@ -105,10 +107,17 @@ export function ReservaGrid({
   async function handleReserve() {
     if (!reserveModal) return;
     setSaving(true);
-    await onReserve(reserveModal.resourceId, reserveModal.tramoId, selectedDate, extraValue);
+    setReserveError(null);
+    const ok = await onReserve(reserveModal.resourceId, reserveModal.tramoId, selectedDate, extraValue);
     setSaving(false);
-    setReserveModal(null);
-    setExtraValue("");
+    if (ok) {
+      setReserveModal(null);
+      setExtraValue("");
+      setToast("Reserva registrada correctamente. Si no la necesitas, cancélala para liberar el recurso.");
+      setTimeout(() => setToast(null), 7000);
+    } else {
+      setReserveError("No se ha podido realizar la reserva. Es posible que ya esté ocupada. Inténtalo de nuevo.");
+    }
   }
 
   return (
@@ -156,7 +165,7 @@ export function ReservaGrid({
                     isSelected && "bg-blue-50",
                     !isWeekend && !isSelected && "hover:bg-gray-50"
                   )}
-                  onClick={() => setSelectedDate(dateStr)}
+                  onClick={() => { setSelectedDate(dateStr); onMonthChange?.(year, month); }}
                 >
                   <span className={cn(
                     "w-7 h-7 flex items-center justify-center rounded-full text-sm",
@@ -236,7 +245,7 @@ export function ReservaGrid({
                             </div>
                           ) : (
                             <button
-                              onClick={() => setReserveModal({ resourceId: r.id, tramoId: t.id })}
+                              onClick={() => { setReserveModal({ resourceId: r.id, tramoId: t.id }); setReserveError(null); }}
                               className="w-6 h-6 flex items-center justify-center rounded-full border-2 border-dashed border-green-400 hover:bg-green-50 text-green-500 transition-colors mx-auto"
                             >
                               <Plus size={12} />
@@ -264,17 +273,25 @@ export function ReservaGrid({
                 {tramos.find((t) => t.id === reserveModal.tramoId)?.nombre}
               </p>
             </div>
-            <div className="px-6 py-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1">{reserveExtraLabel}</label>
-              <input
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                value={extraValue}
-                onChange={(e) => setExtraValue(e.target.value)}
-                placeholder={reserveExtraLabel === "Aula" ? "Ej: Aula B2" : "Motivo de la reserva"}
-              />
+            <div className="px-6 py-4 space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{reserveExtraLabel}</label>
+                <input
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={extraValue}
+                  onChange={(e) => setExtraValue(e.target.value)}
+                  placeholder={reserveExtraLabel === "Aula" ? "Ej: Aula B2" : "Motivo de la reserva"}
+                />
+              </div>
+              {reserveError && (
+                <div className="flex items-start gap-2 px-3 py-2 bg-red-50 border border-red-200 rounded-lg">
+                  <AlertCircle size={15} className="text-red-500 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-red-700">{reserveError}</p>
+                </div>
+              )}
             </div>
             <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
-              <button onClick={() => setReserveModal(null)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Cancelar</button>
+              <button onClick={() => { setReserveModal(null); setReserveError(null); }} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Cancelar</button>
               <button
                 onClick={handleReserve}
                 disabled={saving}
@@ -283,6 +300,19 @@ export function ReservaGrid({
                 {saving ? "Reservando..." : "Reservar"}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Success toast */}
+      {toast && (
+        <div className="fixed bottom-6 right-6 z-50 max-w-sm w-full shadow-lg">
+          <div className="flex items-start gap-3 px-4 py-3 bg-green-50 border border-green-200 rounded-xl">
+            <CheckCircle size={18} className="text-green-500 flex-shrink-0 mt-0.5" />
+            <p className="text-sm text-green-800 flex-1">{toast}</p>
+            <button onClick={() => setToast(null)} className="text-green-400 hover:text-green-600 flex-shrink-0">
+              <X size={15} />
+            </button>
           </div>
         </div>
       )}

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Building2, BookOpen, CalendarCheck } from "lucide-react";
+import { Building2, BookOpen, Laptop, CalendarCheck } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { ReservaDetailModal } from "@/components/calendar/ReservaDetailModal";
 
@@ -15,7 +15,7 @@ export interface ReservaDashboard {
   hora_fin: string;
   tramo_orden: number;
   info: string;
-  tipo: "espacio" | "recurso";
+  tipo: "espacio" | "recurso" | "carro";
   href: string;
   user_name: string;
 }
@@ -30,7 +30,7 @@ export function ProximasReservas({ reservas: initialReservas }: Props) {
 
   async function handleCancel(r: ReservaDashboard) {
     const supabase = createClient();
-    const table = r.tipo === "espacio" ? "reservas_espacios" : "reservas_recursos";
+    const table = r.tipo === "espacio" ? "reservas_espacios" : r.tipo === "carro" ? "reservas_carros" : "reservas_recursos";
     await supabase.from(table).delete().eq("id", r.id);
     setReservas((prev) => prev.filter((x) => !(x.id === r.id && x.tipo === r.tipo)));
   }
@@ -59,8 +59,8 @@ export function ProximasReservas({ reservas: initialReservas }: Props) {
             <p className="text-center text-gray-400 text-sm py-8">No tienes reservas próximas</p>
           ) : (
             reservas.map((r) => {
-              const Icon = r.tipo === "espacio" ? Building2 : BookOpen;
-              const iconColor = r.tipo === "espacio" ? "text-emerald-500" : "text-gray-500";
+              const Icon = r.tipo === "espacio" ? Building2 : r.tipo === "carro" ? Laptop : BookOpen;
+              const iconColor = r.tipo === "espacio" ? "text-emerald-500" : r.tipo === "carro" ? "text-blue-500" : "text-gray-500";
               return (
                 <button
                   key={`${r.tipo}-${r.id}`}
@@ -84,6 +84,9 @@ export function ProximasReservas({ reservas: initialReservas }: Props) {
           )}
         </div>
         <div className="px-5 py-3 border-t border-gray-100 flex gap-4">
+          <Link href="/reservas/carros" className="text-sm text-emerald-600 hover:underline">
+            Carros →
+          </Link>
           <Link href="/reservas/espacios" className="text-sm text-emerald-600 hover:underline">
             Espacios →
           </Link>
