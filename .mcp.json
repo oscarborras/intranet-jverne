@@ -7,6 +7,14 @@
         "mcp-remote",
         "http://localhost:8080/mcp"
       ]
+    },
+    "supabase-prod": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "http://localhost:8081/mcp"
+      ]
     }
   }
 }

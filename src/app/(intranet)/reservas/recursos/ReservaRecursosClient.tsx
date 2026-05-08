@@ -304,7 +304,7 @@ export function ReservaRecursosClient({
                           rows={2}
                           value={editForm.descripcion}
                           onChange={(e) => setEditForm((f) => ({ ...f, descripcion: e.target.value }))}
-                          placeholder="Ej: 15 portátiles HP, cargador incluido"
+                          placeholder="Ej: cargador incluido"
                         />
                       </div>
                       <div className="flex items-center justify-between">
@@ -375,7 +375,7 @@ export function ReservaRecursosClient({
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                       value={addForm.nombre}
                       onChange={(e) => setAddForm((f) => ({ ...f, nombre: e.target.value }))}
-                      placeholder="Ej: Carro 4"
+                      placeholder="Ej: Altavoces"
                     />
                   </div>
                   <div>
@@ -384,7 +384,7 @@ export function ReservaRecursosClient({
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                       value={addForm.ubicacion}
                       onChange={(e) => setAddForm((f) => ({ ...f, ubicacion: e.target.value }))}
-                      placeholder="Ej: Planta 2"
+                      placeholder="Ej: Aula E2"
                     />
                   </div>
                   <div>
@@ -394,7 +394,7 @@ export function ReservaRecursosClient({
                       rows={2}
                       value={addForm.descripcion}
                       onChange={(e) => setAddForm((f) => ({ ...f, descripcion: e.target.value }))}
-                      placeholder="Ej: 15 portátiles HP, cargador incluido"
+                      placeholder="Ej: cargador incluido"
                     />
                   </div>
                   <div className="flex justify-end gap-2">

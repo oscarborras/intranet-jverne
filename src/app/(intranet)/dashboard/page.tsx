@@ -8,6 +8,7 @@ import {
   Building2,
   BookOpen,
   Laptop,
+  GraduationCap,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import type { Anuncio, PeticionTIC, PeticionMantenimiento } from "@/lib/types";
@@ -126,12 +127,13 @@ export default async function DashboardPage() {
     "Usuario";
 
   // Fetch user roles and module config in parallel
-  const [{ data: userRolesData }, { data: modulosData }] = await Promise.all([
+  const [{ data: userRolesData }, { data: modulosData }, { data: configData }] = await Promise.all([
     supabase
       .from("user_roles_intranet")
       .select("perfiles_intranet(nombre)")
       .eq("user_id", user.id),
     supabase.from("modulos_config").select("slug, activo"),
+    supabase.from("config_intranet").select("clave, valor").eq("clave", "dias_vista_extraescolares"),
   ]);
 
   const isAdmin = (userRolesData ?? []).some(
@@ -144,6 +146,7 @@ export default async function DashboardPage() {
     (m) => isAdmin || activeModuleSlugs.has(m.slug)
   );
 
+  const showCalendario    = isAdmin || activeModuleSlugs.has("calendario");
   const showAnuncios      = isAdmin || activeModuleSlugs.has("anuncios");
   const showReservaCar    = isAdmin || activeModuleSlugs.has("reservas/carros");
   const showReservaEsp    = isAdmin || activeModuleSlugs.has("reservas/espacios");
@@ -152,8 +155,16 @@ export default async function DashboardPage() {
   const showTIC           = isAdmin || activeModuleSlugs.has("peticiones-tic");
   const showMantenimiento = isAdmin || activeModuleSlugs.has("peticiones-mantenimiento");
 
+  const diasVistaExtraescolares = parseInt(
+    (configData ?? []).find((c) => c.clave === "dias_vista_extraescolares")?.valor ?? "20",
+    10
+  );
+
   const _now = new Date();
   const todayStr = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, "0")}-${String(_now.getDate()).padStart(2, "0")}`;
+  const _limitDate = new Date(_now);
+  _limitDate.setDate(_limitDate.getDate() + diasVistaExtraescolares);
+  const limitStr = `${_limitDate.getFullYear()}-${String(_limitDate.getMonth() + 1).padStart(2, "0")}-${String(_limitDate.getDate()).padStart(2, "0")}`;
 
   // Fetch only data for active modules
   const [
@@ -163,6 +174,7 @@ export default async function DashboardPage() {
     reservasRecursosResult,
     peticionesResult,
     mantenimientoResult,
+    extraescolaresResult,
   ] = await Promise.all([
     showAnuncios
       ? supabase.from("anuncios").select("id, titulo, prioridad, created_at, autor_id").or(`visible_hasta.is.null,visible_hasta.gte.${todayStr}`).order("created_at", { ascending: false }).limit(3)
@@ -181,6 +193,9 @@ export default async function DashboardPage() {
       : Promise.resolve({ data: [] }),
     showMantenimiento
       ? supabase.from("peticiones_mantenimiento").select("id, codigo, titulo, estado, prioridad, created_at").eq("autor_id", user.id).not("estado", "in", '("finalizada","rechazada")').order("created_at", { ascending: false }).limit(5)
+      : Promise.resolve({ data: [] }),
+    showCalendario
+      ? supabase.from("calendar_eventos").select("id, titulo, descripcion, fecha_inicio, fecha_fin, todo_el_dia, hora_inicio, hora_fin").eq("tipo", "Activ. Extraescolar").gte("fecha_inicio", todayStr).lte("fecha_inicio", limitStr).order("fecha_inicio", { ascending: true })
       : Promise.resolve({ data: [] }),
   ]);
 
@@ -255,6 +270,18 @@ export default async function DashboardPage() {
     "id" | "codigo" | "titulo" | "estado" | "prioridad" | "created_at"
   >[];
 
+  interface EventoExtraescolar {
+    id: number;
+    titulo: string;
+    descripcion: string | null;
+    fecha_inicio: string;
+    fecha_fin: string;
+    todo_el_dia: boolean;
+    hora_inicio: string | null;
+    hora_fin: string | null;
+  }
+  const extraescolares = (extraescolaresResult.data ?? []) as EventoExtraescolar[];
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       {/* Welcome banner */}
@@ -323,6 +350,55 @@ export default async function DashboardPage() {
           )}
 
           {showReservas && <ProximasReservas reservas={proximasReservas} />}
+        </div>
+      )}
+
+      {/* Actividades extraescolares */}
+      {showCalendario && (
+        <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+          <div className="bg-orange-500 px-5 py-3 flex items-center gap-2">
+            <GraduationCap size={16} className="text-white" />
+            <h3 className="text-white font-semibold text-sm">
+              Actividades Extraescolares — próximos {diasVistaExtraescolares} días
+            </h3>
+          </div>
+          <div className="divide-y divide-gray-50">
+            {extraescolares.length === 0 ? (
+              <p className="text-center text-gray-400 text-sm py-8">
+                No hay actividades extraescolares programadas
+              </p>
+            ) : (
+              extraescolares.map((e) => {
+                const [y, m, d] = e.fecha_inicio.split("-").map(Number);
+                const fechaLabel = new Date(y, m - 1, d).toLocaleDateString("es-ES", {
+                  weekday: "short", day: "numeric", month: "short",
+                });
+                return (
+                  <div key={e.id} className="px-5 py-3 flex items-start gap-3">
+                    <div className="flex-shrink-0 bg-orange-50 text-orange-600 rounded-lg px-2.5 py-1.5 text-xs font-medium capitalize min-w-[84px] text-center">
+                      {fechaLabel}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">{e.titulo}</p>
+                      {e.descripcion && (
+                        <p className="text-xs text-gray-500 mt-0.5 truncate">{e.descripcion}</p>
+                      )}
+                      {!e.todo_el_dia && e.hora_inicio && (
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          {e.hora_inicio.slice(0, 5)}{e.hora_fin ? ` – ${e.hora_fin.slice(0, 5)}` : ""}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+          <div className="px-5 py-3 border-t border-gray-100">
+            <Link href="/calendario" className="text-sm text-orange-600 hover:underline cursor-pointer">
+              Ver calendario →
+            </Link>
+          </div>
         </div>
       )}
 
