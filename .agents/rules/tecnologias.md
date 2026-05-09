@@ -4,7 +4,7 @@ trigger: always_on
 
 ### Stack por defecto
 
-* Framework: **Next.js 16 con App Router y Server Components**
+* Framework: **Next.js 16 con App Router y Server Components**.  No uses next-pwa
 * UI: **Tailwind CSS v4**
 * UI Icons: **Lucide React**
 * Base de datos / Auth: **Supabase-local** (self hosted)
