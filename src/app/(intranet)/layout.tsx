@@ -21,6 +21,10 @@ export default async function IntranetLayout({
     redirect("/login");
   }
 
+  if (user.email?.includes(".alu@")) {
+    redirect("/acceso-denegado");
+  }
+
   const [{ data: userRoles }, { data: modulosData }] = await Promise.all([
     supabase
       .from("user_roles_intranet")

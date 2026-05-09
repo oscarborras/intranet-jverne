@@ -33,6 +33,15 @@ export async function GET(request: NextRequest) {
     );
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user?.email?.includes(".alu@")) {
+        await supabase.auth.signOut();
+        if (user.id) {
+          const { createAdminClient } = await import("@/lib/supabase/admin");
+          await createAdminClient().auth.admin.deleteUser(user.id);
+        }
+        return NextResponse.redirect(`${origin}/acceso-denegado`);
+      }
       return NextResponse.redirect(`${origin}${next}`);
     }
   }
