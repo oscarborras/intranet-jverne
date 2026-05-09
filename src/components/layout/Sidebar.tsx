@@ -16,6 +16,7 @@ import {
   HelpCircle,
   ChevronDown,
   Settings,
+  CalendarClock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -42,6 +43,7 @@ const navGroups: NavGroup[] = [
       { label: "Dashboard", href: "/dashboard", icon: <LayoutDashboard size={18} /> },
       { label: "Calendario", href: "/calendario", icon: <Calendar size={18} />, slug: "calendario" },
       { label: "Tablón de Anuncios", href: "/anuncios", icon: <Megaphone size={18} />, slug: "anuncios" },
+      { label: "Citas con Familias", href: "/citas-familias", icon: <CalendarClock size={18} />, slug: "citas-familias" },
     ],
   },
   {
@@ -88,6 +90,7 @@ export function Sidebar({ userRoles, userName, inactiveModuleSlugs, version }: S
   const pathname = usePathname();
   const roleNames = userRoles.map((r) => r.nombre);
   const isAdmin = roleNames.includes("Admin");
+  const isOrdenanza = roleNames.includes("Ordenanza") && !roleNames.some((r) => ["Admin", "Directiva"].includes(r));
 
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
@@ -120,7 +123,34 @@ export function Sidebar({ userRoles, userName, inactiveModuleSlugs, version }: S
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto py-3 px-3 space-y-1">
-        {navGroups.map((group) => {
+        {isOrdenanza ? (
+          <>
+            <Link
+              href="/dashboard"
+              className={cn(
+                "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors",
+                pathname === "/dashboard"
+                  ? "bg-blue-600 text-white font-medium"
+                  : "text-blue-100 hover:bg-blue-800/60"
+              )}
+            >
+              <span className="flex-shrink-0"><LayoutDashboard size={18} /></span>
+              <span>Dashboard</span>
+            </Link>
+            <Link
+              href="/ordenanzas"
+              className={cn(
+                "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors",
+                pathname.startsWith("/ordenanzas")
+                  ? "bg-blue-600 text-white font-medium"
+                  : "text-blue-100 hover:bg-blue-800/60"
+              )}
+            >
+              <span className="flex-shrink-0"><CalendarClock size={18} /></span>
+              <span>Citas del día</span>
+            </Link>
+          </>
+        ) : navGroups.map((group) => {
           // Hide admin groups from non-admins
           if (group.roles && !group.roles.some((r) => roleNames.includes(r)) && !isAdmin) {
             return null;

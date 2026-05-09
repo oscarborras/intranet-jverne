@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import { createAdminClient } from "@/lib/supabase/admin";
 import {
   Calendar,
   Megaphone,
@@ -9,6 +10,8 @@ import {
   BookOpen,
   Laptop,
   GraduationCap,
+  CalendarClock,
+  Users,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import type { Anuncio, PeticionTIC, PeticionMantenimiento } from "@/lib/types";
@@ -71,6 +74,14 @@ const moduleCards = [
     color: "bg-gray-700",
     href: "/reservas/recursos",
   },
+  {
+    slug: "citas-familias",
+    nombre: "Citas con Familias",
+    descripcion: "Visitas y reuniones con familias",
+    icono: Users,
+    color: "bg-red-600",
+    href: "/citas-familias",
+  },
 ];
 
 const priorityLabel: Record<string, string> = {
@@ -126,37 +137,52 @@ export default async function DashboardPage() {
     user.email?.split("@")[0] ||
     "Usuario";
 
-  // Fetch user roles and module config in parallel
-  const [{ data: userRolesData }, { data: modulosData }, { data: configData }] = await Promise.all([
+  const admin = createAdminClient();
+
+  // Fetch user roles, module config and profesor identity in parallel
+  const [{ data: userRolesData }, { data: modulosData }, { data: configData }, { data: profesorRow }] = await Promise.all([
     supabase
       .from("user_roles_intranet")
-      .select("perfiles_intranet(nombre)")
+      .select("perfil_id, perfiles_intranet(nombre)")
       .eq("user_id", user.id),
-    supabase.from("modulos_config").select("slug, activo"),
-    supabase.from("config_intranet").select("clave, valor").eq("clave", "dias_vista_extraescolares"),
+    supabase.from("modulos_config").select("slug, activo, modulo_perfiles(perfil_id)").order("orden"),
+    supabase.from("config_intranet").select("clave, valor").in("clave", ["dias_vista_extraescolares", "dias_vista_citas"]),
+    admin.from("profesores").select("id").eq("email", user.email!).single(),
   ]);
+
+  const profesorId = profesorRow?.id ?? null;
 
   const isAdmin = (userRolesData ?? []).some(
     (r) => (r.perfiles_intranet as unknown as { nombre: string })?.nombre === "Admin"
   );
-  const activeModuleSlugs = new Set(
-    (modulosData ?? []).filter((m) => m.activo).map((m) => m.slug as string)
-  );
-  const visibleModuleCards = moduleCards.filter(
-    (m) => isAdmin || activeModuleSlugs.has(m.slug)
-  );
+  const userPerfilIds = new Set((userRolesData ?? []).map((r) => r.perfil_id as number).filter(Boolean));
 
-  const showCalendario    = isAdmin || activeModuleSlugs.has("calendario");
-  const showAnuncios      = isAdmin || activeModuleSlugs.has("anuncios");
-  const showReservaCar    = isAdmin || activeModuleSlugs.has("reservas/carros");
-  const showReservaEsp    = isAdmin || activeModuleSlugs.has("reservas/espacios");
-  const showReservaRec    = isAdmin || activeModuleSlugs.has("reservas/recursos");
+  function canSee(slug: string): boolean {
+    if (isAdmin) return true;
+    const modulo = (modulosData ?? []).find((m) => m.slug === slug);
+    if (!modulo || !modulo.activo) return false;
+    const allowed = (modulo.modulo_perfiles as { perfil_id: number }[]).map((mp) => mp.perfil_id);
+    return allowed.some((id) => userPerfilIds.has(id));
+  }
+
+  const visibleModuleCards = moduleCards.filter((m) => canSee(m.slug));
+
+  const showCalendario    = canSee("calendario");
+  const showAnuncios      = canSee("anuncios");
+  const showReservaCar    = canSee("reservas/carros");
+  const showReservaEsp    = canSee("reservas/espacios");
+  const showReservaRec    = canSee("reservas/recursos");
   const showReservas      = showReservaCar || showReservaEsp || showReservaRec;
-  const showTIC           = isAdmin || activeModuleSlugs.has("peticiones-tic");
-  const showMantenimiento = isAdmin || activeModuleSlugs.has("peticiones-mantenimiento");
+  const showTIC            = canSee("peticiones-tic");
+  const showMantenimiento  = canSee("peticiones-mantenimiento");
+  const showCitasFamilias  = canSee("citas-familias");
 
   const diasVistaExtraescolares = parseInt(
     (configData ?? []).find((c) => c.clave === "dias_vista_extraescolares")?.valor ?? "20",
+    10
+  );
+  const diasVistaCitas = parseInt(
+    (configData ?? []).find((c) => c.clave === "dias_vista_citas")?.valor ?? "14",
     10
   );
 
@@ -165,6 +191,10 @@ export default async function DashboardPage() {
   const _limitDate = new Date(_now);
   _limitDate.setDate(_limitDate.getDate() + diasVistaExtraescolares);
   const limitStr = `${_limitDate.getFullYear()}-${String(_limitDate.getMonth() + 1).padStart(2, "0")}-${String(_limitDate.getDate()).padStart(2, "0")}`;
+
+  const _citasLimitDate = new Date(_now);
+  _citasLimitDate.setDate(_citasLimitDate.getDate() + diasVistaCitas);
+  const citasLimitStr = `${_citasLimitDate.getFullYear()}-${String(_citasLimitDate.getMonth() + 1).padStart(2, "0")}-${String(_citasLimitDate.getDate()).padStart(2, "0")}`;
 
   // Fetch only data for active modules
   const [
@@ -175,6 +205,7 @@ export default async function DashboardPage() {
     peticionesResult,
     mantenimientoResult,
     extraescolaresResult,
+    citasResult,
   ] = await Promise.all([
     showAnuncios
       ? supabase.from("anuncios").select("id, titulo, prioridad, created_at, autor_id").or(`visible_hasta.is.null,visible_hasta.gte.${todayStr}`).order("created_at", { ascending: false }).limit(3)
@@ -196,6 +227,9 @@ export default async function DashboardPage() {
       : Promise.resolve({ data: [] }),
     showCalendario
       ? supabase.from("calendar_eventos").select("id, titulo, descripcion, fecha_inicio, fecha_fin, todo_el_dia, hora_inicio, hora_fin").eq("tipo", "Activ. Extraescolar").gte("fecha_inicio", todayStr).lte("fecha_inicio", limitStr).order("fecha_inicio", { ascending: true })
+      : Promise.resolve({ data: [] }),
+    showCitasFamilias && profesorId
+      ? supabase.from("citas_familias").select("id, codigo, alumno_nombre, alumno_curso, familiar_nombre, fecha, hora_inicio, lugar, estado").eq("profesor_id", profesorId).in("estado", ["pendiente", "confirmada"]).or(`fecha.lte.${citasLimitStr},fecha.is.null`).order("fecha", { ascending: true, nullsFirst: true }).limit(5)
       : Promise.resolve({ data: [] }),
   ]);
 
@@ -269,6 +303,20 @@ export default async function DashboardPage() {
     PeticionMantenimiento,
     "id" | "codigo" | "titulo" | "estado" | "prioridad" | "created_at"
   >[];
+
+  interface CitaDashboard {
+    id: number;
+    codigo: string;
+    alumno_nombre: string;
+    alumno_curso: string;
+    familiar_nombre: string;
+    fecha: string | null;
+    hora_inicio: string | null;
+    lugar: string | null;
+    estado: string;
+  }
+  const citasDashboard = (citasResult.data ?? []) as CitaDashboard[];
+  const citasPendientesCount = citasDashboard.filter((c) => c.estado === "pendiente").length;
 
   interface EventoExtraescolar {
     id: number;
@@ -353,52 +401,111 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      {/* Actividades extraescolares */}
-      {showCalendario && (
-        <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-          <div className="bg-orange-500 px-5 py-3 flex items-center gap-2">
-            <GraduationCap size={16} className="text-white" />
-            <h3 className="text-white font-semibold text-sm">
-              Actividades Extraescolares — próximos {diasVistaExtraescolares} días
-            </h3>
-          </div>
-          <div className="divide-y divide-gray-50">
-            {extraescolares.length === 0 ? (
-              <p className="text-center text-gray-400 text-sm py-8">
-                No hay actividades extraescolares programadas
-              </p>
-            ) : (
-              extraescolares.map((e) => {
-                const [y, m, d] = e.fecha_inicio.split("-").map(Number);
-                const fechaLabel = new Date(y, m - 1, d).toLocaleDateString("es-ES", {
-                  weekday: "short", day: "numeric", month: "short",
-                });
-                return (
-                  <div key={e.id} className="px-5 py-3 flex items-start gap-3">
-                    <div className="flex-shrink-0 bg-orange-50 text-orange-600 rounded-lg px-2.5 py-1.5 text-xs font-medium capitalize min-w-[84px] text-center">
-                      {fechaLabel}
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">{e.titulo}</p>
-                      {e.descripcion && (
-                        <p className="text-xs text-gray-500 mt-0.5 truncate">{e.descripcion}</p>
-                      )}
-                      {!e.todo_el_dia && e.hora_inicio && (
-                        <p className="text-xs text-gray-400 mt-0.5">
-                          {e.hora_inicio.slice(0, 5)}{e.hora_fin ? ` – ${e.hora_fin.slice(0, 5)}` : ""}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-          <div className="px-5 py-3 border-t border-gray-100">
-            <Link href="/calendario" className="text-sm text-orange-600 hover:underline cursor-pointer">
-              Ver calendario →
-            </Link>
-          </div>
+      {/* Citas con Familias + Actividades Extraescolares — side by side on desktop */}
+      {(showCitasFamilias || showCalendario) && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {showCitasFamilias && (
+            <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+              <div className="bg-red-600 px-5 py-3 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <CalendarClock size={16} className="text-white" />
+                  <h3 className="text-white font-semibold text-sm">
+                    Citas con Familias — {diasVistaCitas} días
+                  </h3>
+                </div>
+                {citasPendientesCount > 0 && (
+                  <span className="bg-amber-400 text-amber-900 text-xs font-bold px-2 py-0.5 rounded-full">
+                    {citasPendientesCount} pendiente{citasPendientesCount > 1 ? "s" : ""}
+                  </span>
+                )}
+              </div>
+              <div className="divide-y divide-gray-50">
+                {citasDashboard.length === 0 ? (
+                  <p className="text-center text-gray-400 text-sm py-8">No hay citas próximas</p>
+                ) : (
+                  citasDashboard.map((c) => {
+                    const fechaLabel = c.fecha
+                      ? new Date(c.fecha + "T00:00:00").toLocaleDateString("es-ES", { weekday: "short", day: "numeric", month: "short" })
+                      : "Sin fecha";
+                    const isPendiente = c.estado === "pendiente";
+                    return (
+                      <div key={c.id} className="px-5 py-3 flex items-center gap-3">
+                        <div className={`flex-shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-medium min-w-[84px] text-center ${isPendiente ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700"}`}>
+                          {fechaLabel}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate">
+                            {c.alumno_nombre} <span className="text-gray-400 font-normal">({c.alumno_curso})</span>
+                          </p>
+                          <p className="text-xs text-gray-500 truncate">
+                            {c.familiar_nombre}
+                            {c.hora_inicio && <> · {c.hora_inicio}</>}
+                            {c.lugar && <> · {c.lugar}</>}
+                          </p>
+                        </div>
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${isPendiente ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>
+                          {isPendiente ? "Pendiente" : "Confirmada"}
+                        </span>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+              <div className="px-5 py-3 border-t border-gray-100">
+                <Link href="/citas-familias" className="text-sm text-red-600 hover:underline cursor-pointer">
+                  Ver todas →
+                </Link>
+              </div>
+            </div>
+          )}
+
+          {showCalendario && (
+            <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+              <div className="bg-orange-500 px-5 py-3 flex items-center gap-2">
+                <GraduationCap size={16} className="text-white" />
+                <h3 className="text-white font-semibold text-sm">
+                  Activ. Extraescolares — {diasVistaExtraescolares} días
+                </h3>
+              </div>
+              <div className="divide-y divide-gray-50">
+                {extraescolares.length === 0 ? (
+                  <p className="text-center text-gray-400 text-sm py-8">
+                    No hay actividades programadas
+                  </p>
+                ) : (
+                  extraescolares.map((e) => {
+                    const [y, m, d] = e.fecha_inicio.split("-").map(Number);
+                    const fechaLabel = new Date(y, m - 1, d).toLocaleDateString("es-ES", {
+                      weekday: "short", day: "numeric", month: "short",
+                    });
+                    return (
+                      <div key={e.id} className="px-5 py-3 flex items-start gap-3">
+                        <div className="flex-shrink-0 bg-orange-50 text-orange-600 rounded-lg px-2.5 py-1.5 text-xs font-medium capitalize min-w-[84px] text-center">
+                          {fechaLabel}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate">{e.titulo}</p>
+                          {e.descripcion && (
+                            <p className="text-xs text-gray-500 mt-0.5 truncate">{e.descripcion}</p>
+                          )}
+                          {!e.todo_el_dia && e.hora_inicio && (
+                            <p className="text-xs text-gray-400 mt-0.5">
+                              {e.hora_inicio.slice(0, 5)}{e.hora_fin ? ` – ${e.hora_fin.slice(0, 5)}` : ""}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+              <div className="px-5 py-3 border-t border-gray-100">
+                <Link href="/calendario" className="text-sm text-orange-600 hover:underline cursor-pointer">
+                  Ver calendario →
+                </Link>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

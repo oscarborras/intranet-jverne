@@ -1,6 +1,6 @@
 {
   "name": "intranet-jv",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -29,6 +29,7 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "recharts": "^3.8.1",
+    "resend": "^6.12.3",
     "tailwind-merge": "^3.5.0"
   },
   "devDependencies": {

@@ -22,6 +22,7 @@ import {
   Building,
   HelpCircle,
   Settings,
+  CalendarClock,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -53,6 +54,7 @@ const navGroups: NavGroup[] = [
       { label: "Dashboard", href: "/dashboard", icon: <LayoutDashboard size={18} /> },
       { label: "Calendario", href: "/calendario", icon: <Calendar size={18} /> },
       { label: "Tablón de Anuncios", href: "/anuncios", icon: <Megaphone size={18} /> },
+      { label: "Citas con Familias", href: "/citas-familias", icon: <CalendarClock size={18} /> },
     ],
   },
   {
@@ -96,6 +98,7 @@ export function Header({ userName, userEmail, userRoles }: HeaderProps) {
 
   const roleNames = userRoles.map((r) => r.nombre);
   const isAdmin = roleNames.includes("Admin");
+  const isOrdenanza = roleNames.includes("Ordenanza") && !roleNames.some((r) => ["Admin", "Directiva"].includes(r));
 
   async function handleLogout() {
     const supabase = createClient();
@@ -231,7 +234,36 @@ export function Header({ userName, userEmail, userRoles }: HeaderProps) {
 
             {/* Scrollable nav */}
             <nav className="flex-1 overflow-y-auto py-3 px-3 space-y-1">
-              {navGroups.map((group) => {
+              {isOrdenanza ? (
+                <>
+                  <Link
+                    href="/dashboard"
+                    onClick={() => setDrawerOpen(false)}
+                    className={cn(
+                      "flex items-center gap-3 px-3 py-3 rounded-lg text-sm transition-colors",
+                      pathname === "/dashboard"
+                        ? "bg-blue-600 text-white font-medium"
+                        : "text-blue-100 hover:bg-blue-800/60"
+                    )}
+                  >
+                    <span className="flex-shrink-0"><LayoutDashboard size={18} /></span>
+                    <span>Dashboard</span>
+                  </Link>
+                  <Link
+                    href="/ordenanzas"
+                    onClick={() => setDrawerOpen(false)}
+                    className={cn(
+                      "flex items-center gap-3 px-3 py-3 rounded-lg text-sm transition-colors",
+                      pathname.startsWith("/ordenanzas")
+                        ? "bg-blue-600 text-white font-medium"
+                        : "text-blue-100 hover:bg-blue-800/60"
+                    )}
+                  >
+                    <span className="flex-shrink-0"><CalendarClock size={18} /></span>
+                    <span>Citas del día</span>
+                  </Link>
+                </>
+              ) : navGroups.map((group) => {
                 if (group.roles && !group.roles.some((r) => roleNames.includes(r))) return null;
                 const visibleItems = group.items.filter(
                   (item) => !item.roles || item.roles.some((r) => roleNames.includes(r)) || isAdmin

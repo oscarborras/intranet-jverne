@@ -270,3 +270,43 @@ export interface AuditLog {
   created_at: string;
   usuario?: { full_name: string; email: string };
 }
+
+// ─── Family Appointments ─────────────────────────────────────────────────────
+
+export type CitaFamiliaEstado = "pendiente" | "confirmada" | "completada" | "cancelada";
+export type CitaFamiliaParentesco = "padre" | "madre" | "tutor/a legal" | "otro";
+export type CitaFamiliaCanceladaPor = "profesor" | "familia";
+
+export const LUGARES_CITA = [
+  "Sala de visitas",
+  "Departamento del profesor",
+  "Dirección",
+  "Jefatura",
+  "Por determinar",
+] as const;
+
+export type LugarCita = (typeof LUGARES_CITA)[number];
+
+export interface CitaFamilia {
+  id: number;
+  codigo: string;
+  profesor_id: string;
+  alumno_nombre: string;
+  alumno_curso: string;
+  familiar_nombre: string;
+  familiar_parentesco: CitaFamiliaParentesco | string;
+  familiar_email: string | null;
+  familiar_telefono: string | null;
+  fecha: string | null;
+  hora_inicio: string | null;
+  lugar: string | null;
+  motivo: string | null;
+  estado: CitaFamiliaEstado;
+  notas: string | null;
+  cancelada_por: CitaFamiliaCanceladaPor | null;
+  motivo_cancelacion: string | null;
+  token_familia: string;
+  created_at: string;
+  updated_at: string;
+  profesor?: { full_name: string; email: string };
+}
