@@ -4,12 +4,6 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Intranet IES Julio Verne",
   description: "Intranet corporativa del IES Julio Verne",
-  manifest: "/manifest.json",
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: "default",
-    title: "Intranet JV",
-  },
 };
 
 export const viewport: Viewport = {
