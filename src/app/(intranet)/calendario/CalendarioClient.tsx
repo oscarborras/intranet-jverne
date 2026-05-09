@@ -13,13 +13,13 @@ const MONTHS = [
 ];
 
 const COLOR_CLASSES: Record<string, string> = {
-  blue:   "bg-blue-100 text-blue-700",
+  blue: "bg-blue-100 text-blue-700",
   purple: "bg-purple-100 text-purple-700",
-  green:  "bg-green-100 text-green-700",
-  red:    "bg-red-100 text-red-700",
+  green: "bg-green-100 text-green-700",
+  red: "bg-red-100 text-red-700",
   orange: "bg-orange-100 text-orange-700",
   yellow: "bg-yellow-100 text-yellow-700",
-  gray:   "bg-gray-100 text-gray-700",
+  gray: "bg-gray-100 text-gray-700",
 };
 
 function tipoClasses(tipo: string, tipoMap: Map<string, TipoEventoIntranet>): string {
@@ -455,7 +455,7 @@ export function CalendarioClient({
             <div className="bg-white border-t-2 border-amber-200">
               <div className="flex items-center justify-between px-5 py-2.5 bg-amber-50 border-b border-amber-100">
                 <div className="flex items-center gap-2">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 text-amber-500"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 text-amber-500"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
                   <span className="text-xs font-semibold text-amber-700 uppercase tracking-wider">Asuntos propios</span>
                   {dayAsuntos.length > 0 && (
                     <span className="bg-amber-100 text-amber-700 text-xs font-semibold px-1.5 py-0.5 rounded-full">
@@ -565,7 +565,7 @@ export function CalendarioClient({
                 <textarea
                   rows={2}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                  placeholder="Descripción del evento"
+                  placeholder="Descripción del evento , cursos afectados"
                   value={form.descripcion}
                   onChange={(e) => setForm((f) => ({ ...f, descripcion: e.target.value }))}
                 />
