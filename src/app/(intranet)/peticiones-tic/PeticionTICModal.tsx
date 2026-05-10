@@ -112,11 +112,21 @@ export function PeticionTICModal({ peticion, canManage, userId, onClose, onUpdat
   useEffect(() => {
     loadActivity();
     if (canManage) {
-      createClient()
-        .from("users_view")
-        .select("id, full_name")
-        .order("full_name")
-        .then(({ data }) => setUsers((data ?? []) as UserOption[]));
+      const supabase = createClient();
+      supabase
+        .from("user_roles_intranet")
+        .select("user_id, perfiles_intranet!inner(nombre)")
+        .in("perfiles_intranet.nombre", ["TDE", "Soporte_TIC"])
+        .then(async ({ data: roleRows }) => {
+          const ids = [...new Set((roleRows ?? []).map((r) => r.user_id as string))];
+          if (ids.length === 0) return;
+          const { data } = await supabase
+            .from("users_view")
+            .select("id, full_name")
+            .in("id", ids)
+            .order("full_name");
+          setUsers((data ?? []) as UserOption[]);
+        });
     }
   }, [canManage, loadActivity]);
 
