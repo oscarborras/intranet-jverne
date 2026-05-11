@@ -140,58 +140,58 @@ export function Header({ userName, userEmail, userRoles }: HeaderProps) {
             priority
           />
           <h1 className="text-base font-semibold text-gray-800 tracking-tight">
-            Intranet IES Julio Verne
+            Bitácora IES Julio Verne
           </h1>
         </div>
 
         {/* Right side: user menu */}
         <div className="flex items-center gap-1">
           <div className="relative">
-          <button
-            onClick={() => setUserMenuOpen((o) => !o)}
-            className="flex items-center gap-2 pl-3 pr-2 py-1.5 rounded-lg hover:bg-gray-100 transition-colors"
-          >
-            <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">
-              {initials}
-            </div>
-            <span className="text-sm font-medium text-gray-700 hidden sm:block max-w-[120px] truncate">
-              {userName}
-            </span>
-            <ChevronDown size={14} className="text-gray-400" />
-          </button>
-
-          {userMenuOpen && (
-            <>
-              <div className="fixed inset-0 z-10" onClick={() => setUserMenuOpen(false)} />
-              <div className="absolute right-0 top-full mt-1 w-56 bg-white rounded-xl shadow-lg border border-gray-100 z-20 py-1">
-                <div className="px-4 py-3 border-b border-gray-100">
-                  <p className="font-medium text-gray-900 text-sm truncate">{userName}</p>
-                  <p className="text-xs text-gray-500 truncate">{userEmail}</p>
-                  <div className="flex flex-wrap gap-1 mt-2">
-                    {userRoles.map((r) => (
-                      <span
-                        key={r.id}
-                        className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full"
-                      >
-                        {r.nombre}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-                <button className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors">
-                  <User size={15} />
-                  Mi perfil
-                </button>
-                <button
-                  onClick={handleLogout}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
-                >
-                  <LogOut size={15} />
-                  Cerrar sesión
-                </button>
+            <button
+              onClick={() => setUserMenuOpen((o) => !o)}
+              className="flex items-center gap-2 pl-3 pr-2 py-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+            >
+              <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">
+                {initials}
               </div>
-            </>
-          )}
+              <span className="text-sm font-medium text-gray-700 hidden sm:block max-w-[120px] truncate">
+                {userName}
+              </span>
+              <ChevronDown size={14} className="text-gray-400" />
+            </button>
+
+            {userMenuOpen && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setUserMenuOpen(false)} />
+                <div className="absolute right-0 top-full mt-1 w-56 bg-white rounded-xl shadow-lg border border-gray-100 z-20 py-1">
+                  <div className="px-4 py-3 border-b border-gray-100">
+                    <p className="font-medium text-gray-900 text-sm truncate">{userName}</p>
+                    <p className="text-xs text-gray-500 truncate">{userEmail}</p>
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {userRoles.map((r) => (
+                        <span
+                          key={r.id}
+                          className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full"
+                        >
+                          {r.nombre}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <button className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors">
+                    <User size={15} />
+                    Mi perfil
+                  </button>
+                  <button
+                    onClick={handleLogout}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                  >
+                    <LogOut size={15} />
+                    Cerrar sesión
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </header>

@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Intranet IES Julio Verne",
+  title: "Bitácora IES Julio Verne",
   description: "Intranet corporativa del IES Julio Verne",
 };
 
