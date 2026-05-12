@@ -16,16 +16,31 @@ export async function POST(req: NextRequest) {
     observaciones: string | null;
     adjunto_path: string | null;
     adjunto_nombre: string | null;
+    profesor_id?: string | null;
   };
 
   if (!body.fecha || !body.tramo_id || !body.curso_id) {
     return NextResponse.json({ error: "Faltan campos obligatorios" }, { status: 400 });
   }
 
+  // Determine target professor: only Directiva/Admin can set a different profesor_id
+  let targetProfesorId = user.id;
+  if (body.profesor_id && body.profesor_id !== user.id) {
+    const { data: roleCheck } = await supabase
+      .from("user_roles_intranet")
+      .select("perfiles_intranet!inner(nombre)")
+      .eq("user_id", user.id)
+      .in("perfiles_intranet.nombre", ["Directiva", "Admin"]);
+    if (!roleCheck || roleCheck.length === 0) {
+      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+    }
+    targetProfesorId = body.profesor_id;
+  }
+
   const { data: ausencia, error } = await supabase
     .from("ausencias_profesorado")
     .insert({
-      profesor_id: user.id,
+      profesor_id: targetProfesorId,
       fecha: body.fecha,
       tramo_id: body.tramo_id,
       curso_id: body.curso_id,
@@ -48,7 +63,7 @@ export async function POST(req: NextRequest) {
 
   // Resolve names for email
   const [{ data: profile }, { data: tramo }, { data: curso }] = await Promise.all([
-    supabase.from("users_view").select("full_name").eq("id", user.id).single(),
+    supabase.from("users_view").select("full_name").eq("id", targetProfesorId).single(),
     supabase.from("tramos_horarios").select("nombre").eq("id", body.tramo_id).single(),
     body.curso_id
       ? supabase.from("cursos").select("nombre").eq("id", body.curso_id).single()
@@ -74,7 +89,7 @@ export async function POST(req: NextRequest) {
 
   await sendAusenciaRegistradaEmail({
     directivaEmails,
-    profesorNombre: profile?.full_name ?? user.email ?? "Profesor/a",
+    profesorNombre: profile?.full_name ?? "Profesor/a",
     codigo,
     fecha: body.fecha,
     tramoNombre: tramo?.nombre ?? "",
@@ -84,5 +99,5 @@ export async function POST(req: NextRequest) {
     observaciones: body.observaciones ?? null,
   }).catch(() => { /* non-blocking */ });
 
-  return NextResponse.json({ success: true, id: ausencia.id, codigo });
+  return NextResponse.json({ success: true, id: ausencia.id, codigo, profesor_id: targetProfesorId });
 }

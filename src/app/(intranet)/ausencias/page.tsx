@@ -18,8 +18,13 @@ export default async function AusenciasPage() {
     (r) => (r.perfiles_intranet as unknown as { nombre: string }).nombre
   );
   const canViewGuardia = roleNames.some((r) => ["Admin", "Directiva", "Guardia"].includes(r));
+  const canManageAll = roleNames.some((r) => ["Admin", "Directiva"].includes(r));
 
   // Fetch supporting data for the form
+  const _since = new Date();
+  _since.setDate(_since.getDate() - 60);
+  const sinceStr = `${_since.getFullYear()}-${String(_since.getMonth() + 1).padStart(2, "0")}-${String(_since.getDate()).padStart(2, "0")}`;
+
   const [{ data: tramos }, { data: cursos }, { data: myProfile }] = await Promise.all([
     supabase.from("tramos_horarios").select("*").order("orden"),
     supabase.from("cursos").select("id, nombre, email_tutor").order("nombre"),
@@ -27,13 +32,11 @@ export default async function AusenciasPage() {
   ]);
 
   // Fetch teacher's own absences (last 60 days + future)
-  const since = new Date();
-  since.setDate(since.getDate() - 60);
   const { data: rawMisAusencias } = await supabase
     .from("ausencias_profesorado")
     .select("*, tramos_horarios(id, nombre, hora_inicio, hora_fin, es_recreo, orden), cursos(id, nombre, email_tutor)")
     .eq("profesor_id", user.id)
-    .gte("fecha", since.toISOString().split("T")[0])
+    .gte("fecha", sinceStr)
     .order("fecha", { ascending: false });
 
   const misAusencias: AusenciaProfesorado[] = (rawMisAusencias ?? []).map((a) => ({
@@ -68,6 +71,18 @@ export default async function AusenciasPage() {
     }
   }
 
+  // Fetch active professors for Directiva/Admin selector
+  let profesores: { id: string; full_name: string }[] = [];
+  if (canManageAll) {
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Madrid" }).format(new Date());
+    const { data: profData } = await supabase
+      .from("profesores")
+      .select("id, profesor")
+      .or(`fecha_cese.is.null,fecha_cese.gt.${today}`)
+      .order("profesor");
+    profesores = (profData ?? []).map((p) => ({ id: p.id as string, full_name: p.profesor as string }));
+  }
+
   return (
     <AusenciasClient
       misAusencias={misAusencias}
@@ -76,6 +91,8 @@ export default async function AusenciasPage() {
       cursos={(cursos ?? []) as Curso[]}
       userId={user.id}
       canViewGuardia={canViewGuardia}
+      canManageAll={canManageAll}
+      profesores={profesores}
     />
   );
 }

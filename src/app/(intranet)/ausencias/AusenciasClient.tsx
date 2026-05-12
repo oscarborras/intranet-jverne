@@ -10,6 +10,11 @@ import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import type { AusenciaProfesorado, TramoHorario, Curso } from "@/lib/types";
 
+interface Profesor {
+  id: string;
+  full_name: string;
+}
+
 interface Props {
   misAusencias: AusenciaProfesorado[];
   guardiaAusencias: AusenciaProfesorado[] | null;
@@ -17,6 +22,8 @@ interface Props {
   cursos: Curso[];
   userId: string;
   canViewGuardia: boolean;
+  canManageAll: boolean;
+  profesores: Profesor[];
 }
 
 type Tab = "mis" | "guardia";
@@ -30,6 +37,7 @@ const EMPTY_FORM = {
   fecha: localDateISO(),
   tramo_id: "",
   curso_id: "",
+  profesor_id: "",
   aula: "",
   tareas: "",
   observaciones: "",
@@ -98,11 +106,12 @@ function DownloadButton({ path, nombre }: { path: string; nombre: string }) {
 
 // ─── Guardia view ─────────────────────────────────────────────────────────────
 
-function GuardiaView({ initial, initialFecha, tramos }: { initial: AusenciaProfesorado[]; initialFecha: string; tramos: TramoHorario[] }) {
+function GuardiaView({ initial, initialFecha, tramos, refreshKey }: { initial: AusenciaProfesorado[]; initialFecha: string; tramos: TramoHorario[]; refreshKey: number }) {
   const [fecha, setFecha] = useState(initialFecha);
   const [ausencias, setAusencias] = useState(initial);
   const [loading, setLoading] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+  const isFirstRender = useRef(true);
 
   const loadFecha = useCallback(async (f: string) => {
     setLoading(true);
@@ -116,12 +125,12 @@ function GuardiaView({ initial, initialFecha, tramos }: { initial: AusenciaProfe
 
     if (rows && rows.length > 0) {
       const ids = [...new Set(rows.map((r) => r.profesor_id as string))];
-      const { data: profiles } = await supabase
-        .from("users_view")
-        .select("id, full_name")
+      const { data: profData } = await supabase
+        .from("profesores")
+        .select("id, profesor")
         .in("id", ids);
       const nameMap = Object.fromEntries(
-        (profiles ?? []).map((p) => [p.id, p.full_name as string])
+        (profData ?? []).map((p) => [p.id as string, p.profesor as string])
       );
       setAusencias(rows.map((r) => ({
         ...r,
@@ -134,10 +143,17 @@ function GuardiaView({ initial, initialFecha, tramos }: { initial: AusenciaProfe
     setLastUpdated(new Date());
   }, []);
 
+  // Auto-refresh every 2 minutes
   useEffect(() => {
     const id = setInterval(() => loadFecha(fecha), 2 * 60 * 1000);
     return () => clearInterval(id);
   }, [fecha, loadFecha]);
+
+  // Refresh when parent signals a new absence was created
+  useEffect(() => {
+    if (isFirstRender.current) { isFirstRender.current = false; return; }
+    loadFecha(fecha);
+  }, [refreshKey, fecha, loadFecha]);
 
   function handleFechaChange(f: string) {
     setFecha(f);
@@ -278,6 +294,8 @@ export function AusenciasClient({
   cursos,
   userId,
   canViewGuardia,
+  canManageAll,
+  profesores,
 }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>(canViewGuardia ? "guardia" : "mis");
   const [misAusencias, setMisAusencias] = useState(initialAusencias);
@@ -289,6 +307,7 @@ export function AusenciasClient({
   const [formError, setFormError] = useState<string | null>(null);
   const [cancellingId, setCancellingId] = useState<number | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [guardiaRefreshKey, setGuardiaRefreshKey] = useState(0);
 
   const today = localDateISO();
 
@@ -304,8 +323,14 @@ export function AusenciasClient({
       setFormError("Fecha, tramo y curso / grupo son obligatorios.");
       return;
     }
+    if (canManageAll && !form.profesor_id) {
+      setFormError("Selecciona el profesor/a al que corresponde la ausencia.");
+      return;
+    }
     setSaving(true);
     setFormError(null);
+
+    const targetProfesorId = canManageAll && form.profesor_id ? form.profesor_id : userId;
 
     let adjunto_path: string | null = null;
     let adjunto_nombre: string | null = null;
@@ -338,10 +363,11 @@ export function AusenciasClient({
         observaciones: form.observaciones || null,
         adjunto_path,
         adjunto_nombre,
+        profesor_id: targetProfesorId,
       }),
     });
 
-    const json = await res.json() as { success?: boolean; id?: number; codigo?: string; error?: string };
+    const json = await res.json() as { success?: boolean; id?: number; codigo?: string; profesor_id?: string; error?: string };
 
     if (!res.ok || !json.success) {
       setFormError(json.error ?? "Error al registrar la ausencia.");
@@ -349,33 +375,39 @@ export function AusenciasClient({
       return;
     }
 
-    const tramo = tramos.find((t) => t.id === Number(form.tramo_id));
-    const curso = cursos.find((c) => c.id === Number(form.curso_id)) ?? null;
+    // Only add to "mis ausencias" if it's the current user's own absence
+    if (targetProfesorId === userId) {
+      const tramo = tramos.find((t) => t.id === Number(form.tramo_id));
+      const curso = cursos.find((c) => c.id === Number(form.curso_id)) ?? null;
+      const newAusencia: AusenciaProfesorado = {
+        id: json.id!,
+        codigo: json.codigo ?? null,
+        profesor_id: userId,
+        fecha: form.fecha,
+        tramo_id: Number(form.tramo_id),
+        curso_id: Number(form.curso_id),
+        aula: form.aula || null,
+        tareas: form.tareas || null,
+        observaciones: form.observaciones || null,
+        adjunto_path,
+        adjunto_nombre,
+        estado: "activa",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        tramos_horarios: tramo,
+        cursos: curso,
+      };
+      setMisAusencias((prev) => [newAusencia, ...prev]);
+      setActiveTab("mis");
+    } else {
+      // Created for another professor: refresh guardia view and switch to it
+      setGuardiaRefreshKey((k) => k + 1);
+      setActiveTab("guardia");
+    }
 
-    const newAusencia: AusenciaProfesorado = {
-      id: json.id!,
-      codigo: json.codigo ?? null,
-      profesor_id: userId,
-      fecha: form.fecha,
-      tramo_id: Number(form.tramo_id),
-      curso_id: Number(form.curso_id),
-      aula: form.aula || null,
-      tareas: form.tareas || null,
-      observaciones: form.observaciones || null,
-      adjunto_path,
-      adjunto_nombre,
-      estado: "activa",
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      tramos_horarios: tramo,
-      cursos: curso,
-    };
-
-    setMisAusencias((prev) => [newAusencia, ...prev]);
     resetForm();
     setShowForm(false);
     setSaving(false);
-    setActiveTab("mis");
   }
 
   async function handleCancel(id: number) {
@@ -444,7 +476,7 @@ export function AusenciasClient({
 
       {/* ── Vista Guardia ── */}
       {activeTab === "guardia" && guardiaAusencias !== null && (
-        <GuardiaView initial={guardiaAusencias} initialFecha={today} tramos={tramos} />
+        <GuardiaView initial={guardiaAusencias} initialFecha={today} tramos={tramos} refreshKey={guardiaRefreshKey} />
       )}
 
       {/* ── Mis Ausencias ── */}
@@ -468,6 +500,25 @@ export function AusenciasClient({
                 {formError && (
                   <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm text-red-700">
                     <AlertCircle size={14} className="flex-shrink-0" /> {formError}
+                  </div>
+                )}
+
+                {/* Profesor selector — only for Directiva/Admin */}
+                {canManageAll && (
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">
+                      Profesor/a <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={form.profesor_id}
+                      onChange={(e) => setForm((f) => ({ ...f, profesor_id: e.target.value }))}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white"
+                    >
+                      <option value="">Selecciona un profesor/a</option>
+                      {profesores.map((p) => (
+                        <option key={p.id} value={p.id}>{p.full_name}</option>
+                      ))}
+                    </select>
                   </div>
                 )}
 
