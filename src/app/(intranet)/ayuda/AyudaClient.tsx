@@ -538,6 +538,25 @@ export function AyudaClient() {
         )}
       </div>
 
+      {/* Web del Claustro */}
+      {!active && (
+        <a
+          href="https://sites.google.com/iesjulioverne.es/webclaustro/inicio?authuser=0"
+          target="_blank"
+          rel="noreferrer"
+          className="flex items-center gap-4 bg-white rounded-xl border border-gray-100 p-4 hover:border-gray-200 hover:shadow-sm transition-all group"
+        >
+          <div className="w-11 h-11 rounded-xl bg-indigo-600 flex items-center justify-center flex-shrink-0">
+            <ExternalLink size={20} className="text-white" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-gray-900 text-sm">Web de ayuda del Claustro</p>
+            <p className="text-xs text-gray-500 mt-0.5">Documentación y recursos del claustro de IES Julio Verne</p>
+          </div>
+          <ChevronRight size={16} className="text-gray-300 group-hover:text-gray-500 flex-shrink-0 transition-colors" />
+        </a>
+      )}
+
       {/* Home: sections */}
       {!active && (
         <div className="space-y-5">
