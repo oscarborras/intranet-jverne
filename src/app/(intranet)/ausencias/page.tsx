@@ -44,7 +44,7 @@ export default async function AusenciasPage() {
   // Fetch today's absences for guardia view
   let guardiaAusencias: AusenciaProfesorado[] = [];
   if (canViewGuardia) {
-    const today = new Date().toISOString().split("T")[0];
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Madrid" }).format(new Date());
     const { data: rawGuardia } = await supabase
       .from("ausencias_profesorado")
       .select("*, tramos_horarios(id, nombre, hora_inicio, hora_fin, es_recreo, orden), cursos(id, nombre, email_tutor)")

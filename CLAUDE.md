@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+@.agents/rules/programacion.md
+
 ## Project Overview
 
 Intranet web application for IES Julio Verne school. Named **"Intranet-jv"** in production (student relations/coexistence management). Built with Next.js + TypeScript + Supabase.

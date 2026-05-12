@@ -21,8 +21,13 @@ interface Props {
 
 type Tab = "mis" | "guardia";
 
+function localDateISO(): string {
+  const d = new Date();
+  return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, "0"), String(d.getDate()).padStart(2, "0")].join("-");
+}
+
 const EMPTY_FORM = {
-  fecha: new Date().toISOString().split("T")[0],
+  fecha: localDateISO(),
   tramo_id: "",
   curso_id: "",
   aula: "",
@@ -139,7 +144,7 @@ function GuardiaView({ initial, initialFecha, tramos }: { initial: AusenciaProfe
     loadFecha(f);
   }
 
-  const isToday = fecha === new Date().toISOString().split("T")[0];
+  const isToday = fecha === localDateISO();
 
   return (
     <div className="space-y-4">
@@ -285,7 +290,7 @@ export function AusenciasClient({
   const [cancellingId, setCancellingId] = useState<number | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = localDateISO();
 
   function resetForm() {
     setForm(EMPTY_FORM);
