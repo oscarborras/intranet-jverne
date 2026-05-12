@@ -271,6 +271,38 @@ export interface AuditLog {
   usuario?: { full_name: string; email: string };
 }
 
+// ─── Courses ─────────────────────────────────────────────────────────────────
+
+export interface Curso {
+  id: number;
+  nombre: string;
+  email_tutor: string | null;
+}
+
+// ─── Absences ────────────────────────────────────────────────────────────────
+
+export type AusenciaEstado = "activa" | "cancelada";
+
+export interface AusenciaProfesorado {
+  id: number;
+  codigo: string | null;
+  profesor_id: string;
+  fecha: string;
+  tramo_id: number;
+  curso_id: number | null;
+  aula: string | null;
+  tareas: string | null;
+  observaciones: string | null;
+  adjunto_path: string | null;
+  adjunto_nombre: string | null;
+  estado: AusenciaEstado;
+  created_at: string;
+  updated_at: string;
+  tramos_horarios?: TramoHorario;
+  cursos?: Curso | null;
+  profesor?: { full_name: string };
+}
+
 // ─── Family Appointments ─────────────────────────────────────────────────────
 
 export type CitaFamiliaEstado = "pendiente" | "confirmada" | "completada" | "cancelada";

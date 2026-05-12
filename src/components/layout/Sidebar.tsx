@@ -17,6 +17,7 @@ import {
   ChevronDown,
   Settings,
   CalendarClock,
+  UserX,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -44,6 +45,7 @@ const navGroups: NavGroup[] = [
       { label: "Calendario", href: "/calendario", icon: <Calendar size={18} />, slug: "calendario" },
       { label: "Tablón de Anuncios", href: "/anuncios", icon: <Megaphone size={18} />, slug: "anuncios" },
       { label: "Citas con Familias", href: "/citas-familias", icon: <CalendarClock size={18} />, slug: "citas-familias" },
+      { label: "Ausencias", href: "/ausencias", icon: <UserX size={18} />, slug: "ausencias" },
     ],
   },
   {
