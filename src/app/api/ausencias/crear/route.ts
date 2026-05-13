@@ -23,9 +23,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Faltan campos obligatorios" }, { status: 400 });
   }
 
+  // Look up current user's profesores.id
+  const { data: myProfesorRow } = await supabase
+    .from("profesores")
+    .select("id")
+    .ilike("email", user.email!)
+    .single();
+  const myProfesorId = myProfesorRow?.id ?? null;
+
   // Determine target professor: only Directiva/Admin can set a different profesor_id
-  let targetProfesorId = user.id;
-  if (body.profesor_id && body.profesor_id !== user.id) {
+  let targetProfesorId = myProfesorId;
+  if (body.profesor_id && body.profesor_id !== myProfesorId) {
     const { data: roleCheck } = await supabase
       .from("user_roles_intranet")
       .select("perfiles_intranet!inner(nombre)")
@@ -35,6 +43,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "No autorizado" }, { status: 403 });
     }
     targetProfesorId = body.profesor_id;
+  }
+
+  if (!targetProfesorId) {
+    return NextResponse.json({ error: "Profesor no encontrado" }, { status: 400 });
   }
 
   const { data: ausencia, error } = await supabase

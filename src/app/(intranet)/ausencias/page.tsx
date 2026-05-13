@@ -25,24 +25,29 @@ export default async function AusenciasPage() {
   _since.setDate(_since.getDate() - 60);
   const sinceStr = `${_since.getFullYear()}-${String(_since.getMonth() + 1).padStart(2, "0")}-${String(_since.getDate()).padStart(2, "0")}`;
 
-  const [{ data: tramos }, { data: cursos }, { data: myProfile }] = await Promise.all([
+  const [{ data: tramos }, { data: cursos }, { data: myProfesorRow }] = await Promise.all([
     supabase.from("tramos_horarios").select("*").order("orden"),
     supabase.from("cursos").select("id, nombre, email_tutor").order("nombre"),
-    supabase.from("users_view").select("full_name").eq("id", user.id).single(),
+    supabase.from("profesores").select("id, profesor").ilike("email", user.email!).single(),
   ]);
 
-  // Fetch teacher's own absences (last 60 days + future)
-  const { data: rawMisAusencias } = await supabase
-    .from("ausencias_profesorado")
-    .select("*, tramos_horarios(id, nombre, hora_inicio, hora_fin, es_recreo, orden), cursos(id, nombre, email_tutor)")
-    .eq("profesor_id", user.id)
-    .gte("fecha", sinceStr)
-    .order("fecha", { ascending: false });
+  const myProfesorId: string | null = myProfesorRow?.id ?? null;
 
-  const misAusencias: AusenciaProfesorado[] = (rawMisAusencias ?? []).map((a) => ({
-    ...a,
-    profesor: { full_name: myProfile?.full_name ?? "—" },
-  }));
+  // Fetch teacher's own absences (last 60 days + future)
+  let misAusencias: AusenciaProfesorado[] = [];
+  if (myProfesorId) {
+    const { data: rawMisAusencias } = await supabase
+      .from("ausencias_profesorado")
+      .select("*, tramos_horarios(id, nombre, hora_inicio, hora_fin, es_recreo, orden), cursos(id, nombre, email_tutor)")
+      .eq("profesor_id", myProfesorId)
+      .gte("fecha", sinceStr)
+      .order("fecha", { ascending: false });
+
+    misAusencias = (rawMisAusencias ?? []).map((a) => ({
+      ...a,
+      profesor: { full_name: myProfesorRow?.profesor ?? "—" },
+    }));
+  }
 
   // Fetch today's absences for guardia view
   let guardiaAusencias: AusenciaProfesorado[] = [];
@@ -57,12 +62,12 @@ export default async function AusenciasPage() {
 
     if (rawGuardia && rawGuardia.length > 0) {
       const ids = [...new Set(rawGuardia.map((a) => a.profesor_id as string))];
-      const { data: profiles } = await supabase
-        .from("users_view")
-        .select("id, full_name")
+      const { data: profProfiles } = await supabase
+        .from("profesores")
+        .select("id, profesor")
         .in("id", ids);
       const nameMap = Object.fromEntries(
-        (profiles ?? []).map((p) => [p.id, p.full_name as string])
+        (profProfiles ?? []).map((p) => [p.id as string, p.profesor as string])
       );
       guardiaAusencias = rawGuardia.map((a) => ({
         ...a,
@@ -80,7 +85,10 @@ export default async function AusenciasPage() {
       .select("id, profesor")
       .or(`fecha_cese.is.null,fecha_cese.gt.${today}`)
       .order("profesor");
-    profesores = (profData ?? []).map((p) => ({ id: p.id as string, full_name: p.profesor as string }));
+    profesores = (profData ?? []).map((p) => ({
+      id: p.id as string,
+      full_name: p.profesor as string,
+    }));
   }
 
   return (
@@ -90,6 +98,7 @@ export default async function AusenciasPage() {
       tramos={(tramos ?? []) as TramoHorario[]}
       cursos={(cursos ?? []) as Curso[]}
       userId={user.id}
+      myProfesorId={myProfesorId}
       canViewGuardia={canViewGuardia}
       canManageAll={canManageAll}
       profesores={profesores}

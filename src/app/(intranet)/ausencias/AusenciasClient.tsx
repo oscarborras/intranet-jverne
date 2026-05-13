@@ -21,6 +21,7 @@ interface Props {
   tramos: TramoHorario[];
   cursos: Curso[];
   userId: string;
+  myProfesorId: string | null;
   canViewGuardia: boolean;
   canManageAll: boolean;
   profesores: Profesor[];
@@ -129,9 +130,10 @@ function GuardiaView({ initial, initialFecha, tramos, refreshKey }: { initial: A
         .from("profesores")
         .select("id, profesor")
         .in("id", ids);
-      const nameMap = Object.fromEntries(
-        (profData ?? []).map((p) => [p.id as string, p.profesor as string])
-      );
+      const nameMap: Record<string, string> = {};
+      for (const p of profData ?? []) {
+        nameMap[p.id as string] = p.profesor as string;
+      }
       setAusencias(rows.map((r) => ({
         ...r,
         profesor: { full_name: nameMap[r.profesor_id as string] ?? "—" },
@@ -293,6 +295,7 @@ export function AusenciasClient({
   tramos,
   cursos,
   userId,
+  myProfesorId,
   canViewGuardia,
   canManageAll,
   profesores,
@@ -330,7 +333,7 @@ export function AusenciasClient({
     setSaving(true);
     setFormError(null);
 
-    const targetProfesorId = canManageAll && form.profesor_id ? form.profesor_id : userId;
+    const targetProfesorId = canManageAll && form.profesor_id ? form.profesor_id : (myProfesorId ?? userId);
 
     let adjunto_path: string | null = null;
     let adjunto_nombre: string | null = null;
@@ -376,13 +379,13 @@ export function AusenciasClient({
     }
 
     // Only add to "mis ausencias" if it's the current user's own absence
-    if (targetProfesorId === userId) {
+    if (targetProfesorId === myProfesorId) {
       const tramo = tramos.find((t) => t.id === Number(form.tramo_id));
       const curso = cursos.find((c) => c.id === Number(form.curso_id)) ?? null;
       const newAusencia: AusenciaProfesorado = {
         id: json.id!,
         codigo: json.codigo ?? null,
-        profesor_id: userId,
+        profesor_id: myProfesorId!,
         fecha: form.fecha,
         tramo_id: Number(form.tramo_id),
         curso_id: Number(form.curso_id),
