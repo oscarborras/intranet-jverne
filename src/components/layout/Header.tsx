@@ -23,6 +23,7 @@ import {
   HelpCircle,
   Settings,
   CalendarClock,
+  UserX,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -55,6 +56,7 @@ const navGroups: NavGroup[] = [
       { label: "Calendario", href: "/calendario", icon: <Calendar size={18} /> },
       { label: "Tablón de Anuncios", href: "/anuncios", icon: <Megaphone size={18} /> },
       { label: "Citas con Familias", href: "/citas-familias", icon: <CalendarClock size={18} /> },
+      { label: "Ausencias", href: "/ausencias", icon: <UserX size={18} /> },
     ],
   },
   {

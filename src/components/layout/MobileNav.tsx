@@ -2,15 +2,16 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Calendar, Megaphone, Monitor, Wrench } from "lucide-react";
+import { LayoutDashboard, Calendar, Megaphone, Monitor, Wrench, UserX } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const mobileNavItems = [
-  { label: "Inicio",    href: "/dashboard",                  icon: <LayoutDashboard size={20} />, slug: undefined },
-  { label: "Calendario", href: "/calendario",                icon: <Calendar size={20} />,        slug: "calendario" },
-  { label: "Anuncios",  href: "/anuncios",                   icon: <Megaphone size={20} />,       slug: "anuncios" },
-  { label: "TIC",       href: "/peticiones-tic",             icon: <Monitor size={20} />,         slug: "peticiones-tic" },
-  { label: "Mant.",     href: "/peticiones-mantenimiento",   icon: <Wrench size={20} />,          slug: "peticiones-mantenimiento" },
+  { label: "Inicio",     href: "/dashboard",                  icon: <LayoutDashboard size={20} />, slug: undefined },
+  { label: "Calendario", href: "/calendario",                 icon: <Calendar size={20} />,        slug: "calendario" },
+  { label: "Anuncios",   href: "/anuncios",                   icon: <Megaphone size={20} />,       slug: "anuncios" },
+  { label: "Ausencias",  href: "/ausencias",                  icon: <UserX size={20} />,           slug: "ausencias" },
+  { label: "TIC",        href: "/peticiones-tic",             icon: <Monitor size={20} />,         slug: "peticiones-tic" },
+  { label: "Mant.",      href: "/peticiones-mantenimiento",   icon: <Wrench size={20} />,          slug: "peticiones-mantenimiento" },
 ];
 
 interface MobileNavProps {
