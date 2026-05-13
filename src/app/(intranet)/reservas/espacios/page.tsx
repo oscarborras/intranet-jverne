@@ -52,7 +52,7 @@ export default async function ReservaEspaciosPage() {
     const p = ur.perfiles_intranet as unknown as { nombre: string } | null;
     return p?.nombre ?? "";
   });
-  const isAdmin = roleNames.includes("Admin");
+  const isAdmin = roleNames.some(r => ["Admin", "TDE"].includes(r));
   const canBulkReserve = roleNames.some(r => ["Admin", "Directiva", "TDE"].includes(r));
 
   return (
