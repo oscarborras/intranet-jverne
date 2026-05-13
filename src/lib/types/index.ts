@@ -342,3 +342,84 @@ export interface CitaFamilia {
   updated_at: string;
   profesor?: { full_name: string; email: string };
 }
+
+// ─── Gratuidad de Libros ──────────────────────────────────────────────────────
+
+export type TipoIncidencia = "deterioro" | "perdida" | "reclamacion" | "robo" | "otro";
+export type EstadoIncidencia = "abierta" | "en_gestion" | "repuesta" | "archivada";
+
+export interface IncidenciaHistorial {
+  id: string;
+  incidencia_id: string;
+  estado: EstadoIncidencia;
+  nota: string | null;
+  profesor_id: string | null;
+  created_at: string;
+  profesor?: { profesor: string };
+}
+
+export interface Incidencia {
+  id: string;
+  codigo: string;
+  prestamo_id: string | null;
+  alumno_id: string | null;
+  alumno_nombre: string;
+  alumno_grupo: string;
+  libro_id: string | null;
+  tipo: TipoIncidencia;
+  descripcion: string | null;
+  estado: EstadoIncidencia;
+  curso_escolar: string;
+  coste_estimado: number | null;
+  gestionado_por: string | null;
+  notas_gestion: string | null;
+  fecha_resolucion: string | null;
+  created_at: string;
+  updated_at: string;
+  libro?: { titulo: string; isbn: string | null; editorial: string | null };
+  historial?: IncidenciaHistorial[];
+}
+
+export interface Alumno {
+  id: string;
+  alumno: string;             // "Apellido1 Apellido2, Nombre"
+  nombre: string | null;
+  primer_apellido: string | null;
+  segundo_apellido: string | null;
+  unidad: string;
+}
+
+export interface LibroCatalogo {
+  id: string;
+  titulo: string;
+  editorial: string | null;
+  isbn: string | null;
+  asignatura: string;
+  nivel: string;
+  stock_total: number;
+  activo: boolean;
+  created_at: string;
+}
+
+export type EstadoDevolucion = "bueno" | "deteriorado" | "perdido";
+
+export interface PrestamoLibro {
+  id: string;
+  libro_id: string;
+  alumno_id: string | null;
+  curso_escolar: string;
+  alumno_nombre: string;
+  alumno_grupo: string;
+  num_ejemplar: string | null;
+  fecha_prestamo: string;
+  fecha_devolucion: string | null;
+  estado_devolucion: EstadoDevolucion | null;
+  observaciones: string | null;
+  entregado_por: string;
+  devuelto_por: string | null;
+  created_at: string;
+  // Relaciones resueltas en el servidor
+  libro?: { titulo: string; asignatura: string; nivel: string };
+  entregado_por_nombre?: { profesor: string };
+  devuelto_por_nombre?: { profesor: string };
+}

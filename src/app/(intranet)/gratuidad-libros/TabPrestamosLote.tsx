@@ -1,0 +1,673 @@
+"use client";
+
+import { useState, useMemo, useCallback } from "react";
+import { createClient } from "@/lib/supabase/client";
+import {
+  CheckCircle, AlertTriangle, X, Users, BookOpen, CalendarDays, ChevronDown, SquareCheck,
+} from "lucide-react";
+import type { Alumno, LibroCatalogo, PrestamoLibro } from "@/lib/types";
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function nivelFromUnidad(unidad: string): string | null {
+  if (unidad.startsWith("1º ESO")) return "1º ESO";
+  if (unidad.startsWith("2º ESO")) return "2º ESO";
+  if (unidad.startsWith("3º ESO")) return "3º ESO";
+  if (unidad.startsWith("4º ESO")) return "4º ESO";
+  if (unidad.startsWith("1º BACH")) return "1º Bach";
+  if (unidad.startsWith("2º BACH")) return "2º Bach";
+  if (/CFGB|FPBS/i.test(unidad)) return "FP Básica";
+  return null;
+}
+
+function initials(alumno: Alumno): string {
+  const p = alumno.primer_apellido?.[0] ?? "";
+  const n = alumno.nombre?.[0] ?? "";
+  return (p + n).toUpperCase() || alumno.alumno.slice(0, 2).toUpperCase();
+}
+
+function todayString(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+// ─── Modal de alerta de stock ─────────────────────────────────────────────────
+
+interface StockAlerta { titulo: string; disponibles: number; solicitados: number; }
+
+interface ModalStockProps {
+  alertas: StockAlerta[];
+  onCancel: () => void;
+  onForce: () => void;
+  saving: boolean;
+}
+
+function ModalStockAlert({ alertas, onCancel, onForce, saving }: ModalStockProps) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm">
+        <div className="px-5 py-4 border-b flex items-center gap-3">
+          <AlertTriangle size={20} className="text-amber-500 flex-shrink-0" />
+          <h2 className="font-semibold text-gray-900">Stock insuficiente</h2>
+        </div>
+        <div className="px-5 py-4 space-y-2">
+          <p className="text-sm text-gray-600 mb-3">
+            Algunos libros no tienen suficientes ejemplares disponibles:
+          </p>
+          {alertas.map((a) => (
+            <div key={a.titulo} className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-sm">
+              <p className="font-medium text-gray-800 truncate">{a.titulo}</p>
+              <p className="text-amber-700">
+                {a.disponibles} disponibles · {a.solicitados} solicitados
+              </p>
+            </div>
+          ))}
+          <p className="text-xs text-gray-400 pt-1">
+            Puedes continuar igualmente; los libros sin stock no se asignarán.
+          </p>
+        </div>
+        <div className="flex gap-3 px-5 py-4 border-t">
+          <button
+            onClick={onCancel}
+            className="flex-1 border border-gray-300 text-gray-700 text-sm font-medium py-2.5 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            Revisar
+          </button>
+          <button
+            onClick={onForce}
+            disabled={saving}
+            className="flex-1 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-sm font-medium py-2.5 rounded-lg transition-colors"
+          >
+            {saving ? "Guardando..." : "Entregar igualmente"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Props ────────────────────────────────────────────────────────────────────
+
+interface Profesor { id: string; nombre: string; }
+
+interface Props {
+  alumnos: Alumno[];
+  libros: LibroCatalogo[];
+  prestamos: PrestamoLibro[];
+  onPrestamosChange: React.Dispatch<React.SetStateAction<PrestamoLibro[]>>;
+  cursoEscolar: string;
+  myProfesorId: string | null;
+  canManage: boolean;
+  profesores: Profesor[];
+  unidadesGratuidad: string[];
+  completadosIniciales: string[];
+  initialGrupo?: string;
+}
+
+// ─── Componente principal ─────────────────────────────────────────────────────
+
+export function TabPrestamosLote({ alumnos, libros, prestamos, onPrestamosChange, cursoEscolar, myProfesorId, canManage, profesores, unidadesGratuidad, completadosIniciales, initialGrupo }: Props) {
+  const supabase = createClient();
+
+  // ── State ──────────────────────────────────────────────────────────────────
+  const [selectedUnidad, setSelectedUnidad] = useState<string>(initialGrupo ?? "");
+  const [selectedAlumnoIds, setSelectedAlumnoIds] = useState<Set<string>>(new Set());
+  const [selectedLibroIds, setSelectedLibroIds] = useState<Set<string>>(() => {
+    if (!initialGrupo) return new Set();
+    const nv = nivelFromUnidad(initialGrupo);
+    if (!nv) return new Set();
+    const lote = libros.filter((l) => l.nivel === nv && l.activo);
+    const counts = prestamos.reduce<Record<string, number>>((acc, p) => {
+      acc[p.libro_id] = (acc[p.libro_id] ?? 0) + 1;
+      return acc;
+    }, {});
+    return new Set(lote.filter((l) => (l.stock_total - (counts[l.id] ?? 0)) > 0).map((l) => l.id));
+  });
+  const [fechaEntrega, setFechaEntrega] = useState<string>(todayString());
+  const [saving, setSaving] = useState(false);
+  const [stockAlertas, setStockAlertas] = useState<StockAlerta[]>([]);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  // Si el usuario no tiene perfil de profesor propio (canManage sin cuenta profesor),
+  // permite seleccionar manualmente quién registra la entrega.
+  const [overrideProfesorId, setOverrideProfesorId] = useState<string>(myProfesorId ?? "");
+  const [localCompletados, setLocalCompletados] = useState<Set<string>>(new Set(completadosIniciales));
+  const [markingId, setMarkingId] = useState<string | null>(null);
+
+  const efectivoProfesorId = myProfesorId ?? (overrideProfesorId || null);
+
+  // ── Derived ────────────────────────────────────────────────────────────────
+
+  const unidades = useMemo(() => {
+    const gratuidadSet = new Set(unidadesGratuidad);
+    return [...new Set(alumnos.map((a) => a.unidad))]
+      .filter((u) => gratuidadSet.has(u))
+      .sort();
+  }, [alumnos, unidadesGratuidad]);
+
+  const nivel = selectedUnidad ? nivelFromUnidad(selectedUnidad) : null;
+
+  const alumnosDelGrupo = useMemo(
+    () => alumnos.filter((a) => a.unidad === selectedUnidad),
+    [alumnos, selectedUnidad]
+  );
+
+  const loteLibros = useMemo(
+    () => (nivel ? libros.filter((l) => l.nivel === nivel && l.activo) : []),
+    [libros, nivel]
+  );
+
+  // Loan counts per libro (active loans, any group)
+  const loanCountsPerLibro = useMemo(() => {
+    return prestamos.reduce<Record<string, number>>((acc, p) => {
+      acc[p.libro_id] = (acc[p.libro_id] ?? 0) + 1;
+      return acc;
+    }, {});
+  }, [prestamos]);
+
+  // Disponibles per libro
+  const disponibles = useCallback(
+    (libroId: string) => {
+      const libro = libros.find((l) => l.id === libroId);
+      return Math.max(0, (libro?.stock_total ?? 0) - (loanCountsPerLibro[libroId] ?? 0));
+    },
+    [libros, loanCountsPerLibro]
+  );
+
+  // Books each alumno already has from the lote (Set<libro_id> per alumno_id)
+  const alumnoLibrosMap = useMemo(() => {
+    const loteIds = new Set(loteLibros.map((l) => l.id));
+    const map: Record<string, Set<string>> = {};
+    for (const p of prestamos) {
+      if (p.alumno_id && loteIds.has(p.libro_id)) {
+        if (!map[p.alumno_id]) map[p.alumno_id] = new Set();
+        map[p.alumno_id].add(p.libro_id);
+      }
+    }
+    return map;
+  }, [prestamos, loteLibros]);
+
+  // Count of students with complete lote (all books OR manually marked)
+  const totalConLoteCompleto = useMemo(() => {
+    if (loteLibros.length === 0) return 0;
+    return alumnosDelGrupo.filter(
+      (a) => (alumnoLibrosMap[a.id]?.size ?? 0) >= loteLibros.length || localCompletados.has(a.id)
+    ).length;
+  }, [alumnosDelGrupo, alumnoLibrosMap, loteLibros, localCompletados]);
+
+  // New records that would be inserted with current selection
+  const newRecordsCount = useMemo(() => {
+    let count = 0;
+    for (const alumnoId of selectedAlumnoIds) {
+      const existing = alumnoLibrosMap[alumnoId] ?? new Set();
+      for (const libroId of selectedLibroIds) {
+        if (!existing.has(libroId)) count++;
+      }
+    }
+    return count;
+  }, [selectedAlumnoIds, selectedLibroIds, alumnoLibrosMap]);
+
+  // ── Actions ────────────────────────────────────────────────────────────────
+
+  function handleUnidadChange(unidad: string) {
+    setSelectedUnidad(unidad);
+    setSelectedAlumnoIds(new Set());
+    setSuccessMsg(null);
+    // Pre-select all lote books with stock > 0
+    const nv = nivelFromUnidad(unidad);
+    const lote = libros.filter((l) => l.nivel === nv && l.activo);
+    const counts = prestamos.reduce<Record<string, number>>((acc, p) => {
+      acc[p.libro_id] = (acc[p.libro_id] ?? 0) + 1;
+      return acc;
+    }, {});
+    const withStock = lote.filter((l) => (l.stock_total - (counts[l.id] ?? 0)) > 0);
+    setSelectedLibroIds(new Set(withStock.map((l) => l.id)));
+  }
+
+  function toggleAlumno(id: string) {
+    setSelectedAlumnoIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleLibro(id: string) {
+    setSelectedLibroIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function handleSelectAll() {
+    if (selectedAlumnoIds.size === alumnosDelGrupo.length) {
+      setSelectedAlumnoIds(new Set());
+    } else {
+      setSelectedAlumnoIds(new Set(alumnosDelGrupo.map((a) => a.id)));
+    }
+  }
+
+  async function doEntregar(libroIdsToUse: Set<string>) {
+    if (!efectivoProfesorId) {
+      setErrorMsg("Selecciona el profesor que registra la entrega antes de continuar.");
+      return;
+    }
+    setSaving(true);
+    setErrorMsg(null);
+
+    const inserts: Record<string, unknown>[] = [];
+    for (const alumnoId of selectedAlumnoIds) {
+      const alumno = alumnos.find((a) => a.id === alumnoId)!;
+      const existing = alumnoLibrosMap[alumnoId] ?? new Set();
+      for (const libroId of libroIdsToUse) {
+        if (!existing.has(libroId)) {
+          inserts.push({
+            libro_id: libroId,
+            alumno_id: alumnoId,
+            alumno_nombre: alumno.alumno,
+            alumno_grupo: alumno.unidad,
+            curso_escolar: cursoEscolar,
+            fecha_prestamo: fechaEntrega,
+            entregado_por: efectivoProfesorId,
+          });
+        }
+      }
+    }
+
+    if (inserts.length === 0) {
+      setStockAlertas([]);
+      setSaving(false);
+      setSuccessMsg("Todos los alumnos seleccionados ya tienen estos libros.");
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("prestamos_libros")
+      .insert(inserts)
+      .select("id, libro_id, alumno_id, alumno_nombre, alumno_grupo, num_ejemplar, fecha_prestamo, entregado_por, devuelto_por, curso_escolar, fecha_devolucion, estado_devolucion, observaciones, created_at");
+
+    setSaving(false);
+    setStockAlertas([]);
+
+    if (error || !data) {
+      setErrorMsg(`Error al guardar: ${error?.message ?? "respuesta inesperada del servidor"}`);
+      return;
+    }
+
+    onPrestamosChange((prev) => [...prev, ...(data as PrestamoLibro[])]);
+    setSelectedAlumnoIds(new Set());
+    setSuccessMsg(`${inserts.length} préstamo${inserts.length !== 1 ? "s" : ""} registrado${inserts.length !== 1 ? "s" : ""} correctamente.`);
+  }
+
+  async function handleMarcarCompleto(alumnoId: string) {
+    if (!efectivoProfesorId) {
+      setErrorMsg("Selecciona el profesor que registra la entrega antes de continuar.");
+      return;
+    }
+    setMarkingId(alumnoId);
+    const { error } = await supabase
+      .from("gratuidad_lote_completado")
+      .insert({ alumno_id: alumnoId, curso_escolar: cursoEscolar, marcado_por: efectivoProfesorId });
+    setMarkingId(null);
+    if (error) { setErrorMsg(`Error al marcar: ${error.message}`); return; }
+    setLocalCompletados((prev) => new Set([...prev, alumnoId]));
+  }
+
+  async function handleDesmarcarCompleto(alumnoId: string) {
+    setMarkingId(alumnoId);
+    const { error } = await supabase
+      .from("gratuidad_lote_completado")
+      .delete()
+      .eq("alumno_id", alumnoId)
+      .eq("curso_escolar", cursoEscolar);
+    setMarkingId(null);
+    if (error) { setErrorMsg(`Error al desmarcar: ${error.message}`); return; }
+    setLocalCompletados((prev) => { const next = new Set(prev); next.delete(alumnoId); return next; });
+  }
+
+  function handleEntregar() {
+    if (selectedAlumnoIds.size === 0 || selectedLibroIds.size === 0) return;
+    if (!efectivoProfesorId) {
+      setErrorMsg("Selecciona el profesor que registra la entrega antes de continuar.");
+      return;
+    }
+
+    // Check stock
+    const alertas: StockAlerta[] = [];
+    for (const libroId of selectedLibroIds) {
+      const disp = disponibles(libroId);
+      if (disp < selectedAlumnoIds.size) {
+        const libro = libros.find((l) => l.id === libroId)!;
+        alertas.push({ titulo: libro.titulo, disponibles: disp, solicitados: selectedAlumnoIds.size });
+      }
+    }
+
+    if (alertas.length > 0) {
+      setStockAlertas(alertas);
+      return;
+    }
+
+    doEntregar(selectedLibroIds);
+  }
+
+  // On force: exclude books with 0 disponibles
+  function handleForceEntregar() {
+    const safeLibros = new Set([...selectedLibroIds].filter((id) => disponibles(id) > 0));
+    doEntregar(safeLibros);
+  }
+
+  // ── Render ─────────────────────────────────────────────────────────────────
+
+  const ningunaUnidad = !selectedUnidad;
+  const sinLote = selectedUnidad && !nivel;
+  const sinLibrosEnLote = nivel && loteLibros.length === 0;
+
+  return (
+    <div className="space-y-5">
+
+      {/* ── Selector de profesor (solo cuando el usuario no tiene perfil de profesor) ── */}
+      {canManage && !myProfesorId && (
+        <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5">
+          <AlertTriangle size={14} className="text-amber-500 flex-shrink-0" />
+          <span className="text-sm text-amber-800 font-medium whitespace-nowrap">Registrar como:</span>
+          <div className="relative">
+            <select
+              value={overrideProfesorId}
+              onChange={(e) => setOverrideProfesorId(e.target.value)}
+              className="appearance-none border border-amber-300 rounded-lg pl-3 pr-8 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 min-w-48"
+            >
+              <option value="">— Selecciona un profesor —</option>
+              {profesores.map((p) => (
+                <option key={p.id} value={p.id}>{p.nombre}</option>
+              ))}
+            </select>
+            <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+          </div>
+        </div>
+      )}
+
+      {/* ── Barra de grupo + acciones ── */}
+      <div className="flex flex-wrap items-center gap-3">
+        {/* Selector de grupo */}
+        <div className="relative">
+          <select
+            value={selectedUnidad}
+            onChange={(e) => handleUnidadChange(e.target.value)}
+            className="appearance-none border border-gray-300 rounded-lg pl-3 pr-8 py-2.5 text-sm font-medium bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-44"
+          >
+            <option value="">Selecciona un grupo...</option>
+            {unidades.map((u) => <option key={u} value={u}>{u}</option>)}
+          </select>
+          <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+        </div>
+
+        {/* Badges info */}
+        {selectedUnidad && (
+          <>
+            <span className="inline-flex items-center gap-1.5 bg-blue-50 text-blue-700 border border-blue-200 text-xs font-medium px-2.5 py-1.5 rounded-full">
+              <Users size={12} />
+              {alumnosDelGrupo.length} alumnos/as
+            </span>
+            {loteLibros.length > 0 && (
+              <span className="inline-flex items-center gap-1.5 bg-green-50 text-green-700 border border-green-200 text-xs font-medium px-2.5 py-1.5 rounded-full">
+                <BookOpen size={12} />
+                {loteLibros.length} libros · lote
+              </span>
+            )}
+          </>
+        )}
+
+        {/* Fecha de entrega */}
+        {selectedUnidad && loteLibros.length > 0 && (
+          <div className="flex items-center gap-1.5 ml-auto">
+            <CalendarDays size={14} className="text-gray-400 flex-shrink-0" />
+            <input
+              type="date"
+              value={fechaEntrega}
+              onChange={(e) => setFechaEntrega(e.target.value)}
+              className="border border-gray-300 rounded-lg px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+        )}
+
+        {/* Botones selección + entrega */}
+        {selectedUnidad && loteLibros.length > 0 && (
+          <div className="flex gap-2">
+            <button
+              onClick={handleSelectAll}
+              className="border border-gray-300 text-gray-700 text-sm font-medium px-3 py-2.5 rounded-lg hover:bg-gray-50 transition-colors whitespace-nowrap"
+            >
+              {selectedAlumnoIds.size === alumnosDelGrupo.length ? "Deseleccionar todo" : "Seleccionar todo"}
+            </button>
+            <button
+              onClick={handleEntregar}
+              disabled={selectedAlumnoIds.size === 0 || selectedLibroIds.size === 0 || saving}
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white text-sm font-medium px-4 py-2.5 rounded-lg transition-colors whitespace-nowrap"
+            >
+              <CheckCircle size={15} />
+              Entregar lote ({newRecordsCount})
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* ── Mensaje de éxito ── */}
+      {successMsg && (
+        <div className="flex items-center gap-2 bg-green-50 border border-green-200 text-green-700 text-sm px-4 py-2.5 rounded-lg">
+          <CheckCircle size={15} />
+          {successMsg}
+          <button onClick={() => setSuccessMsg(null)} className="ml-auto text-green-500 hover:text-green-700">
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
+      {errorMsg && (
+        <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-2.5 rounded-lg">
+          <AlertTriangle size={15} className="flex-shrink-0" />
+          {errorMsg}
+          <button onClick={() => setErrorMsg(null)} className="ml-auto text-red-400 hover:text-red-600">
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
+      {/* ── Estado vacío ── */}
+      {ningunaUnidad && (
+        <div className="text-center py-16 text-gray-400">
+          <Users size={40} className="mx-auto mb-3 opacity-40" />
+          <p className="font-medium">Selecciona un grupo para comenzar</p>
+          <p className="text-sm mt-1">Elige un grupo en el selector de arriba</p>
+        </div>
+      )}
+
+      {sinLote && (
+        <div className="text-center py-12 text-gray-400">
+          <BookOpen size={36} className="mx-auto mb-2 opacity-40" />
+          <p className="font-medium">No hay lote definido para este grupo</p>
+          <p className="text-sm mt-1">Añade libros al catálogo con el nivel correspondiente</p>
+        </div>
+      )}
+
+      {sinLibrosEnLote && (
+        <div className="text-center py-12 text-gray-400">
+          <BookOpen size={36} className="mx-auto mb-2 opacity-40" />
+          <p className="font-medium">No hay libros activos para el nivel {nivel}</p>
+          <p className="text-sm mt-1">Revisa el catálogo e introdúce los libros del curso</p>
+        </div>
+      )}
+
+      {/* ── Vista dividida: lote + alumnos ── */}
+      {selectedUnidad && loteLibros.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-start">
+
+          {/* Panel izquierdo — lote */}
+          <div className="md:col-span-2 bg-white border border-gray-200 rounded-xl overflow-hidden">
+            <div className="px-4 py-3 border-b border-gray-100">
+              <span className="text-sm font-semibold text-gray-700">
+                Lote del curso · {nivel}
+              </span>
+            </div>
+
+            <div className="divide-y divide-gray-50">
+              {loteLibros.map((libro) => {
+                const disp = disponibles(libro.id);
+                const sinStock = disp === 0;
+                const isSelected = selectedLibroIds.has(libro.id);
+
+                return (
+                  <label
+                    key={libro.id}
+                    className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors select-none ${
+                      sinStock ? "opacity-60" : ""
+                    } ${isSelected && !sinStock ? "bg-blue-50" : "hover:bg-gray-50"}`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => toggleLibro(libro.id)}
+                      disabled={sinStock}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 flex-shrink-0"
+                    />
+
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-800 truncate">{libro.titulo}</p>
+                      {libro.editorial && (
+                        <p className="text-xs text-gray-400">{libro.editorial}</p>
+                      )}
+                    </div>
+
+                    <div className="flex-shrink-0 text-right">
+                      <span className={`text-sm font-semibold tabular-nums ${sinStock ? "text-red-500" : "text-gray-700"}`}>
+                        {disp}/{libro.stock_total}
+                      </span>
+                      {sinStock && (
+                        <p className="text-xs text-red-400 mt-0.5">Sin stock</p>
+                      )}
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+
+            <div className="px-4 py-3 border-t border-gray-100 bg-gray-50">
+              <p className="text-xs text-gray-400">
+                <AlertTriangle size={11} className="inline mr-1 text-amber-400" />
+                Disponibles / Total. Los libros sin stock no se asignarán.
+              </p>
+            </div>
+          </div>
+
+          {/* Panel derecho — alumnos */}
+          <div className="md:col-span-3 bg-white border border-gray-200 rounded-xl overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+              <span className="text-sm font-semibold text-gray-700">Alumnado del grupo</span>
+              <span className="text-xs font-semibold tracking-wider text-gray-400 uppercase">
+                {totalConLoteCompleto}/{alumnosDelGrupo.length} entregados
+              </span>
+            </div>
+
+            <div className="divide-y divide-gray-50">
+              {alumnosDelGrupo.map((alumno) => {
+                const librosAlumno = alumnoLibrosMap[alumno.id] ?? new Set();
+                const countLibros = librosAlumno.size;
+                const totalLote = loteLibros.length;
+                const completoPorLibros = countLibros >= totalLote;
+                const completoManual = localCompletados.has(alumno.id);
+                const completo = completoPorLibros || completoManual;
+                const isSelected = selectedAlumnoIds.has(alumno.id);
+                const isMarking = markingId === alumno.id;
+
+                return (
+                  <div
+                    key={alumno.id}
+                    className={`flex items-center gap-3 px-4 py-3 transition-colors ${
+                      isSelected ? "bg-blue-50" : "hover:bg-gray-50"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => toggleAlumno(alumno.id)}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 flex-shrink-0 cursor-pointer"
+                    />
+
+                    {/* Avatar */}
+                    <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-600 flex-shrink-0">
+                      {initials(alumno)}
+                    </div>
+
+                    {/* Nombre */}
+                    <span className="text-sm text-gray-800 flex-1 min-w-0 truncate">
+                      {alumno.alumno}
+                    </span>
+
+                    {/* Estado lote */}
+                    {completoPorLibros ? (
+                      <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-100 px-2 py-1 rounded-full flex-shrink-0">
+                        <CheckCircle size={11} />
+                        Entregado
+                      </span>
+                    ) : completoManual ? (
+                      <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-100 px-2 py-1 rounded-full flex-shrink-0">
+                        <SquareCheck size={11} />
+                        Completado · {countLibros}/{totalLote}
+                        <button
+                          onClick={() => handleDesmarcarCompleto(alumno.id)}
+                          disabled={isMarking}
+                          title="Desmarcar"
+                          className="ml-0.5 text-green-400 hover:text-green-700 disabled:opacity-40"
+                        >
+                          <X size={10} />
+                        </button>
+                      </span>
+                    ) : (
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <span className={`text-xs font-medium px-2 py-1 rounded-full ${
+                          countLibros > 0
+                            ? "text-amber-700 bg-amber-100"
+                            : "text-gray-400"
+                        }`}>
+                          {countLibros}/{totalLote}
+                        </span>
+                        {countLibros > 0 && (
+                          <button
+                            onClick={() => handleMarcarCompleto(alumno.id)}
+                            disabled={isMarking}
+                            title="Marcar como lote completo"
+                            className="inline-flex items-center gap-1 text-xs text-teal-600 hover:text-teal-800 hover:bg-teal-50 border border-teal-200 px-1.5 py-1 rounded-md transition-colors disabled:opacity-40"
+                          >
+                            {isMarking ? (
+                              <span className="w-3 h-3 border border-teal-400 border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                              <SquareCheck size={11} />
+                            )}
+                            Completar
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+        </div>
+      )}
+
+      {/* Modal de alerta de stock */}
+      {stockAlertas.length > 0 && (
+        <ModalStockAlert
+          alertas={stockAlertas}
+          onCancel={() => setStockAlertas([])}
+          onForce={handleForceEntregar}
+          saving={saving}
+        />
+      )}
+    </div>
+  );
+}

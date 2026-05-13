@@ -18,6 +18,7 @@ import {
   Settings,
   CalendarClock,
   UserX,
+  BookMarked,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -61,6 +62,12 @@ const navGroups: NavGroup[] = [
       { label: "Carros de Portátiles", href: "/reservas/carros", icon: <Laptop size={18} />, slug: "reservas/carros" },
       { label: "Reserva de Espacios", href: "/reservas/espacios", icon: <Building2 size={18} />, slug: "reservas/espacios" },
       { label: "Reserva de Recursos", href: "/reservas/recursos", icon: <BookOpen size={18} />, slug: "reservas/recursos" },
+    ],
+  },
+  {
+    title: "GRATUIDAD",
+    items: [
+      { label: "Gratuidad de Libros", href: "/gratuidad-libros", icon: <BookMarked size={18} />, slug: "gratuidad-libros" },
     ],
   },
   {
