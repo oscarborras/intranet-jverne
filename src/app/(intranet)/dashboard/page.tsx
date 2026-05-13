@@ -12,6 +12,7 @@ import {
   GraduationCap,
   CalendarClock,
   Users,
+  UserX,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import type { Anuncio, PeticionTIC, PeticionMantenimiento } from "@/lib/types";
@@ -81,6 +82,14 @@ const moduleCards = [
     icono: Users,
     color: "bg-red-600",
     href: "/citas-familias",
+  },
+  {
+    slug: "ausencias",
+    nombre: "Ausencias",
+    descripcion: "Notificación de ausencias del profesorado",
+    icono: UserX,
+    color: "bg-amber-500",
+    href: "/ausencias",
   },
 ];
 
@@ -176,6 +185,13 @@ export default async function DashboardPage() {
   const showTIC            = canSee("peticiones-tic");
   const showMantenimiento  = canSee("peticiones-mantenimiento");
   const showCitasFamilias  = canSee("citas-familias");
+  const showAusencias      = canSee("ausencias");
+
+  const canSeeGuardiaView = (userRolesData ?? []).some((r) =>
+    ["Admin", "Directiva", "Guardia"].includes(
+      (r.perfiles_intranet as unknown as { nombre: string })?.nombre ?? ""
+    )
+  );
 
   const diasVistaExtraescolares = parseInt(
     (configData ?? []).find((c) => c.clave === "dias_vista_extraescolares")?.valor ?? "20",
@@ -206,6 +222,8 @@ export default async function DashboardPage() {
     mantenimientoResult,
     extraescolaresResult,
     citasResult,
+    ausenciasProximasResult,
+    ausenciasHoyResult,
   ] = await Promise.all([
     showAnuncios
       ? supabase.from("anuncios").select("id, titulo, prioridad, created_at, autor_id").or(`visible_hasta.is.null,visible_hasta.gte.${todayStr}`).order("created_at", { ascending: false }).limit(3)
@@ -230,6 +248,12 @@ export default async function DashboardPage() {
       : Promise.resolve({ data: [] }),
     showCitasFamilias && profesorId
       ? supabase.from("citas_familias").select("id, codigo, alumno_nombre, alumno_curso, familiar_nombre, fecha, hora_inicio, lugar, estado").eq("profesor_id", profesorId).in("estado", ["pendiente", "confirmada"]).or(`fecha.lte.${citasLimitStr},fecha.is.null`).order("fecha", { ascending: true, nullsFirst: true }).limit(5)
+      : Promise.resolve({ data: [] }),
+    showAusencias && profesorId
+      ? supabase.from("ausencias_profesorado").select("id, fecha, tramo_id, tramos_horarios(nombre, orden), cursos(nombre)").eq("profesor_id", profesorId).gte("fecha", todayStr).eq("estado", "activa").order("fecha", { ascending: true }).limit(4)
+      : Promise.resolve({ data: [] }),
+    showAusencias && canSeeGuardiaView
+      ? supabase.from("ausencias_profesorado").select("id").eq("fecha", todayStr).eq("estado", "activa")
       : Promise.resolve({ data: [] }),
   ]);
 
@@ -317,6 +341,15 @@ export default async function DashboardPage() {
   }
   const citasDashboard = (citasResult.data ?? []) as CitaDashboard[];
   const citasPendientesCount = citasDashboard.filter((c) => c.estado === "pendiente").length;
+
+  interface AusenciaDashboard {
+    id: number;
+    fecha: string;
+    tramos_horarios: { nombre: string; orden: number } | null;
+    cursos: { nombre: string } | null;
+  }
+  const misAusenciasProximas = (ausenciasProximasResult.data ?? []) as unknown as AusenciaDashboard[];
+  const ausenciasHoyCount = (ausenciasHoyResult.data ?? []).length;
 
   interface EventoExtraescolar {
     id: number;
@@ -506,6 +539,60 @@ export default async function DashboardPage() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Ausencias */}
+      {showAusencias && (
+        <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+          <div className="bg-amber-500 px-5 py-3 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <UserX size={16} className="text-white" />
+              <h3 className="text-white font-semibold text-sm">Mis Ausencias Próximas</h3>
+            </div>
+            {canSeeGuardiaView && ausenciasHoyCount > 0 && (
+              <span className="bg-white/25 text-white text-xs font-bold px-2.5 py-0.5 rounded-full">
+                {ausenciasHoyCount} {ausenciasHoyCount === 1 ? "ausencia hoy" : "ausencias hoy"}
+              </span>
+            )}
+          </div>
+          <div className="divide-y divide-gray-50">
+            {misAusenciasProximas.length === 0 ? (
+              <p className="text-center text-gray-400 text-sm py-8">No tienes ausencias próximas registradas</p>
+            ) : (
+              misAusenciasProximas.map((a) => {
+                const [y, m, d] = a.fecha.split("-").map(Number);
+                const fechaLabel = new Date(y, m - 1, d).toLocaleDateString("es-ES", {
+                  weekday: "short", day: "numeric", month: "short",
+                });
+                return (
+                  <div key={a.id} className="px-5 py-3 flex items-center gap-3">
+                    <div className="flex-shrink-0 bg-amber-50 text-amber-700 rounded-lg px-2.5 py-1.5 text-xs font-medium capitalize min-w-[84px] text-center">
+                      {fechaLabel}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">
+                        {a.tramos_horarios?.nombre ?? `Tramo ${a.tramos_horarios}`}
+                      </p>
+                      {a.cursos?.nombre && (
+                        <p className="text-xs text-gray-500 truncate">{a.cursos.nombre}</p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+          <div className="px-5 py-3 border-t border-gray-100 flex items-center justify-between">
+            <Link href="/ausencias" className="text-sm text-amber-600 hover:underline cursor-pointer">
+              Ver todas →
+            </Link>
+            {canSeeGuardiaView && (
+              <Link href="/ausencias" className="text-sm text-amber-600 hover:underline cursor-pointer">
+                Vista guardia →
+              </Link>
+            )}
+          </div>
         </div>
       )}
 

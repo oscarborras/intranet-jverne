@@ -112,6 +112,7 @@ function GuardiaView({ initial, initialFecha, tramos, refreshKey }: { initial: A
   const [ausencias, setAusencias] = useState(initial);
   const [loading, setLoading] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+  const [filterMode, setFilterMode] = useState<"all" | "current">("all");
   const isFirstRender = useRef(true);
 
   const loadFecha = useCallback(async (f: string) => {
@@ -159,10 +160,21 @@ function GuardiaView({ initial, initialFecha, tramos, refreshKey }: { initial: A
 
   function handleFechaChange(f: string) {
     setFecha(f);
+    setFilterMode("all");
     loadFecha(f);
   }
 
   const isToday = fecha === localDateISO();
+
+  const currentTramo = tramos.find((t) => {
+    const now = new Date();
+    const cur = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+    return t.hora_inicio.slice(0, 5) <= cur && cur <= t.hora_fin.slice(0, 5);
+  }) ?? null;
+
+  const displayedAusencias = filterMode === "current" && isToday && currentTramo
+    ? ausencias.filter((a) => a.tramo_id === currentTramo.id)
+    : ausencias;
 
   return (
     <div className="space-y-4">
@@ -184,10 +196,65 @@ function GuardiaView({ initial, initialFecha, tramos, refreshKey }: { initial: A
           ? <Loader2 size={15} className="animate-spin text-gray-400" />
           : <span className="text-xs text-gray-400">Actualizado a las {lastUpdated.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}</span>
         }
+        <div className="ml-auto">
+          {!loading && displayedAusencias.length > 0 ? (
+            <span className="inline-flex items-center gap-1.5 bg-amber-50 border border-amber-200 text-amber-800 text-sm font-semibold px-3 py-1 rounded-full">
+              <UserX size={13} className="text-amber-500" />
+              {displayedAusencias.length} {displayedAusencias.length === 1 ? "ausencia" : "ausencias"}
+            </span>
+          ) : !loading ? (
+            <span className="inline-flex items-center gap-1.5 bg-green-50 border border-green-200 text-green-700 text-sm font-semibold px-3 py-1 rounded-full">
+              <CheckCircle2 size={13} className="text-green-500" />
+              Sin ausencias
+            </span>
+          ) : null}
+        </div>
       </div>
 
+      {/* Filter toggle — only for today */}
+      {isToday && (
+        <div className="flex flex-col items-center gap-2">
+          <div className="flex gap-0.5 bg-orange-100 p-0.5 rounded-lg">
+            <button
+              onClick={() => setFilterMode("all")}
+              className={cn(
+                "px-4 py-1.5 rounded-md text-xs font-semibold transition-colors",
+                filterMode === "all"
+                  ? "bg-orange-500 text-white shadow-sm"
+                  : "text-orange-500 hover:text-orange-700"
+              )}
+            >
+              Todas
+            </button>
+            <button
+              onClick={() => setFilterMode("current")}
+              className={cn(
+                "px-4 py-1.5 rounded-md text-xs font-semibold transition-colors",
+                filterMode === "current"
+                  ? "bg-orange-500 text-white shadow-sm"
+                  : "text-orange-500 hover:text-orange-700"
+              )}
+            >
+              Tramo actual
+            </button>
+          </div>
+          {filterMode === "current" && (
+            currentTramo ? (
+              <span className="text-xs text-gray-500">
+                {currentTramo.nombre}
+                <span className="text-gray-400 ml-1">
+                  ({currentTramo.hora_inicio.slice(0, 5)}–{currentTramo.hora_fin.slice(0, 5)})
+                </span>
+              </span>
+            ) : (
+              <span className="text-xs text-amber-600 font-medium">Sin tramo activo en este momento</span>
+            )
+          )}
+        </div>
+      )}
+
       {/* Table / empty state */}
-      {!loading && ausencias.length === 0 ? (
+      {!loading && displayedAusencias.length === 0 ? (
         <div className="bg-green-50 border border-green-200 rounded-xl px-6 py-10 text-center">
           <CheckCircle2 size={32} className="text-green-400 mx-auto mb-3" />
           <p className="text-sm font-medium text-green-700">
@@ -211,7 +278,7 @@ function GuardiaView({ initial, initialFecha, tramos, refreshKey }: { initial: A
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {ausencias.map((a) => (
+                {displayedAusencias.map((a) => (
                   <tr key={a.id} className="hover:bg-gray-50/50 transition-colors">
                     <td className="px-4 py-3 font-medium text-gray-900">
                       {a.profesor?.full_name ?? "—"}
@@ -248,7 +315,7 @@ function GuardiaView({ initial, initialFecha, tramos, refreshKey }: { initial: A
 
           {/* Mobile cards */}
           <div className="md:hidden divide-y divide-gray-50">
-            {ausencias.map((a) => (
+            {displayedAusencias.map((a) => (
               <div key={a.id} className="p-4 space-y-2">
                 <p className="font-semibold text-gray-900 text-sm">{a.profesor?.full_name ?? "—"}</p>
                 <div className="flex flex-wrap gap-2 text-xs">
