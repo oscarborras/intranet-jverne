@@ -25,6 +25,7 @@ const emptyForm = {
   asignatura: "",
   nivel: NIVELES[0],
   stock_total: 0,
+  precio: "",
 };
 
 export function CatalogoLibrosClient({ libros: initial, prestamos }: Props) {
@@ -93,9 +94,10 @@ export function CatalogoLibrosClient({ libros: initial, prestamos }: Props) {
 
   // ── CSV export ───────────────────────────────────────────────────────────────
   function exportarCSV() {
-    const headers = ["Título", "Asignatura", "Nivel", "Editorial", "ISBN", "Ejemplares", "Activo"];
+    const headers = ["Título", "Asignatura", "Nivel", "Editorial", "ISBN", "Precio (€)", "Ejemplares", "Activo"];
     const rows = librosVisibles.map((l) => [
       l.titulo, l.asignatura, l.nivel, l.editorial ?? "", l.isbn ?? "",
+      l.precio != null ? l.precio.toFixed(2) : "",
       l.stock_total, l.activo ? "Sí" : "No",
     ]);
     const csv = [headers, ...rows]
@@ -127,6 +129,7 @@ export function CatalogoLibrosClient({ libros: initial, prestamos }: Props) {
       asignatura: libro.asignatura,
       nivel: libro.nivel,
       stock_total: libro.stock_total,
+      precio: libro.precio != null ? String(libro.precio) : "",
     });
     setError(null);
     setShowModal(true);
@@ -153,6 +156,7 @@ export function CatalogoLibrosClient({ libros: initial, prestamos }: Props) {
       asignatura: form.asignatura.trim(),
       nivel: form.nivel,
       stock_total: Number(form.stock_total),
+      precio: form.precio.trim() !== "" ? Number(form.precio) : null,
     };
 
     if (editing) {
@@ -346,6 +350,7 @@ export function CatalogoLibrosClient({ libros: initial, prestamos }: Props) {
                             {libro.asignatura}
                             {libro.editorial && <> · {libro.editorial}</>}
                             {libro.isbn && <> · ISBN: {libro.isbn}</>}
+                            {libro.precio != null && <> · <span className="font-medium">{libro.precio.toFixed(2)} €</span></>}
                           </p>
                           <p className={`text-xs mt-0.5 font-medium ${libro.stock_total < STOCK_BAJO_UMBRAL && libro.activo ? "text-red-500" : "text-gray-400"}`}>
                             Stock: {libro.stock_total - (loanCountsPerLibro[libro.id] ?? 0)} / {libro.stock_total}
@@ -455,17 +460,33 @@ export function CatalogoLibrosClient({ libros: initial, prestamos }: Props) {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Nº de ejemplares en el centro
-                </label>
-                <input
-                  type="number"
-                  min={0}
-                  value={form.stock_total}
-                  onChange={(e) => setForm({ ...form, stock_total: Number(e.target.value) })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Nº de ejemplares
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={form.stock_total}
+                    onChange={(e) => setForm({ ...form, stock_total: Number(e.target.value) })}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Precio (€)
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={form.precio}
+                    onChange={(e) => setForm({ ...form, precio: e.target.value })}
+                    placeholder="0.00"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
               </div>
             </div>
 

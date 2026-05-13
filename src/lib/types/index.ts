@@ -397,6 +397,7 @@ export interface LibroCatalogo {
   asignatura: string;
   nivel: string;
   stock_total: number;
+  precio: number | null;
   activo: boolean;
   created_at: string;
 }
