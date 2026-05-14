@@ -398,6 +398,7 @@ export interface LibroCatalogo {
   nivel: string;
   stock_total: number;
   precio: number | null;
+  diversificacion: boolean;
   activo: boolean;
   created_at: string;
 }
@@ -420,7 +421,7 @@ export interface PrestamoLibro {
   devuelto_por: string | null;
   created_at: string;
   // Relaciones resueltas en el servidor
-  libro?: { titulo: string; asignatura: string; nivel: string };
+  libro?: { titulo: string; asignatura: string; nivel: string; diversificacion?: boolean };
   entregado_por_nombre?: { profesor: string };
   devuelto_por_nombre?: { profesor: string };
 }

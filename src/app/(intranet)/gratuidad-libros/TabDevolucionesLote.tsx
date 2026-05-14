@@ -68,7 +68,7 @@ export function TabDevolucionesLote({ prestamosActivos, onPrestamosChange, curso
     async function refreshActivos() {
       const { data } = await supabase
         .from("prestamos_libros")
-        .select("id, libro_id, alumno_id, alumno_nombre, alumno_grupo, num_ejemplar, fecha_prestamo, entregado_por, devuelto_por, curso_escolar, fecha_devolucion, estado_devolucion, observaciones, created_at, libro:libros_catalogo(titulo, asignatura, nivel)")
+        .select("id, libro_id, alumno_id, alumno_nombre, alumno_grupo, num_ejemplar, fecha_prestamo, entregado_por, devuelto_por, curso_escolar, fecha_devolucion, estado_devolucion, observaciones, created_at, libro:libros_catalogo(titulo, asignatura, nivel, diversificacion)")
         .eq("curso_escolar", cursoEscolar)
         .is("fecha_devolucion", null)
         .order("alumno_grupo")
@@ -85,7 +85,7 @@ export function TabDevolucionesLote({ prestamosActivos, onPrestamosChange, curso
 
       const updated = data.map((p) => ({
         ...p,
-        libro: (p.libro as unknown as { titulo: string; asignatura: string; nivel: string } | null) ?? undefined,
+        libro: (p.libro as unknown as { titulo: string; asignatura: string; nivel: string; diversificacion?: boolean } | null) ?? undefined,
         entregado_por_nombre: { profesor: nameMap[p.entregado_por as string] ?? "—" },
       })) as import("@/lib/types").PrestamoLibro[];
 
@@ -451,9 +451,14 @@ export function TabDevolucionesLote({ prestamosActivos, onPrestamosChange, curso
                     return (
                       <div key={p.id} className="flex items-center gap-3 px-4 py-3">
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-800 truncate">
-                            {p.libro?.titulo ?? "—"}
-                          </p>
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <p className="text-sm font-medium text-gray-800 truncate">
+                              {p.libro?.titulo ?? "—"}
+                            </p>
+                            {p.libro?.diversificacion && (
+                              <span className="flex-shrink-0 text-[9px] font-semibold tracking-wide uppercase px-1.5 py-0.5 rounded bg-purple-100 text-purple-700">DIV</span>
+                            )}
+                          </div>
                           <p className="text-xs text-gray-400">
                             {p.libro?.asignatura}
                             {p.num_ejemplar && <> · Ej. {p.num_ejemplar}</>}

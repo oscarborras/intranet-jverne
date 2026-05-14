@@ -26,6 +26,7 @@ const emptyForm = {
   nivel: NIVELES[0],
   stock_total: 0,
   precio: "",
+  diversificacion: false,
 };
 
 export function CatalogoLibrosClient({ libros: initial, prestamos }: Props) {
@@ -94,11 +95,11 @@ export function CatalogoLibrosClient({ libros: initial, prestamos }: Props) {
 
   // ── CSV export ───────────────────────────────────────────────────────────────
   function exportarCSV() {
-    const headers = ["Título", "Asignatura", "Nivel", "Editorial", "ISBN", "Precio (€)", "Ejemplares", "Activo"];
+    const headers = ["Título", "Asignatura", "Nivel", "Editorial", "ISBN", "Precio (€)", "Ejemplares", "Diversificación", "Activo"];
     const rows = librosVisibles.map((l) => [
       l.titulo, l.asignatura, l.nivel, l.editorial ?? "", l.isbn ?? "",
       l.precio != null ? l.precio.toFixed(2) : "",
-      l.stock_total, l.activo ? "Sí" : "No",
+      l.stock_total, l.diversificacion ? "Sí" : "No", l.activo ? "Sí" : "No",
     ]);
     const csv = [headers, ...rows]
       .map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))
@@ -130,6 +131,7 @@ export function CatalogoLibrosClient({ libros: initial, prestamos }: Props) {
       nivel: libro.nivel,
       stock_total: libro.stock_total,
       precio: libro.precio != null ? String(libro.precio) : "",
+      diversificacion: libro.diversificacion,
     });
     setError(null);
     setShowModal(true);
@@ -157,6 +159,7 @@ export function CatalogoLibrosClient({ libros: initial, prestamos }: Props) {
       nivel: form.nivel,
       stock_total: Number(form.stock_total),
       precio: form.precio.trim() !== "" ? Number(form.precio) : null,
+      diversificacion: form.diversificacion,
     };
 
     if (editing) {
@@ -352,6 +355,11 @@ export function CatalogoLibrosClient({ libros: initial, prestamos }: Props) {
                             {libro.isbn && <> · ISBN: {libro.isbn}</>}
                             {libro.precio != null && <> · <span className="font-medium">{libro.precio.toFixed(2)} €</span></>}
                           </p>
+                          {libro.diversificacion && (
+                            <span className="inline-block mt-1 text-[10px] font-semibold tracking-wide uppercase px-1.5 py-0.5 rounded bg-purple-100 text-purple-700">
+                              Diversificación
+                            </span>
+                          )}
                           <p className={`text-xs mt-0.5 font-medium ${libro.stock_total < STOCK_BAJO_UMBRAL && libro.activo ? "text-red-500" : "text-gray-400"}`}>
                             Stock: {libro.stock_total - (loanCountsPerLibro[libro.id] ?? 0)} / {libro.stock_total}
                             {libro.stock_total < STOCK_BAJO_UMBRAL && libro.activo && " · stock bajo"}
@@ -488,6 +496,16 @@ export function CatalogoLibrosClient({ libros: initial, prestamos }: Props) {
                   />
                 </div>
               </div>
+
+              <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={form.diversificacion}
+                  onChange={(e) => setForm({ ...form, diversificacion: e.target.checked })}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4"
+                />
+                <span className="text-sm font-medium text-gray-700">Libro de diversificación</span>
+              </label>
             </div>
 
             <div className="flex gap-3 px-5 py-4 border-t">

@@ -628,7 +628,12 @@ export function TabPrestamosLote({ alumnos, libros, prestamos, onPrestamosChange
                         className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 flex-shrink-0"
                       />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-800 truncate">{libro.titulo}</p>
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <p className="text-sm font-medium text-gray-800 truncate">{libro.titulo}</p>
+                          {libro.diversificacion && (
+                            <span className="flex-shrink-0 text-[9px] font-semibold tracking-wide uppercase px-1.5 py-0.5 rounded bg-purple-100 text-purple-700">DIV</span>
+                          )}
+                        </div>
                         {libro.editorial && <p className="text-xs text-gray-400">{libro.editorial}</p>}
                       </div>
                       <div className="flex-shrink-0 text-right">
