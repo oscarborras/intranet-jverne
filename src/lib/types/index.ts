@@ -346,7 +346,7 @@ export interface CitaFamilia {
 // ─── Gratuidad de Libros ──────────────────────────────────────────────────────
 
 export type TipoIncidencia = "deterioro" | "perdida" | "reclamacion" | "robo" | "otro";
-export type EstadoIncidencia = "abierta" | "en_gestion" | "repuesta" | "archivada";
+export type EstadoIncidencia = "abierta" | "en_gestion" | "resuelta" | "archivada";
 
 export interface IncidenciaHistorial {
   id: string;

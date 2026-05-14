@@ -23,7 +23,7 @@ const TIPO_CONFIG: Record<TipoIncidencia, { label: string; className: string }> 
 const ESTADO_CONFIG: Record<EstadoIncidencia, { label: string; rowClass: string; badgeClass: string; dot: string }> = {
   abierta:    { label: "Abierta",    rowClass: "",              badgeClass: "text-red-700 bg-red-50",     dot: "bg-red-500" },
   en_gestion: { label: "En gestión", rowClass: "",              badgeClass: "text-amber-700 bg-amber-50", dot: "bg-amber-500" },
-  repuesta:   { label: "Repuesta",   rowClass: "",              badgeClass: "text-green-700 bg-green-50", dot: "bg-green-500" },
+  resuelta:   { label: "Resuelta",   rowClass: "",              badgeClass: "text-green-700 bg-green-50", dot: "bg-green-500" },
   archivada:  { label: "Archivada",  rowClass: "opacity-50",   badgeClass: "text-gray-500 bg-gray-100",  dot: "bg-gray-400" },
 };
 
@@ -32,7 +32,7 @@ type FiltroEstado = EstadoIncidencia | "todas";
 const FILTROS: { key: FiltroEstado; label: string }[] = [
   { key: "abierta",    label: "Abiertas" },
   { key: "en_gestion", label: "En gestión" },
-  { key: "repuesta",   label: "Repuestas" },
+  { key: "resuelta",   label: "Resueltas" },
   { key: "archivada",  label: "Archivadas" },
   { key: "todas",      label: "Todas" },
 ];
@@ -150,8 +150,8 @@ export function TabIncidencias({ libros, alumnos, cursoEscolar, myProfesorId, ca
     // Pre-select next logical state
     const next: Record<EstadoIncidencia, EstadoIncidencia> = {
       abierta: "en_gestion",
-      en_gestion: "repuesta",
-      repuesta: "archivada",
+      en_gestion: "resuelta",
+      resuelta: "archivada",
       archivada: "archivada",
     };
     setCambioEstado(next[inc.estado]);
@@ -165,7 +165,7 @@ export function TabIncidencias({ libros, alumnos, cursoEscolar, myProfesorId, ca
     setCambioError(null);
 
     const patch: Record<string, unknown> = { estado: cambioEstado };
-    if (cambioEstado === "repuesta" || cambioEstado === "archivada") {
+    if (cambioEstado === "resuelta" || cambioEstado === "archivada") {
       patch.fecha_resolucion = localDateStr();
     }
 
@@ -486,7 +486,7 @@ export function TabIncidencias({ libros, alumnos, cursoEscolar, myProfesorId, ca
                       onChange={(e) => setCambioEstado(e.target.value as EstadoIncidencia)}
                       className="w-full appearance-none border border-gray-300 rounded-lg pl-3 pr-8 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
-                      {(["abierta", "en_gestion", "repuesta", "archivada"] as EstadoIncidencia[])
+                      {(["abierta", "en_gestion", "resuelta", "archivada"] as EstadoIncidencia[])
                         .filter((e) => e !== selected.estado)
                         .map((e) => (
                           <option key={e} value={e}>{ESTADO_CONFIG[e].label}</option>
@@ -509,7 +509,7 @@ export function TabIncidencias({ libros, alumnos, cursoEscolar, myProfesorId, ca
                   <button
                     onClick={handleCambioEstado}
                     disabled={savingCambio}
-                    className="w-full bg-gray-900 hover:bg-gray-700 disabled:opacity-50 text-white text-sm font-medium py-2.5 rounded-lg transition-colors"
+                    className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-medium py-2.5 rounded-lg transition-colors"
                   >
                     {savingCambio ? "Guardando..." : "Guardar cambio"}
                   </button>
@@ -521,7 +521,7 @@ export function TabIncidencias({ libros, alumnos, cursoEscolar, myProfesorId, ca
             <div className="px-5 py-3 border-t border-gray-100 flex-shrink-0">
               <button
                 onClick={() => setSelected(null)}
-                className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
+                className="w-full border border-gray-300 text-gray-700 text-sm font-medium py-2.5 rounded-lg hover:bg-gray-50 transition-colors"
               >
                 Cerrar
               </button>
