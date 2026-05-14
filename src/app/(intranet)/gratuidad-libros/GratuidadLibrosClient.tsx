@@ -23,6 +23,7 @@ interface Props {
   cursoEscolarActual: string;
   myProfesorId: string | null;
   canManage: boolean;
+  canManageInventario: boolean;
   profesores: Profesor[];
   unidadesGratuidad: string[];
   completadosIniciales: string[];
@@ -36,6 +37,7 @@ export function GratuidadLibrosClient({
   cursoEscolarActual,
   myProfesorId,
   canManage,
+  canManageInventario,
   profesores,
   unidadesGratuidad,
   completadosIniciales,
@@ -53,8 +55,10 @@ export function GratuidadLibrosClient({
   const tabs: Tab[] = [
     { id: "prestamos",    label: "Préstamos",    icon: <BookOpen   size={15} /> },
     { id: "devoluciones", label: "Devoluciones", icon: <RotateCcw  size={15} /> },
+    ...(canManageInventario ? [
+      { id: "inventario" as TabId, label: "Inventario", icon: <Library size={15} /> },
+    ] : []),
     ...(canManage ? [
-      { id: "inventario"  as TabId, label: "Inventario",  icon: <Library      size={15} /> },
       { id: "seguimiento" as TabId, label: "Seguimiento", icon: <BarChart2    size={15} /> },
       { id: "informes"    as TabId, label: "Informes",    icon: <FileBarChart size={15} /> },
       { id: "incidencias" as TabId, label: "Incidencias", icon: <ShieldAlert  size={15} /> },
@@ -117,7 +121,7 @@ export function GratuidadLibrosClient({
           initialGrupo={pendingGrupo ?? undefined}
         />
       )}
-      {activeTab === "inventario" && canManage && (
+      {activeTab === "inventario" && canManageInventario && (
         <CatalogoLibrosClient libros={libros} prestamos={livePrestamosList} />
       )}
       {activeTab === "seguimiento" && canManage && (

@@ -16,7 +16,8 @@ export default async function GratuidadLibrosPage() {
   const roleNames = (rolesData ?? []).map(
     (r) => (r.perfiles_intranet as unknown as { nombre: string }).nombre
   );
-  const canManage = roleNames.some((r) => ["Admin", "Directiva"].includes(r));
+  const canManage = roleNames.some((r) => ["Admin", "Directiva", "Coord_Gratuidad"].includes(r));
+  const canManageInventario = roleNames.some((r) => ["Admin", "Directiva"].includes(r));
 
   const now = new Date();
   const year = now.getMonth() >= 8 ? now.getFullYear() : now.getFullYear() - 1;
@@ -43,8 +44,8 @@ export default async function GratuidadLibrosPage() {
       .order("alumno_grupo")
       .order("alumno_nombre"),
 
-    // Full catalog (incl. inactive) for Inventario tab
-    canManage
+    // Full catalog (incl. inactive) for Inventario tab (Admin/Directiva only)
+    canManageInventario
       ? supabase.from("libros_catalogo").select("*").order("nivel").order("asignatura").order("titulo")
       : supabase.from("libros_catalogo").select("*").eq("activo", true).order("nivel").order("asignatura").order("titulo"),
 
@@ -142,6 +143,7 @@ export default async function GratuidadLibrosPage() {
       cursoEscolarActual={cursoEscolarActual}
       myProfesorId={myProfesorId}
       canManage={canManage}
+      canManageInventario={canManageInventario}
       profesores={profesores}
       unidadesGratuidad={unidadesGratuidad}
       completadosIniciales={completadosIniciales}

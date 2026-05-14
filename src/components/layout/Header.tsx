@@ -24,6 +24,7 @@ import {
   Settings,
   CalendarClock,
   UserX,
+  BookMarked,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -72,6 +73,12 @@ const navGroups: NavGroup[] = [
       { label: "Carros de Portátiles", href: "/reservas/carros", icon: <Laptop size={18} /> },
       { label: "Reserva de Espacios", href: "/reservas/espacios", icon: <Building2 size={18} /> },
       { label: "Reserva de Recursos", href: "/reservas/recursos", icon: <BookOpen size={18} /> },
+    ],
+  },
+  {
+    title: "GRATUIDAD",
+    items: [
+      { label: "Gratuidad de Libros", href: "/gratuidad-libros", icon: <BookMarked size={18} /> },
     ],
   },
   {

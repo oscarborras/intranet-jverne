@@ -16,7 +16,7 @@ export default async function SeguimientoPage() {
   const roleNames = (rolesData ?? []).map(
     (r) => (r.perfiles_intranet as unknown as { nombre: string }).nombre
   );
-  const canManage = roleNames.some((r) => ["Admin", "Directiva"].includes(r));
+  const canManage = roleNames.some((r) => ["Admin", "Directiva", "Coord_Gratuidad"].includes(r));
   if (!canManage) redirect("/gratuidad-libros");
 
   const now = new Date();
