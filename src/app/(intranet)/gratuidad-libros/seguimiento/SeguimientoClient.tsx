@@ -108,7 +108,7 @@ function GrupoCard({ grupo, tutor, entregados, total, onPrestamos, onDevolucione
         </p>
         <div className="mt-1.5 h-1.5 bg-gray-100 rounded-full overflow-hidden">
           <div
-            className="h-full bg-orange-500 rounded-full transition-all duration-500"
+            className={`h-full rounded-full transition-all duration-500 ${pct === 100 ? "bg-blue-600" : "bg-orange-500"}`}
             style={{ width: `${pct}%` }}
           />
         </div>
