@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
   CheckCircle, AlertTriangle, X, Users, BookOpen, CalendarDays, ChevronDown, SquareCheck, Trash2, List,
@@ -164,6 +164,38 @@ export function TabPrestamosLote({ alumnos, libros, prestamos, onPrestamosChange
   const [markingAll, setMarkingAll] = useState(false);
 
   const efectivoProfesorId = myProfesorId ?? (overrideProfesorId || null);
+
+  // ── Refresh activos desde BD al montar ────────────────────────────────────
+  useEffect(() => {
+    async function refreshActivos() {
+      const { data } = await supabase
+        .from("prestamos_libros")
+        .select("id, libro_id, alumno_id, alumno_nombre, alumno_grupo, num_ejemplar, fecha_prestamo, entregado_por, devuelto_por, curso_escolar, fecha_devolucion, estado_devolucion, observaciones, created_at, libro:libros_catalogo(titulo, asignatura, nivel, diversificacion)")
+        .eq("curso_escolar", cursoEscolar)
+        .is("fecha_devolucion", null)
+        .order("alumno_grupo")
+        .order("alumno_nombre");
+
+      if (!data) return;
+
+      const profIds = [...new Set(data.map((p) => p.entregado_por).filter(Boolean) as string[])];
+      let nameMap: Record<string, string> = {};
+      if (profIds.length > 0) {
+        const { data: profData } = await supabase.from("profesores").select("id, profesor").in("id", profIds);
+        nameMap = Object.fromEntries((profData ?? []).map((p) => [p.id as string, p.profesor as string]));
+      }
+
+      const updated = data.map((p) => ({
+        ...p,
+        libro: (p.libro as unknown as { titulo: string; asignatura: string; nivel: string; diversificacion?: boolean } | null) ?? undefined,
+        entregado_por_nombre: { profesor: nameMap[p.entregado_por as string] ?? "—" },
+      })) as PrestamoLibro[];
+
+      onPrestamosChange(updated);
+    }
+    refreshActivos();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cursoEscolar]);
 
   // ── Derived ────────────────────────────────────────────────────────────────
 
