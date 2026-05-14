@@ -161,6 +161,7 @@ export function TabPrestamosLote({ alumnos, libros, prestamos, onPrestamosChange
   const [overrideProfesorId, setOverrideProfesorId] = useState<string>(myProfesorId ?? "");
   const [localCompletados, setLocalCompletados] = useState<Set<string>>(new Set(completadosIniciales));
   const [markingId, setMarkingId] = useState<string | null>(null);
+  const [markingAll, setMarkingAll] = useState(false);
 
   const efectivoProfesorId = myProfesorId ?? (overrideProfesorId || null);
 
@@ -233,6 +234,14 @@ export function TabPrestamosLote({ alumnos, libros, prestamos, onPrestamosChange
   const libroTituloMap = useMemo(() =>
     Object.fromEntries(loteLibros.map((l) => [l.id, l.titulo])),
     [loteLibros]);
+
+  // Alumnos con algún préstamo del lote pero sin lote completo y sin marca manual
+  const alumnosPendientesDeCompletar = useMemo(() =>
+    alumnosDelGrupo.filter((a) => {
+      const count = alumnoLibrosMap[a.id]?.size ?? 0;
+      return count > 0 && count < loteLibros.length && !localCompletados.has(a.id);
+    }),
+  [alumnosDelGrupo, alumnoLibrosMap, loteLibros, localCompletados]);
 
   // Opción B: préstamos del lote que serían anulados para los alumnos seleccionados
   const prestamosToAnular = useMemo(() => {
@@ -370,6 +379,24 @@ export function TabPrestamosLote({ alumnos, libros, prestamos, onPrestamosChange
     const { error } = await supabase.from("prestamos_libros").delete().eq("id", prestamoId);
     if (error) { setErrorMsg(`Error al eliminar: ${error.message}`); return; }
     onPrestamosChange((prev) => prev.filter((p) => p.id !== prestamoId));
+  }
+
+  async function handleMarcarTodosCompletos() {
+    if (!efectivoProfesorId) {
+      setErrorMsg("Selecciona el profesor que registra la entrega antes de continuar.");
+      return;
+    }
+    if (alumnosPendientesDeCompletar.length === 0) return;
+    setMarkingAll(true);
+    const inserts = alumnosPendientesDeCompletar.map((a) => ({
+      alumno_id: a.id,
+      curso_escolar: cursoEscolar,
+      marcado_por: efectivoProfesorId,
+    }));
+    const { error } = await supabase.from("gratuidad_lote_completado").insert(inserts);
+    setMarkingAll(false);
+    if (error) { setErrorMsg(`Error al marcar: ${error.message}`); return; }
+    setLocalCompletados((prev) => new Set([...prev, ...alumnosPendientesDeCompletar.map((a) => a.id)]));
   }
 
   async function handleMarcarCompleto(alumnoId: string) {
@@ -632,9 +659,24 @@ export function TabPrestamosLote({ alumnos, libros, prestamos, onPrestamosChange
             <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
               <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
                 <span className="text-sm font-semibold text-gray-700">Alumnado del grupo</span>
-                <span className="text-xs font-semibold tracking-wider text-gray-400 uppercase">
-                  {totalConLoteCompleto}/{alumnosDelGrupo.length} entregados
-                </span>
+                <div className="flex items-center gap-2">
+                  {alumnosPendientesDeCompletar.length > 0 && (
+                    <button
+                      onClick={handleMarcarTodosCompletos}
+                      disabled={markingAll}
+                      className="inline-flex items-center gap-1 text-xs text-teal-600 hover:text-teal-800 hover:bg-teal-50 border border-teal-200 px-2 py-1 rounded-md transition-colors disabled:opacity-40"
+                    >
+                      {markingAll
+                        ? <span className="w-3 h-3 border border-teal-400 border-t-transparent rounded-full animate-spin" />
+                        : <SquareCheck size={11} />
+                      }
+                      Completar todos ({alumnosPendientesDeCompletar.length})
+                    </button>
+                  )}
+                  <span className="text-xs font-semibold tracking-wider text-gray-400 uppercase">
+                    {totalConLoteCompleto}/{alumnosDelGrupo.length} entregados
+                  </span>
+                </div>
               </div>
               <div className="divide-y divide-gray-50">
                 {alumnosDelGrupo.map((alumno) => {
