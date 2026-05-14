@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
   CheckCircle, AlertTriangle, X, Users, CalendarDays, ChevronDown, RotateCcw, BookOpen,
@@ -25,9 +25,9 @@ function initialsFromNombre(nombre: string): string {
 }
 
 const ESTADO_CONFIG: Record<EstadoDevolucion, { label: string; active: string; hover: string }> = {
-  bueno:       { label: "Bueno",       active: "bg-green-100 text-green-700 border-green-300", hover: "hover:bg-green-50 hover:border-green-200" },
+  bueno: { label: "Bueno", active: "bg-green-100 text-green-700 border-green-300", hover: "hover:bg-green-50 hover:border-green-200" },
   deteriorado: { label: "Deteriorado", active: "bg-amber-100 text-amber-700 border-amber-300", hover: "hover:bg-amber-50 hover:border-amber-200" },
-  perdido:     { label: "Perdido",     active: "bg-red-100 text-red-700 border-red-300",       hover: "hover:bg-red-50 hover:border-red-200" },
+  perdido: { label: "Perdido", active: "bg-red-100 text-red-700 border-red-300", hover: "hover:bg-red-50 hover:border-red-200" },
 };
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -63,11 +63,43 @@ export function TabDevolucionesLote({ prestamosActivos, onPrestamosChange, curso
 
   const efectivoProfesorId = myProfesorId ?? (overrideProfesorId || null);
 
+  // ── Refresh activos desde BD al montar ────────────────────────────────────
+  useEffect(() => {
+    async function refreshActivos() {
+      const { data } = await supabase
+        .from("prestamos_libros")
+        .select("id, libro_id, alumno_id, alumno_nombre, alumno_grupo, num_ejemplar, fecha_prestamo, entregado_por, devuelto_por, curso_escolar, fecha_devolucion, estado_devolucion, observaciones, created_at, libro:libros_catalogo(titulo, asignatura, nivel)")
+        .eq("curso_escolar", cursoEscolar)
+        .is("fecha_devolucion", null)
+        .order("alumno_grupo")
+        .order("alumno_nombre");
+
+      if (!data) return;
+
+      const profIds = [...new Set(data.map((p) => p.entregado_por).filter(Boolean) as string[])];
+      let nameMap: Record<string, string> = {};
+      if (profIds.length > 0) {
+        const { data: profData } = await supabase.from("profesores").select("id, profesor").in("id", profIds);
+        nameMap = Object.fromEntries((profData ?? []).map((p) => [p.id as string, p.profesor as string]));
+      }
+
+      const updated = data.map((p) => ({
+        ...p,
+        libro: (p.libro as unknown as { titulo: string; asignatura: string; nivel: string } | null) ?? undefined,
+        entregado_por_nombre: { profesor: nameMap[p.entregado_por as string] ?? "—" },
+      })) as import("@/lib/types").PrestamoLibro[];
+
+      onPrestamosChange(updated);
+    }
+    refreshActivos();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cursoEscolar]);
+
   // ── Derived ────────────────────────────────────────────────────────────────
 
   const unidades = useMemo(() =>
     [...new Set(prestamosActivos.map((p) => p.alumno_grupo))].sort(),
-  [prestamosActivos]);
+    [prestamosActivos]);
 
   const alumnosConPrestamos = useMemo(() => {
     const map: Record<string, { key: string; nombre: string; libroIds: Set<string> }> = {};
@@ -92,7 +124,7 @@ export function TabDevolucionesLote({ prestamosActivos, onPrestamosChange, curso
   // Cuántos libros tienen estado marcado (serán devueltos)
   const countToReturn = useMemo(() =>
     librosDelAlumno.filter((p) => bookStates[p.libro_id] != null).length,
-  [librosDelAlumno, bookStates]);
+    [librosDelAlumno, bookStates]);
 
   const selectedAlumno = alumnosConPrestamos.find((a) => a.key === selectedAlumnoKey) ?? null;
 
@@ -334,41 +366,49 @@ export function TabDevolucionesLote({ prestamosActivos, onPrestamosChange, curso
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-start">
 
           {/* Panel izquierdo — lista de alumnos */}
-          <div className="md:col-span-2 bg-white border border-gray-200 rounded-xl overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-              <span className="text-sm font-semibold text-gray-700">Alumnado</span>
-              <span className="text-xs font-semibold tracking-wider text-gray-400 uppercase">
-                {alumnosConPrestamos.length} pendientes
-              </span>
+          <div className="md:col-span-2 flex flex-col gap-2">
+            <div className="flex items-center gap-2">
+              <span className="w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center flex-shrink-0">1</span>
+              <span className="text-sm font-medium text-gray-700">Selecciona el alumno que devuelve los libros</span>
             </div>
-            <div className="divide-y divide-gray-50">
-              {alumnosConPrestamos.map((alumno) => {
-                const isSelected = alumno.key === selectedAlumnoKey;
-                return (
-                  <button
-                    key={alumno.key}
-                    onClick={() => selectAlumno(alumno.key)}
-                    className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${
-                      isSelected ? "bg-blue-50" : "hover:bg-gray-50"
-                    }`}
-                  >
-                    <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
-                      isSelected ? "bg-blue-200 text-blue-800" : "bg-gray-200 text-gray-600"
-                    }`}>
-                      {initialsFromNombre(alumno.nombre)}
-                    </div>
-                    <span className="text-sm text-gray-800 flex-1 min-w-0 truncate">{alumno.nombre}</span>
-                    <span className="text-xs text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full flex-shrink-0 tabular-nums">
-                      {alumno.libroIds.size}
-                    </span>
-                  </button>
-                );
-              })}
+            <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+                <span className="text-sm font-semibold text-gray-700">Alumnado</span>
+                <span className="text-xs font-semibold tracking-wider text-gray-400 uppercase">
+                  {alumnosConPrestamos.length} pendientes
+                </span>
+              </div>
+              <div className="divide-y divide-gray-50">
+                {alumnosConPrestamos.map((alumno) => {
+                  const isSelected = alumno.key === selectedAlumnoKey;
+                  return (
+                    <button
+                      key={alumno.key}
+                      onClick={() => selectAlumno(alumno.key)}
+                      className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${isSelected ? "bg-blue-50" : "hover:bg-gray-50"
+                        }`}
+                    >
+                      <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${isSelected ? "bg-blue-200 text-blue-800" : "bg-gray-200 text-gray-600"
+                        }`}>
+                        {initialsFromNombre(alumno.nombre)}
+                      </div>
+                      <span className="text-sm text-gray-800 flex-1 min-w-0 truncate">{alumno.nombre}</span>
+                      <span className="text-xs text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full flex-shrink-0 tabular-nums">
+                        {alumno.libroIds.size}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
 
           {/* Panel derecho — libros del alumno */}
-          <div className="md:col-span-3">
+          <div className="md:col-span-3 flex flex-col gap-2">
+            <div className="flex items-center gap-2">
+              <span className="w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center flex-shrink-0">2</span>
+              <span className="text-sm font-medium text-gray-700">Indica el estado solo de los libros que se devuelva y confirma la devolución</span>
+            </div>
             {!selectedAlumno ? (
               <div className="bg-white border border-gray-200 rounded-xl flex flex-col items-center justify-center py-16 text-gray-400">
                 <BookOpen size={36} className="mb-2 opacity-40" />
@@ -424,11 +464,10 @@ export function TabDevolucionesLote({ prestamosActivos, onPrestamosChange, curso
                             <button
                               key={e}
                               onClick={() => handleEstado(p.libro_id, e)}
-                              className={`text-xs font-medium px-2.5 py-1.5 rounded-lg border transition-colors ${
-                                estado === e
+                              className={`text-xs font-medium px-2.5 py-1.5 rounded-lg border transition-colors ${estado === e
                                   ? ESTADO_CONFIG[e].active
                                   : `border-gray-200 text-gray-500 bg-white ${ESTADO_CONFIG[e].hover}`
-                              }`}
+                                }`}
                             >
                               {ESTADO_CONFIG[e].label}
                             </button>

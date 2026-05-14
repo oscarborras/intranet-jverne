@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Users, RotateCcw, AlertTriangle, Download, Printer, BookOpen } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
 import type { PrestamoLibro, LibroCatalogo, Alumno } from "@/lib/types";
 
 interface Props {
@@ -59,6 +60,33 @@ export function TabInformes({
   unidadesGratuidad,
   cursoEscolar,
 }: Props) {
+  const supabase = createClient();
+  const [liveTodosPrestamos, setLiveTodosPrestamos] = useState<PrestamoLibro[]>(todosPrestamos);
+
+  useEffect(() => {
+    async function refresh() {
+      const { data } = await supabase
+        .from("prestamos_libros")
+        .select("id, libro_id, alumno_id, alumno_nombre, alumno_grupo, num_ejemplar, fecha_prestamo, entregado_por, devuelto_por, curso_escolar, fecha_devolucion, estado_devolucion, observaciones, created_at, libro:libros_catalogo(titulo, asignatura, nivel)")
+        .eq("curso_escolar", cursoEscolar)
+        .order("alumno_grupo")
+        .order("alumno_nombre");
+
+      if (!data) return;
+      setLiveTodosPrestamos(data.map((p) => ({
+        ...p,
+        libro: (p.libro as unknown as { titulo: string; asignatura: string; nivel: string } | null) ?? undefined,
+      })) as PrestamoLibro[]);
+    }
+    refresh();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cursoEscolar]);
+
+  const livePrestamos = useMemo(
+    () => liveTodosPrestamos.filter((p) => !p.fecha_devolucion),
+    [liveTodosPrestamos]
+  );
+
   const alumnosEnPrograma = useMemo(
     () => alumnos.filter((a) => unidadesGratuidad.includes(a.unidad)),
     [alumnos, unidadesGratuidad]
@@ -68,10 +96,10 @@ export function TabInformes({
     const totalAlumnos = alumnosEnPrograma.length;
 
     const conLote = new Set(
-      prestamos.map((p) => p.alumno_id ?? p.alumno_nombre)
+      livePrestamos.map((p) => p.alumno_id ?? p.alumno_nombre)
     ).size;
 
-    const perStudent = todosPrestamos.reduce<Record<string, { total: number; returned: number }>>(
+    const perStudent = liveTodosPrestamos.reduce<Record<string, { total: number; returned: number }>>(
       (acc, p) => {
         const key = p.alumno_id ?? p.alumno_nombre;
         if (!acc[key]) acc[key] = { total: 0, returned: 0 };
@@ -86,57 +114,57 @@ export function TabInformes({
       (s) => s.total > 0 && s.total === s.returned
     ).length;
 
-    const incidencias = todosPrestamos.filter(
+    const incidencias = liveTodosPrestamos.filter(
       (p) => p.estado_devolucion === "deteriorado" || p.estado_devolucion === "perdido"
     ).length;
 
     const alumnosConPrestamoIds = new Set(
-      todosPrestamos.map((p) => p.alumno_id ?? p.alumno_nombre)
+      liveTodosPrestamos.map((p) => p.alumno_id ?? p.alumno_nombre)
     );
     const sinLote = alumnosEnPrograma.filter(
       (a) => !alumnosConPrestamoIds.has(a.id) && !alumnosConPrestamoIds.has(a.alumno)
     ).length;
 
     return { totalAlumnos, conLote, cerrados, conAlgunPrestamo, incidencias, sinLote };
-  }, [alumnosEnPrograma, prestamos, todosPrestamos]);
+  }, [alumnosEnPrograma, livePrestamos, liveTodosPrestamos]);
 
   // ── Entrega por curso ───────────────────────────────────────────────────────
   const entregaPorCurso = useMemo(() => {
     return ESO_LEVELS.map(({ label, prefix }) => {
       const alumnosNivel = alumnosEnPrograma.filter((a) => a.unidad.startsWith(prefix)).length;
       const conLoteNivel = new Set(
-        prestamos
+        livePrestamos
           .filter((p) => p.alumno_grupo.startsWith(prefix))
           .map((p) => p.alumno_id ?? p.alumno_nombre)
       ).size;
       return { label, total: alumnosNivel, conLote: conLoteNivel, pct: pct(conLoteNivel, alumnosNivel) };
     }).filter((row) => row.total > 0);
-  }, [alumnosEnPrograma, prestamos]);
+  }, [alumnosEnPrograma, livePrestamos]);
 
   // ── Tasa de devolución por curso ────────────────────────────────────────────
   const devolucionesPorCurso = useMemo(() => {
     return ESO_LEVELS.map(({ label, prefix }) => {
-      const prestamosNivel = todosPrestamos.filter((p) => p.alumno_grupo.startsWith(prefix));
+      const prestamosNivel = liveTodosPrestamos.filter((p) => p.alumno_grupo.startsWith(prefix));
       const totalNivel = prestamosNivel.length;
       const devueltosNivel = prestamosNivel.filter((p) => p.fecha_devolucion !== null).length;
       return { label, total: totalNivel, devueltos: devueltosNivel, pct: pct(devueltosNivel, totalNivel) };
     }).filter((row) => row.total > 0);
-  }, [todosPrestamos]);
+  }, [liveTodosPrestamos]);
 
   // ── Incidencias por tipo ────────────────────────────────────────────────────
   const incidenciasPorTipo = useMemo(() => {
-    const deteriorados = todosPrestamos.filter((p) => p.estado_devolucion === "deteriorado").length;
-    const perdidos = todosPrestamos.filter((p) => p.estado_devolucion === "perdido").length;
+    const deteriorados = liveTodosPrestamos.filter((p) => p.estado_devolucion === "deteriorado").length;
+    const perdidos = liveTodosPrestamos.filter((p) => p.estado_devolucion === "perdido").length;
     const max = Math.max(deteriorados, perdidos, 1);
     return [
       { label: "Deterioro", count: deteriorados, barPct: Math.round((deteriorados / max) * 100), color: "bg-amber-400" },
       { label: "Pérdida",   count: perdidos,     barPct: Math.round((perdidos / max) * 100),     color: "bg-red-400" },
     ];
-  }, [todosPrestamos]);
+  }, [liveTodosPrestamos]);
 
   // ── Libros con más incidencias ──────────────────────────────────────────────
   const librosConIncidencias = useMemo(() => {
-    const counts = todosPrestamos
+    const counts = liveTodosPrestamos
       .filter((p) => p.estado_devolucion === "deteriorado" || p.estado_devolucion === "perdido")
       .reduce<Record<string, { titulo: string; deteriorado: number; perdido: number }>>((acc, p) => {
         const titulo = p.libro?.titulo ?? p.libro_id;
@@ -151,7 +179,7 @@ export function TabInformes({
       .slice(0, 8);
     const max = sorted[0]?.total ?? 1;
     return sorted.map((r) => ({ ...r, barPct: Math.round((r.total / max) * 100) }));
-  }, [todosPrestamos]);
+  }, [liveTodosPrestamos]);
 
   // ── Grupos con entrega más baja ─────────────────────────────────────────────
   const gruposPorEntrega = useMemo(() => {
@@ -159,7 +187,7 @@ export function TabInformes({
       .map((grupo) => {
         const totalEnGrupo = alumnosEnPrograma.filter((a) => a.unidad === grupo).length;
         const conLoteEnGrupo = new Set(
-          prestamos
+          livePrestamos
             .filter((p) => p.alumno_grupo === grupo)
             .map((p) => p.alumno_id ?? p.alumno_nombre)
         ).size;
@@ -167,7 +195,7 @@ export function TabInformes({
       })
       .filter((row) => row.total > 0)
       .sort((a, b) => a.pct - b.pct);
-  }, [unidadesGratuidad, alumnosEnPrograma, prestamos]);
+  }, [unidadesGratuidad, alumnosEnPrograma, livePrestamos]);
 
   // ── Stock por editorial ─────────────────────────────────────────────────────
   const stockPorEditorial = useMemo(() => {
@@ -193,7 +221,7 @@ export function TabInformes({
       "Nº Ejemplar", "Fecha Préstamo", "Fecha Devolución",
       "Estado Devolución", "Observaciones",
     ];
-    const rows = todosPrestamos.map((p) => [
+    const rows = liveTodosPrestamos.map((p) => [
       p.alumno_nombre, p.alumno_grupo,
       p.libro?.titulo ?? "", p.libro?.asignatura ?? "", p.libro?.nivel ?? "",
       p.num_ejemplar ?? "", p.fecha_prestamo,

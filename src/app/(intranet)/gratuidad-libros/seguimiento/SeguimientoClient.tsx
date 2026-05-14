@@ -125,35 +125,62 @@ export function SeguimientoClient({ prestamos, cursoEscolarActual, alumnos = [],
   const [filtroNivel, setFiltroNivel] = useState<string>("todos");
   const [tutorMap, setTutorMap] = useState<Record<string, string>>({});
   const [gratuidadGrupos, setGratuidadGrupos] = useState<Set<string>>(new Set());
+  const [livePrestamos, setLivePrestamos] = useState<PrestamoLibro[]>(prestamos);
 
-  // Fetch tutores para la vista por cursos
+  // Re-fetch all loans on mount + fetch tutores
   useEffect(() => {
-    async function fetchTutores() {
+    async function fetchData() {
       const supabase = createClient();
-      const { data: cursosData } = await supabase
-        .from("cursos")
-        .select("nombre, email_tutor")
-        .eq("gratuidad", true);
 
+      const [{ data: cursosData }, { data: rawPrestamos }] = await Promise.all([
+        supabase.from("cursos").select("nombre, email_tutor").eq("gratuidad", true),
+        supabase
+          .from("prestamos_libros")
+          .select("id, libro_id, alumno_id, alumno_nombre, alumno_grupo, num_ejemplar, fecha_prestamo, entregado_por, devuelto_por, curso_escolar, fecha_devolucion, estado_devolucion, observaciones, created_at, libro:libros_catalogo(titulo, asignatura, nivel)")
+          .eq("curso_escolar", cursoEscolarActual)
+          .order("alumno_grupo")
+          .order("alumno_nombre"),
+      ]);
+
+      // Resolve professor names
+      if (rawPrestamos && rawPrestamos.length > 0) {
+        const profIds = [...new Set([
+          ...rawPrestamos.map((p) => p.entregado_por as string),
+          ...rawPrestamos.filter((p) => p.devuelto_por).map((p) => p.devuelto_por as string),
+        ])];
+        const { data: profData } = await supabase
+          .from("profesores")
+          .select("id, profesor")
+          .in("id", profIds);
+        const nameMap = Object.fromEntries(
+          (profData ?? []).map((p) => [p.id as string, p.profesor as string])
+        );
+        setLivePrestamos(rawPrestamos.map((p) => ({
+          ...p,
+          libro: (p.libro as unknown as { titulo: string; asignatura: string; nivel: string } | null) ?? undefined,
+          entregado_por_nombre: { profesor: nameMap[p.entregado_por as string] ?? "—" },
+          devuelto_por_nombre: p.devuelto_por
+            ? { profesor: nameMap[p.devuelto_por as string] ?? "—" }
+            : undefined,
+        })) as PrestamoLibro[]);
+      } else if (rawPrestamos) {
+        setLivePrestamos([]);
+      }
+
+      // Tutores
       if (!cursosData?.length) return;
-
       setGratuidadGrupos(new Set(cursosData.map((c) => c.nombre as string)));
-
       const emails = cursosData
         .map((c) => c.email_tutor as string | null)
         .filter((e): e is string => Boolean(e));
-
       if (emails.length === 0) return;
-
       const { data: profData } = await supabase
         .from("profesores")
         .select("email, profesor")
         .in("email", emails);
-
       const emailToName = Object.fromEntries(
         (profData ?? []).map((p) => [p.email as string, p.profesor as string])
       );
-
       const map: Record<string, string> = {};
       for (const c of cursosData) {
         if (c.email_tutor && emailToName[c.email_tutor as string]) {
@@ -162,8 +189,9 @@ export function SeguimientoClient({ prestamos, cursoEscolarActual, alumnos = [],
       }
       setTutorMap(map);
     }
-    fetchTutores();
-  }, []);
+    fetchData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cursoEscolarActual]);
 
   function toggleKey(key: string) {
     setExpandedKeys((prev) => {
@@ -176,13 +204,13 @@ export function SeguimientoClient({ prestamos, cursoEscolarActual, alumnos = [],
 
   // ── Stats ────────────────────────────────────────────────────────────────────
   const stats = useMemo(() => {
-    const total = prestamos.length;
-    const devueltos = prestamos.filter((p) => p.fecha_devolucion !== null).length;
+    const total = livePrestamos.length;
+    const devueltos = livePrestamos.filter((p) => p.fecha_devolucion !== null).length;
     const activos = total - devueltos;
-    const deteriorados = prestamos.filter((p) => p.estado_devolucion === "deteriorado").length;
-    const perdidos = prestamos.filter((p) => p.estado_devolucion === "perdido").length;
+    const deteriorados = livePrestamos.filter((p) => p.estado_devolucion === "deteriorado").length;
+    const perdidos = livePrestamos.filter((p) => p.estado_devolucion === "perdido").length;
     return { total, devueltos, activos, deteriorados, perdidos };
-  }, [prestamos]);
+  }, [livePrestamos]);
 
   // ── Vista por cursos ─────────────────────────────────────────────────────────
 
@@ -193,7 +221,7 @@ export function SeguimientoClient({ prestamos, cursoEscolarActual, alumnos = [],
       .sort();
 
     // Count active loans per group (students with at least one active loan)
-    const activeLoansPerGroup = prestamos.reduce<Record<string, Set<string>>>((acc, p) => {
+    const activeLoansPerGroup = livePrestamos.reduce<Record<string, Set<string>>>((acc, p) => {
       if (!acc[p.alumno_grupo]) acc[p.alumno_grupo] = new Set();
       acc[p.alumno_grupo].add(p.alumno_id ?? p.alumno_nombre);
       return acc;
@@ -209,7 +237,7 @@ export function SeguimientoClient({ prestamos, cursoEscolarActual, alumnos = [],
       result[nivel].push({ grupo, total: totalEnGrupo, entregados });
     }
     return result;
-  }, [alumnos, prestamos, gratuidadGrupos]);
+  }, [alumnos, livePrestamos, gratuidadGrupos]);
 
   const nivelesConDatos = ESO_NIVELES.filter((n) => porNivel[n]?.length);
 
@@ -220,7 +248,7 @@ export function SeguimientoClient({ prestamos, cursoEscolarActual, alumnos = [],
   // ── Vista por grupos ─────────────────────────────────────────────────────────
 
   const porGrupo = useMemo(() => {
-    return prestamos
+    return livePrestamos
       .filter((p) => !p.fecha_devolucion)
       .reduce<Record<string, PrestamoLibro[]>>((acc, p) => {
         const key = p.alumno_grupo;
@@ -228,14 +256,14 @@ export function SeguimientoClient({ prestamos, cursoEscolarActual, alumnos = [],
         acc[key].push(p);
         return acc;
       }, {});
-  }, [prestamos]);
+  }, [livePrestamos]);
 
   const gruposOrdenados = useMemo(() => Object.keys(porGrupo).sort(), [porGrupo]);
 
   // ── Vista por libros ─────────────────────────────────────────────────────────
 
   const porLibro = useMemo(() => {
-    return prestamos.reduce<Record<string, { titulo: string; activos: number; devueltos: number; deteriorados: number; perdidos: number }>>((acc, p) => {
+    return livePrestamos.reduce<Record<string, { titulo: string; activos: number; devueltos: number; deteriorados: number; perdidos: number }>>((acc, p) => {
       const titulo = p.libro?.titulo ?? p.libro_id;
       if (!acc[titulo]) acc[titulo] = { titulo, activos: 0, devueltos: 0, deteriorados: 0, perdidos: 0 };
       if (!p.fecha_devolucion) {
@@ -247,7 +275,7 @@ export function SeguimientoClient({ prestamos, cursoEscolarActual, alumnos = [],
       }
       return acc;
     }, {});
-  }, [prestamos]);
+  }, [livePrestamos]);
 
   const librosOrdenados = useMemo(
     () => Object.values(porLibro).sort((a, b) => a.titulo.localeCompare(b.titulo)),
@@ -262,7 +290,7 @@ export function SeguimientoClient({ prestamos, cursoEscolarActual, alumnos = [],
       "Nº Ejemplar", "Fecha Préstamo", "Fecha Devolución",
       "Estado Devolución", "Entregado por", "Devuelto por", "Observaciones",
     ];
-    const rows = prestamos.map((p) => [
+    const rows = livePrestamos.map((p) => [
       p.alumno_nombre, p.alumno_grupo,
       p.libro?.titulo ?? "", p.libro?.asignatura ?? "", p.libro?.nivel ?? "",
       p.num_ejemplar ?? "", p.fecha_prestamo,
@@ -464,7 +492,7 @@ export function SeguimientoClient({ prestamos, cursoEscolarActual, alumnos = [],
           ) : (
             librosOrdenados.map((libro) => {
               const isExpanded = expandedKeys.has(libro.titulo);
-              const prestamosLibro = prestamos.filter(
+              const prestamosLibro = livePrestamos.filter(
                 (p) => (p.libro?.titulo ?? p.libro_id) === libro.titulo
               );
               return (
