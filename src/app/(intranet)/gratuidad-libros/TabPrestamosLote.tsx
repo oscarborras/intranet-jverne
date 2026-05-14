@@ -271,10 +271,12 @@ export function TabPrestamosLote({ alumnos, libros, prestamos, onPrestamosChange
   }
 
   function handleSelectAllLibros() {
-    if (selectedLibroIds.size === loteLibros.length) {
+    const librosConStock = loteLibros.filter((l) => disponibles(l.id) > 0);
+    const todosSeleccionados = librosConStock.every((l) => selectedLibroIds.has(l.id));
+    if (todosSeleccionados) {
       setSelectedLibroIds(new Set());
     } else {
-      setSelectedLibroIds(new Set(loteLibros.map((l) => l.id)));
+      setSelectedLibroIds(new Set(librosConStock.map((l) => l.id)));
     }
   }
 
@@ -602,7 +604,7 @@ export function TabPrestamosLote({ alumnos, libros, prestamos, onPrestamosChange
                     onClick={handleSelectAllLibros}
                     className="text-xs font-medium text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-2 py-1 rounded-md transition-colors"
                   >
-                    {selectedLibroIds.size === loteLibros.length ? "Desmarcar todos" : "Marcar todos"}
+                    {loteLibros.filter((l) => disponibles(l.id) > 0).every((l) => selectedLibroIds.has(l.id)) && selectedLibroIds.size > 0 ? "Desmarcar todos" : "Marcar todos"}
                   </button>
                   <span className="inline-flex items-center gap-1 bg-green-50 text-green-700 border border-green-200 text-xs font-medium px-2 py-1 rounded-full">
                     <BookOpen size={11} />
