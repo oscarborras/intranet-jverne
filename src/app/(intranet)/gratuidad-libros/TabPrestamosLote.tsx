@@ -287,7 +287,7 @@ export function TabPrestamosLote({ alumnos, libros, prestamos, onPrestamosChange
     const { data, error } = await supabase
       .from("prestamos_libros")
       .insert(inserts)
-      .select("id, libro_id, alumno_id, alumno_nombre, alumno_grupo, num_ejemplar, fecha_prestamo, entregado_por, devuelto_por, curso_escolar, fecha_devolucion, estado_devolucion, observaciones, created_at");
+      .select("id, libro_id, alumno_id, alumno_nombre, alumno_grupo, num_ejemplar, fecha_prestamo, entregado_por, devuelto_por, curso_escolar, fecha_devolucion, estado_devolucion, observaciones, created_at, libro:libros_catalogo(titulo, asignatura, nivel)");
 
     setSaving(false);
     setStockAlertas([]);
@@ -297,7 +297,11 @@ export function TabPrestamosLote({ alumnos, libros, prestamos, onPrestamosChange
       return;
     }
 
-    onPrestamosChange((prev) => [...prev, ...(data as PrestamoLibro[])]);
+    const newPrestamos: PrestamoLibro[] = data.map((p) => ({
+      ...p,
+      libro: (p.libro as unknown as { titulo: string; asignatura: string; nivel: string }[] | null)?.[0] ?? undefined,
+    }));
+    onPrestamosChange((prev) => [...prev, ...newPrestamos]);
     setSelectedAlumnoIds(new Set());
     setSuccessMsg(`${inserts.length} préstamo${inserts.length !== 1 ? "s" : ""} registrado${inserts.length !== 1 ? "s" : ""} correctamente.`);
   }
