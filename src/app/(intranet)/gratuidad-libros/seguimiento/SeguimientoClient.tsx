@@ -57,13 +57,15 @@ interface GrupoCardProps {
   grupo: string;
   tutor: string | null;
   entregados: number;
+  devueltos: number;
   total: number;
   onPrestamos?: () => void;
   onDevoluciones?: () => void;
 }
 
-function GrupoCard({ grupo, tutor, entregados, total, onPrestamos, onDevoluciones }: GrupoCardProps) {
-  const pct = total > 0 ? Math.round((entregados / total) * 100) : 0;
+function GrupoCard({ grupo, tutor, entregados, devueltos, total, onPrestamos, onDevoluciones }: GrupoCardProps) {
+  const pctEntregados = total > 0 ? Math.round((entregados / total) * 100) : 0;
+  const pctDevueltos = entregados > 0 ? Math.round((devueltos / entregados) * 100) : 0;
 
   return (
     <div className="bg-white border border-gray-200 rounded-xl p-4 flex flex-col gap-2">
@@ -108,8 +110,21 @@ function GrupoCard({ grupo, tutor, entregados, total, onPrestamos, onDevolucione
         </p>
         <div className="mt-1.5 h-1.5 bg-gray-100 rounded-full overflow-hidden">
           <div
-            className={`h-full rounded-full transition-all duration-500 ${pct === 100 ? "bg-blue-600" : "bg-orange-500"}`}
-            style={{ width: `${pct}%` }}
+            className={`h-full rounded-full transition-all duration-500 ${pctEntregados === 100 ? "bg-blue-600" : "bg-orange-500"}`}
+            style={{ width: `${pctEntregados}%` }}
+          />
+        </div>
+      </div>
+
+      {/* Devueltos */}
+      <div>
+        <p className="text-sm text-gray-700">
+          <span className="font-bold text-gray-900">{devueltos}/{entregados}</span> devueltos
+        </p>
+        <div className="mt-1.5 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all duration-500 ${pctDevueltos === 100 && entregados > 0 ? "bg-blue-600" : "bg-green-500"}`}
+            style={{ width: `${pctDevueltos}%` }}
           />
         </div>
       </div>
@@ -220,21 +235,31 @@ export function SeguimientoClient({ prestamos, cursoEscolarActual, alumnos = [],
       .filter((g) => gratuidadGrupos.size === 0 || gratuidadGrupos.has(g))
       .sort();
 
-    // Count active loans per group (students with at least one active loan)
-    const activeLoansPerGroup = livePrestamos.reduce<Record<string, Set<string>>>((acc, p) => {
+    // All students who have received at least one book (active or returned)
+    const allLoansPerGroup = livePrestamos.reduce<Record<string, Set<string>>>((acc, p) => {
       if (!acc[p.alumno_grupo]) acc[p.alumno_grupo] = new Set();
       acc[p.alumno_grupo].add(p.alumno_id ?? p.alumno_nombre);
       return acc;
     }, {});
 
-    const result: Record<string, { grupo: string; total: number; entregados: number }[]> = {};
+    // Students with at least one active (not returned) loan
+    const activeLoansPerGroup = livePrestamos.reduce<Record<string, Set<string>>>((acc, p) => {
+      if (p.fecha_devolucion) return acc;
+      if (!acc[p.alumno_grupo]) acc[p.alumno_grupo] = new Set();
+      acc[p.alumno_grupo].add(p.alumno_id ?? p.alumno_nombre);
+      return acc;
+    }, {});
+
+    const result: Record<string, { grupo: string; total: number; entregados: number; devueltos: number }[]> = {};
     for (const grupo of grupos) {
       const nivel = nivelFromGrupo(grupo);
       if (!nivel) continue;
       const totalEnGrupo = alumnos.filter((a) => a.unidad === grupo).length;
-      const entregados = activeLoansPerGroup[grupo]?.size ?? 0;
+      const entregados = allLoansPerGroup[grupo]?.size ?? 0;
+      const conActivos = activeLoansPerGroup[grupo]?.size ?? 0;
+      const devueltos = entregados - conActivos;
       if (!result[nivel]) result[nivel] = [];
-      result[nivel].push({ grupo, total: totalEnGrupo, entregados });
+      result[nivel].push({ grupo, total: totalEnGrupo, entregados, devueltos });
     }
     return result;
   }, [alumnos, livePrestamos, gratuidadGrupos]);
@@ -404,12 +429,13 @@ export function SeguimientoClient({ prestamos, cursoEscolarActual, alumnos = [],
                   </div>
                   {/* Grid de cards */}
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                    {grupos.map(({ grupo, total, entregados }) => (
+                    {grupos.map(({ grupo, total, entregados, devueltos }) => (
                       <GrupoCard
                         key={grupo}
                         grupo={grupo}
                         tutor={tutorMap[grupo] ?? null}
                         entregados={entregados}
+                        devueltos={devueltos}
                         total={total}
                         onPrestamos={onNavigateToTab ? () => onNavigateToTab("prestamos", grupo) : undefined}
                         onDevoluciones={onNavigateToTab ? () => onNavigateToTab("devoluciones", grupo) : undefined}
