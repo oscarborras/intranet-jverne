@@ -407,7 +407,7 @@ export function TabDevolucionesLote({ prestamosActivos, onPrestamosChange, curso
           <div className="md:col-span-3 flex flex-col gap-2">
             <div className="flex items-center gap-2">
               <span className="w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center flex-shrink-0">2</span>
-              <span className="text-sm font-medium text-gray-700">Indica el estado solo de los libros que se devuelvan y confirma la devolución</span>
+              <span className="text-sm font-medium text-gray-700">Indica el estado solo de los libros que se devuelvan o se hayan perdido y confirma la devolución</span>
             </div>
             {!selectedAlumno ? (
               <div className="bg-white border border-gray-200 rounded-xl flex flex-col items-center justify-center py-16 text-gray-400">
@@ -489,7 +489,7 @@ export function TabDevolucionesLote({ prestamosActivos, onPrestamosChange, curso
                     type="text"
                     value={observaciones}
                     onChange={(e) => setObservaciones(e.target.value)}
-                    placeholder="Observaciones (opcional)..."
+                    placeholder="Observaciones en caso de deterioros o extravios (opcional) ..."
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
