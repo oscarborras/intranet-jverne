@@ -75,7 +75,7 @@ export function CatalogoLibrosClient({ libros: initial, prestamos }: Props) {
   const stats = useMemo(() => {
     const activos = librosVisibles.filter((l) => l.activo);
     const totalEjemplares = activos.reduce((sum, l) => sum + l.stock_total, 0);
-    const stockBajo = activos.filter((l) => l.stock_total < STOCK_BAJO_UMBRAL).length;
+    const stockBajo = activos.filter((l) => (l.stock_total - (loanCountsPerLibro[l.id] ?? 0)) < STOCK_BAJO_UMBRAL).length;
     const totalEntregados = activos.reduce((sum, l) => sum + (loanCountsPerLibro[l.id] ?? 0), 0);
 
     return { titulos: activos.length, totalEjemplares, stockBajo, totalEntregados };
@@ -228,6 +228,7 @@ export function CatalogoLibrosClient({ libros: initial, prestamos }: Props) {
           <p className="text-xs font-semibold tracking-wider text-gray-400 uppercase mb-2">Stock bajo</p>
           <p className={`text-3xl font-bold ${stats.stockBajo > 0 ? "text-red-600" : "text-gray-900"}`}>
             {stats.stockBajo}
+            <span className="text-lg font-medium text-gray-400"> / {stats.titulos}</span>
           </p>
           <p className="text-xs text-gray-400 mt-1">títulos por debajo de {STOCK_BAJO_UMBRAL} ejemplares</p>
         </div>
@@ -343,7 +344,7 @@ export function CatalogoLibrosClient({ libros: initial, prestamos }: Props) {
                     {items.map((libro) => (
                       <div
                         key={libro.id}
-                        className={`flex items-start justify-between gap-3 px-4 py-3 ${!libro.activo ? "opacity-50" : ""}`}
+                        className={`flex items-center justify-between gap-3 px-4 py-3 ${!libro.activo ? "opacity-50" : ""}`}
                       >
                         <div className="min-w-0">
                           <p className={`font-medium text-gray-900 text-sm ${!libro.activo ? "line-through" : ""}`}>
@@ -360,12 +361,26 @@ export function CatalogoLibrosClient({ libros: initial, prestamos }: Props) {
                               Diversificación
                             </span>
                           )}
-                          <p className={`text-xs mt-0.5 font-medium ${libro.stock_total < STOCK_BAJO_UMBRAL && libro.activo ? "text-red-500" : "text-gray-400"}`}>
-                            Stock: {libro.stock_total - (loanCountsPerLibro[libro.id] ?? 0)} / {libro.stock_total}
-                            {libro.stock_total < STOCK_BAJO_UMBRAL && libro.activo && " · stock bajo"}
-                          </p>
                         </div>
-                        <div className="flex gap-1 flex-shrink-0">
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          {(() => {
+                            const disp = libro.stock_total - (loanCountsPerLibro[libro.id] ?? 0);
+                            if (disp <= 0) return (
+                              <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-red-100 text-red-700 whitespace-nowrap" title="Sin stock disponible">
+                                0 / {libro.stock_total}
+                              </span>
+                            );
+                            if (disp < STOCK_BAJO_UMBRAL) return (
+                              <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-100 text-amber-700 whitespace-nowrap" title="Stock bajo">
+                                {disp} / {libro.stock_total}
+                              </span>
+                            );
+                            return (
+                              <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-gray-100 text-gray-500 whitespace-nowrap">
+                                {disp} / {libro.stock_total}
+                              </span>
+                            );
+                          })()}
                           <button
                             onClick={() => openEdit(libro)}
                             title="Editar"
