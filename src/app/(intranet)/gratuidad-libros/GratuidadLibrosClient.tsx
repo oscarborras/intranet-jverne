@@ -20,6 +20,7 @@ interface Props {
   todosPrestamos: PrestamoLibro[];
   libros: LibroCatalogo[];
   alumnos: Alumno[];
+  alumnosInactivos: Alumno[];
   cursoEscolarActual: string;
   myProfesorId: string | null;
   canManage: boolean;
@@ -34,6 +35,7 @@ export function GratuidadLibrosClient({
   todosPrestamos,
   libros,
   alumnos,
+  alumnosInactivos,
   cursoEscolarActual,
   myProfesorId,
   canManage,
@@ -98,6 +100,7 @@ export function GratuidadLibrosClient({
       {activeTab === "prestamos" && (
         <TabPrestamosLote
           alumnos={alumnos}
+          alumnosInactivos={alumnosInactivos}
           libros={libros.filter((l) => l.activo)}
           prestamos={livePrestamosList}
           onPrestamosChange={setLivePrestamos}
@@ -118,6 +121,7 @@ export function GratuidadLibrosClient({
           myProfesorId={myProfesorId}
           canManage={canManage}
           profesores={profesores}
+          alumnosInactivos={alumnosInactivos}
           initialGrupo={pendingGrupo ?? undefined}
         />
       )}

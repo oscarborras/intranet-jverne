@@ -30,6 +30,7 @@ export default async function GratuidadLibrosPage() {
     { data: rawTodosPrestamos },
     { data: profesoresData },
     { data: alumnosData },
+    { data: alumnosInactivosData },
     { data: cursosGratuidadData },
     { data: completadosData },
   ] = await Promise.all([
@@ -75,6 +76,15 @@ export default async function GratuidadLibrosPage() {
       .order("unidad")
       .order("primer_apellido")
       .order("segundo_apellido"),
+
+    // Inactive students (estado_matricula IS NOT NULL or unidad IS NULL)
+    supabase
+      .from("alumnos")
+      .select("id, alumno, nombre, primer_apellido, segundo_apellido, unidad")
+      .or("estado_matricula.not.is.null,unidad.is.null")
+      .order("primer_apellido")
+      .order("segundo_apellido")
+      .order("nombre"),
 
     // Cursos que participan en el programa de gratuidad
     supabase
@@ -140,6 +150,7 @@ export default async function GratuidadLibrosPage() {
       todosPrestamos={todosPrestamos}
       libros={(todosLibros ?? []) as LibroCatalogo[]}
       alumnos={(alumnosData ?? []) as Alumno[]}
+      alumnosInactivos={(alumnosInactivosData ?? []) as Alumno[]}
       cursoEscolarActual={cursoEscolarActual}
       myProfesorId={myProfesorId}
       canManage={canManage}

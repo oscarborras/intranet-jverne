@@ -7,6 +7,8 @@ import {
 } from "lucide-react";
 import type { Alumno, LibroCatalogo, PrestamoLibro } from "@/lib/types";
 
+const NO_ACTIVOS = "__no_activos__";
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function nivelFromUnidad(unidad: string): string | null {
@@ -129,6 +131,7 @@ interface Profesor { id: string; nombre: string; }
 
 interface Props {
   alumnos: Alumno[];
+  alumnosInactivos: Alumno[];
   libros: LibroCatalogo[];
   prestamos: PrestamoLibro[];
   onPrestamosChange: React.Dispatch<React.SetStateAction<PrestamoLibro[]>>;
@@ -143,7 +146,7 @@ interface Props {
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 
-export function TabPrestamosLote({ alumnos, libros, prestamos, onPrestamosChange, cursoEscolar, myProfesorId, canManage, profesores, unidadesGratuidad, completadosIniciales, initialGrupo }: Props) {
+export function TabPrestamosLote({ alumnos, alumnosInactivos, libros, prestamos, onPrestamosChange, cursoEscolar, myProfesorId, canManage, profesores, unidadesGratuidad, completadosIniciales, initialGrupo }: Props) {
   const supabase = createClient();
 
   // ── State ──────────────────────────────────────────────────────────────────
@@ -201,16 +204,19 @@ export function TabPrestamosLote({ alumnos, libros, prestamos, onPrestamosChange
 
   const unidades = useMemo(() => {
     const gratuidadSet = new Set(unidadesGratuidad);
-    return [...new Set(alumnos.map((a) => a.unidad))]
+    const groups = [...new Set(alumnos.map((a) => a.unidad))]
       .filter((u) => gratuidadSet.has(u))
       .sort();
-  }, [alumnos, unidadesGratuidad]);
+    if (alumnosInactivos.length > 0) groups.push(NO_ACTIVOS);
+    return groups;
+  }, [alumnos, unidadesGratuidad, alumnosInactivos]);
 
-  const nivel = selectedUnidad ? nivelFromUnidad(selectedUnidad) : null;
+  const isNoActivos = selectedUnidad === NO_ACTIVOS;
+  const nivel = selectedUnidad && !isNoActivos ? nivelFromUnidad(selectedUnidad) : null;
 
   const alumnosDelGrupo = useMemo(
-    () => alumnos.filter((a) => a.unidad === selectedUnidad),
-    [alumnos, selectedUnidad]
+    () => isNoActivos ? alumnosInactivos : alumnos.filter((a) => a.unidad === selectedUnidad),
+    [alumnos, alumnosInactivos, selectedUnidad, isNoActivos]
   );
 
   const loteLibros = useMemo(
@@ -283,14 +289,27 @@ export function TabPrestamosLote({ alumnos, libros, prestamos, onPrestamosChange
     );
   }, [prestamos, selectedAlumnoIds, loteLibros]);
 
-  // Opción C: préstamos del lote del alumno en detalle
+  // Map: alumno_id → all active loans (used for No activos mode)
+  const allPrestamosMap = useMemo(() => {
+    if (!isNoActivos) return {} as Record<string, PrestamoLibro[]>;
+    const map: Record<string, PrestamoLibro[]> = {};
+    for (const p of prestamos) {
+      if (!p.alumno_id) continue;
+      if (!map[p.alumno_id]) map[p.alumno_id] = [];
+      map[p.alumno_id].push(p);
+    }
+    return map;
+  }, [prestamos, isNoActivos]);
+
+  // Opción C: préstamos del alumno en detalle (todos los libros en modo No activos)
   const librosDelDetalle = useMemo(() => {
     if (!detalleAlumno) return [];
+    if (isNoActivos) return prestamos.filter((p) => p.alumno_id === detalleAlumno.id);
     const loteIds = new Set(loteLibros.map((l) => l.id));
     return prestamos.filter(
       (p) => p.alumno_id === detalleAlumno.id && loteIds.has(p.libro_id)
     );
-  }, [detalleAlumno, prestamos, loteLibros]);
+  }, [detalleAlumno, prestamos, loteLibros, isNoActivos]);
 
   // ── Actions ────────────────────────────────────────────────────────────────
 
@@ -485,7 +504,7 @@ export function TabPrestamosLote({ alumnos, libros, prestamos, onPrestamosChange
   // ── Render ─────────────────────────────────────────────────────────────────
 
   const ningunaUnidad = !selectedUnidad;
-  const sinLote = selectedUnidad && !nivel;
+  const sinLote = selectedUnidad && !nivel && !isNoActivos;
   const sinLibrosEnLote = nivel && loteLibros.length === 0;
 
   return (
@@ -521,7 +540,9 @@ export function TabPrestamosLote({ alumnos, libros, prestamos, onPrestamosChange
             className="appearance-none border border-gray-300 rounded-lg pl-3 pr-8 py-2.5 text-sm font-medium bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-44"
           >
             <option value="">Selecciona un grupo...</option>
-            {unidades.map((u) => <option key={u} value={u}>{u}</option>)}
+            {unidades.map((u) => (
+              <option key={u} value={u}>{u === NO_ACTIVOS ? "No activos" : u}</option>
+            ))}
           </select>
           <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
         </div>
@@ -615,6 +636,56 @@ export function TabPrestamosLote({ alumnos, libros, prestamos, onPrestamosChange
           <BookOpen size={36} className="mx-auto mb-2 opacity-40" />
           <p className="font-medium">No hay libros activos para el nivel {nivel}</p>
           <p className="text-sm mt-1">Revisa el catálogo e introdúce los libros del curso</p>
+        </div>
+      )}
+
+      {/* Vista: No activos */}
+      {isNoActivos && (
+        <div className="max-w-lg">
+          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+              <span className="text-sm font-semibold text-gray-700">Alumnos no activos</span>
+              <span className="text-xs text-gray-400 uppercase tracking-wider font-semibold">
+                {alumnosInactivos.length} alumnos
+              </span>
+            </div>
+            {alumnosInactivos.length === 0 ? (
+              <p className="text-sm text-gray-400 text-center py-10">No hay alumnos no activos</p>
+            ) : (
+              <div className="divide-y divide-gray-50">
+                {alumnosInactivos.map((alumno) => {
+                  const loans = allPrestamosMap[alumno.id] ?? [];
+                  return (
+                    <div key={alumno.id} className="flex items-center gap-3 px-4 py-3">
+                      <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-600 flex-shrink-0">
+                        {initials(alumno)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-gray-800 truncate">{alumno.alumno}</p>
+                        {alumno.unidad && <p className="text-xs text-gray-400">{alumno.unidad}</p>}
+                      </div>
+                      {loans.length > 0 ? (
+                        <>
+                          <span className="text-xs text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full tabular-nums flex-shrink-0">
+                            {loans.length} préstamo{loans.length !== 1 ? "s" : ""}
+                          </span>
+                          <button
+                            onClick={() => setDetalleAlumno(alumno)}
+                            title="Ver libros asignados"
+                            className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors flex-shrink-0"
+                          >
+                            <List size={13} />
+                          </button>
+                        </>
+                      ) : (
+                        <span className="text-xs text-gray-300 flex-shrink-0">Sin préstamos</span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
