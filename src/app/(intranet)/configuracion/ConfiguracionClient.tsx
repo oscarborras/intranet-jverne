@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Settings, Save, CheckCircle, AlertCircle } from "lucide-react";
+import { Settings, Save, CheckCircle, AlertCircle, SlidersHorizontal, UserX } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { ConfigIntranet } from "@/lib/types";
 
@@ -14,10 +14,15 @@ const LABELS: Record<string, string> = {
   max_profes_asuntos_propios:    "Máximo de profesores por día",
   fecha_inicio_asuntos_propios:  "Fecha de inicio del período",
   fecha_fin_asuntos_propios:     "Fecha de fin del período",
+  mostrar_grid_dashboard:        "Mostrar grid de módulos en el dashboard",
+  mostrar_grid_dashboard_movil:  "Mostrar grid de módulos en móvil",
 };
 
 // Claves that store dates as dd/MM/yyyy
 const DATE_CLAVES = new Set(["fecha_inicio_asuntos_propios", "fecha_fin_asuntos_propios"]);
+
+// Claves that store booleans as "true"/"false"
+const BOOLEAN_CLAVES = new Set(["mostrar_grid_dashboard", "mostrar_grid_dashboard_movil"]);
 
 function ddmmyyyyToInput(val: string): string {
   const [d, m, y] = val.split("/");
@@ -30,6 +35,8 @@ function inputToDdmmyyyy(val: string): string {
   if (!y || !m || !d) return "";
   return `${d}/${m}/${y}`;
 }
+
+type Tab = "asuntos_propios" | "otros";
 
 export function ConfiguracionClient({ config }: Props) {
   // Local state: clave → current valor (in input format for dates)
@@ -45,6 +52,7 @@ export function ConfiguracionClient({ config }: Props) {
 
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<"idle" | "success" | "error">("idle");
+  const [activeTab, setActiveTab] = useState<Tab>("asuntos_propios");
 
   async function handleSave() {
     setSaving(true);
@@ -79,7 +87,34 @@ export function ConfiguracionClient({ config }: Props) {
   function renderField(row: ConfigIntranet) {
     const label = LABELS[row.clave] ?? row.clave;
     const isDate = DATE_CLAVES.has(row.clave);
+    const isBoolean = BOOLEAN_CLAVES.has(row.clave);
     const isNumber = row.clave === "max_profes_asuntos_propios";
+    const boolVal = values[row.clave] === "true";
+
+    if (isBoolean) {
+      return (
+        <div key={row.clave} className="flex items-center justify-between gap-4 py-1">
+          <div>
+            <p className="text-sm font-medium text-gray-700">{label}</p>
+            <p className="text-xs text-gray-400 mt-0.5">{row.descripcion}</p>
+          </div>
+          <button
+            role="switch"
+            aria-checked={boolVal}
+            onClick={() => setValues((v) => ({ ...v, [row.clave]: boolVal ? "false" : "true" }))}
+            className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+              boolVal ? "bg-blue-600" : "bg-gray-200"
+            }`}
+          >
+            <span
+              className={`inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ${
+                boolVal ? "translate-x-5" : "translate-x-0"
+              }`}
+            />
+          </button>
+        </div>
+      );
+    }
 
     return (
       <div key={row.clave}>
@@ -124,6 +159,25 @@ export function ConfiguracionClient({ config }: Props) {
     );
   }
 
+  const tabs: { id: Tab; label: string; icon: React.ReactNode; rows: ConfigIntranet[]; description: string }[] = ([
+    {
+      id: "asuntos_propios" as Tab,
+      label: "Asuntos propios",
+      icon: <UserX size={15} />,
+      rows: asuntosRows,
+      description: "Límite de profesores ausentes por asuntos propios y período en que aplica.",
+    },
+    {
+      id: "otros" as Tab,
+      label: "Otros parámetros",
+      icon: <SlidersHorizontal size={15} />,
+      rows: otherRows,
+      description: "Configuración general de la intranet.",
+    },
+  ] as { id: Tab; label: string; icon: React.ReactNode; rows: ConfigIntranet[]; description: string }[]).filter((t) => t.rows.length > 0);
+
+  const currentTab = tabs.find((t) => t.id === activeTab) ?? tabs[0];
+
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       <div>
@@ -136,28 +190,37 @@ export function ConfiguracionClient({ config }: Props) {
         </p>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-100 divide-y divide-gray-50">
-        {/* Asuntos propios */}
-        {asuntosRows.length > 0 && (
-          <div className="px-6 py-5 space-y-5">
-            <div>
-              <h2 className="font-semibold text-gray-800 text-sm">Asuntos propios</h2>
-              <p className="text-xs text-gray-400 mt-0.5">
-                Límite de profesores ausentes por asuntos propios y período en que aplica.
-              </p>
-            </div>
-            {asuntosRows.map(renderField)}
-          </div>
-        )}
+      {/* Tab bar */}
+      {tabs.length > 1 && (
+        <div className="flex bg-gray-100 rounded-lg p-1 w-fit gap-1">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                activeTab === tab.id
+                  ? "bg-white text-gray-900 shadow-sm"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              {tab.icon}
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      )}
 
-        {/* Other params (future extensibility) */}
-        {otherRows.length > 0 && (
-          <div className="px-6 py-5 space-y-5">
-            <h2 className="font-semibold text-gray-800 text-sm">Otros parámetros</h2>
-            {otherRows.map(renderField)}
+      {/* Tab content */}
+      {currentTab && (
+        <div className="bg-white rounded-xl border border-gray-100">
+          <div className="px-6 py-4 border-b border-gray-100">
+            <p className="text-xs text-gray-400">{currentTab.description}</p>
           </div>
-        )}
-      </div>
+          <div className="px-6 py-5 space-y-5">
+            {currentTab.rows.map(renderField)}
+          </div>
+        </div>
+      )}
 
       {/* Footer */}
       <div className="flex items-center justify-between">

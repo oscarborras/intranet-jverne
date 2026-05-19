@@ -34,6 +34,7 @@ interface HeaderProps {
   userName: string;
   userEmail: string;
   userRoles: Perfil[];
+  inactiveModuleSlugs: string[];
 }
 
 interface NavItem {
@@ -41,6 +42,7 @@ interface NavItem {
   href: string;
   icon: React.ReactNode;
   roles?: string[];
+  slug?: string;
 }
 
 interface NavGroup {
@@ -54,31 +56,31 @@ const navGroups: NavGroup[] = [
     title: "MENÚ PRINCIPAL",
     items: [
       { label: "Dashboard", href: "/dashboard", icon: <LayoutDashboard size={18} /> },
-      { label: "Calendario", href: "/calendario", icon: <Calendar size={18} /> },
-      { label: "Tablón de Anuncios", href: "/anuncios", icon: <Megaphone size={18} /> },
-      { label: "Citas con Familias", href: "/citas-familias", icon: <CalendarClock size={18} /> },
-      { label: "Ausencias", href: "/ausencias", icon: <UserX size={18} /> },
+      { label: "Calendario", href: "/calendario", icon: <Calendar size={18} />, slug: "calendario" },
+      { label: "Tablón de Anuncios", href: "/anuncios", icon: <Megaphone size={18} />, slug: "anuncios" },
+      { label: "Citas con Familias", href: "/citas-familias", icon: <CalendarClock size={18} />, slug: "citas-familias" },
+      { label: "Ausencias", href: "/ausencias", icon: <UserX size={18} />, slug: "ausencias" },
     ],
   },
   {
     title: "PETICIONES",
     items: [
-      { label: "Peticiones TIC", href: "/peticiones-tic", icon: <Monitor size={18} /> },
-      { label: "Peticiones Mantenimiento", href: "/peticiones-mantenimiento", icon: <Wrench size={18} /> },
+      { label: "Peticiones TIC", href: "/peticiones-tic", icon: <Monitor size={18} />, slug: "peticiones-tic" },
+      { label: "Peticiones Mantenimiento", href: "/peticiones-mantenimiento", icon: <Wrench size={18} />, slug: "peticiones-mantenimiento" },
     ],
   },
   {
     title: "RESERVAS",
     items: [
-      { label: "Carros de Portátiles", href: "/reservas/carros", icon: <Laptop size={18} /> },
-      { label: "Reserva de Espacios", href: "/reservas/espacios", icon: <Building2 size={18} /> },
-      { label: "Reserva de Recursos", href: "/reservas/recursos", icon: <BookOpen size={18} /> },
+      { label: "Carros de Portátiles", href: "/reservas/carros", icon: <Laptop size={18} />, slug: "reservas/carros" },
+      { label: "Reserva de Espacios", href: "/reservas/espacios", icon: <Building2 size={18} />, slug: "reservas/espacios" },
+      { label: "Reserva de Recursos", href: "/reservas/recursos", icon: <BookOpen size={18} />, slug: "reservas/recursos" },
     ],
   },
   {
     title: "GRATUIDAD",
     items: [
-      { label: "Gratuidad de Libros", href: "/gratuidad-libros", icon: <BookMarked size={18} /> },
+      { label: "Gratuidad de Libros", href: "/gratuidad-libros", icon: <BookMarked size={18} />, slug: "gratuidad-libros" },
     ],
   },
   {
@@ -99,7 +101,7 @@ const navGroups: NavGroup[] = [
   },
 ];
 
-export function Header({ userName, userEmail, userRoles }: HeaderProps) {
+export function Header({ userName, userEmail, userRoles, inactiveModuleSlugs }: HeaderProps) {
   const router = useRouter();
   const pathname = usePathname();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -275,7 +277,9 @@ export function Header({ userName, userEmail, userRoles }: HeaderProps) {
               ) : navGroups.map((group) => {
                 if (group.roles && !group.roles.some((r) => roleNames.includes(r))) return null;
                 const visibleItems = group.items.filter(
-                  (item) => !item.roles || item.roles.some((r) => roleNames.includes(r)) || isAdmin
+                  (item) =>
+                    (!item.roles || item.roles.some((r) => roleNames.includes(r)) || isAdmin) &&
+                    (!item.slug || isAdmin || !inactiveModuleSlugs.includes(item.slug))
                 );
                 if (visibleItems.length === 0) return null;
                 return (

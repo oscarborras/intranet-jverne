@@ -13,6 +13,7 @@ import {
   CalendarClock,
   Users,
   UserX,
+  BookMarked,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import type { Anuncio, PeticionTIC, PeticionMantenimiento } from "@/lib/types";
@@ -91,6 +92,14 @@ const moduleCards = [
     color: "bg-amber-500",
     href: "/ausencias",
   },
+  {
+    slug: "gratuidad-libros",
+    nombre: "Gratuidad de Libros",
+    descripcion: "Préstamos y devoluciones de libros",
+    icono: BookMarked,
+    color: "bg-teal-600",
+    href: "/gratuidad-libros",
+  },
 ];
 
 const priorityLabel: Record<string, string> = {
@@ -155,7 +164,7 @@ export default async function DashboardPage() {
       .select("perfil_id, perfiles_intranet(nombre)")
       .eq("user_id", user.id),
     supabase.from("modulos_config").select("slug, activo, modulo_perfiles(perfil_id)").order("orden"),
-    supabase.from("config_intranet").select("clave, valor").in("clave", ["dias_vista_extraescolares", "dias_vista_citas"]),
+    supabase.from("config_intranet").select("clave, valor").in("clave", ["dias_vista_extraescolares", "dias_vista_citas", "mostrar_grid_dashboard", "mostrar_grid_dashboard_movil"]),
     admin.from("profesores").select("id").eq("email", user.email!).single(),
   ]);
 
@@ -201,6 +210,8 @@ export default async function DashboardPage() {
     (configData ?? []).find((c) => c.clave === "dias_vista_citas")?.valor ?? "14",
     10
   );
+  const mostrarGridDashboard = ((configData ?? []).find((c) => c.clave === "mostrar_grid_dashboard")?.valor ?? "true") !== "false";
+  const mostrarGridMovil = ((configData ?? []).find((c) => c.clave === "mostrar_grid_dashboard_movil")?.valor ?? "true") !== "false";
 
   const _now = new Date();
   const todayStr = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, "0")}-${String(_now.getDate()).padStart(2, "0")}`;
@@ -371,7 +382,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* Modules grid */}
-      <section>
+      <section className={`${!mostrarGridDashboard ? "hidden" : ""} ${!mostrarGridMovil ? "hidden md:block" : ""}`}>
         <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
           <span>≡</span> Módulos disponibles
         </h2>
