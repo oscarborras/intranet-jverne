@@ -65,7 +65,7 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
-    title: "GRATUIDAD",
+    title: "PRÉSTAMOS",
     items: [
       { label: "Gratuidad de Libros", href: "/gratuidad-libros", icon: <BookMarked size={18} />, slug: "gratuidad-libros" },
     ],
