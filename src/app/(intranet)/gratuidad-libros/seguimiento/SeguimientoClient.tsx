@@ -138,6 +138,7 @@ export function SeguimientoClient({ prestamos, cursoEscolarActual, alumnos = [],
   const [vista, setVista] = useState<Vista>("cursos");
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set());
   const [filtroNivel, setFiltroNivel] = useState<string>("todos");
+  const [gruposFiltro, setGruposFiltro] = useState<"pendientes" | "devueltos">("pendientes");
   const [tutorMap, setTutorMap] = useState<Record<string, string>>({});
   const [gratuidadGrupos, setGratuidadGrupos] = useState<Set<string>>(new Set());
   const [livePrestamos, setLivePrestamos] = useState<PrestamoLibro[]>(prestamos);
@@ -283,7 +284,21 @@ export function SeguimientoClient({ prestamos, cursoEscolarActual, alumnos = [],
       }, {});
   }, [livePrestamos]);
 
-  const gruposOrdenados = useMemo(() => Object.keys(porGrupo).sort(), [porGrupo]);
+  const porGrupoDevueltos = useMemo(() => {
+    return livePrestamos
+      .filter((p) => p.fecha_devolucion !== null)
+      .reduce<Record<string, PrestamoLibro[]>>((acc, p) => {
+        const key = p.alumno_grupo;
+        if (!acc[key]) acc[key] = [];
+        acc[key].push(p);
+        return acc;
+      }, {});
+  }, [livePrestamos]);
+
+  const gruposOrdenados = useMemo(
+    () => Object.keys(gruposFiltro === "pendientes" ? porGrupo : porGrupoDevueltos).sort(),
+    [porGrupo, porGrupoDevueltos, gruposFiltro]
+  );
 
   // ── Vista por libros ─────────────────────────────────────────────────────────
 
@@ -451,33 +466,72 @@ export function SeguimientoClient({ prestamos, cursoEscolarActual, alumnos = [],
 
       {/* ── Vista por grupos ──────────────────────────────────────────────── */}
       {vista === "grupos" && (
-        <div className="space-y-2">
+        <div className="space-y-3">
+          {/* Toggle Pendientes / Devueltos */}
+          <div className="flex bg-gray-100 rounded-lg p-1 w-fit">
+            {(["pendientes", "devueltos"] as const).map((f) => (
+              <button
+                key={f}
+                onClick={() => { setGruposFiltro(f); setExpandedKeys(new Set()); }}
+                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                  gruposFiltro === f ? "bg-white text-gray-900 shadow-sm" : "text-gray-600 hover:text-gray-900"
+                }`}
+              >
+                {f === "pendientes" ? "Pendientes" : "Devueltos"}
+              </button>
+            ))}
+          </div>
+
           {gruposOrdenados.length === 0 ? (
             <div className="text-center py-12 text-gray-400">
-              <CheckCircle size={36} className="mx-auto mb-2 opacity-40" />
-              <p className="font-medium">Todos los libros están devueltos</p>
+              {gruposFiltro === "pendientes" ? (
+                <>
+                  <CheckCircle size={36} className="mx-auto mb-2 opacity-40" />
+                  <p className="font-medium">Todos los libros están devueltos</p>
+                </>
+              ) : (
+                <>
+                  <BookOpen size={36} className="mx-auto mb-2 opacity-40" />
+                  <p className="font-medium">No hay devoluciones registradas</p>
+                </>
+              )}
             </div>
           ) : (
             gruposOrdenados.map((grupo) => {
-              const alumnos_ = porGrupo[grupo];
-              const porAlumno = alumnos_.reduce<Record<string, PrestamoLibro[]>>((acc, p) => {
+              const prestamosGrupo = gruposFiltro === "pendientes" ? porGrupo[grupo] : porGrupoDevueltos[grupo];
+              const porAlumno = prestamosGrupo.reduce<Record<string, PrestamoLibro[]>>((acc, p) => {
                 if (!acc[p.alumno_nombre]) acc[p.alumno_nombre] = [];
                 acc[p.alumno_nombre].push(p);
                 return acc;
               }, {});
               const isExpanded = expandedKeys.has(grupo);
               return (
-                <div key={grupo} className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                <div key={grupo} className={`border rounded-xl overflow-hidden ${
+                  gruposFiltro === "pendientes" ? "border-amber-200" : "border-green-200"
+                }`}>
                   <button
                     onClick={() => toggleKey(grupo)}
-                    className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors"
+                    className={`w-full flex items-center justify-between px-4 py-3 transition-colors ${
+                      gruposFiltro === "pendientes"
+                        ? "bg-amber-50 hover:bg-amber-100"
+                        : "bg-green-50 hover:bg-green-100"
+                    }`}
                   >
-                    <span className="font-semibold text-gray-800">{grupo}</span>
-                    <span className="flex items-center gap-2 text-sm text-gray-500">
-                      <span className="bg-amber-100 text-amber-700 text-xs font-medium px-2 py-0.5 rounded-full">
-                        {alumnos_.length} pendientes
+                    <span className={`font-semibold ${
+                      gruposFiltro === "pendientes" ? "text-amber-800" : "text-green-800"
+                    }`}>{grupo}</span>
+                    <span className="flex items-center gap-2 text-sm">
+                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                        gruposFiltro === "pendientes"
+                          ? "bg-amber-100 text-amber-700"
+                          : "bg-green-100 text-green-700"
+                      }`}>
+                        {prestamosGrupo.length} {gruposFiltro === "pendientes" ? "pendientes" : "devueltos"}
                       </span>
-                      {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                      {isExpanded
+                        ? <ChevronUp size={16} className={gruposFiltro === "pendientes" ? "text-amber-500" : "text-green-500"} />
+                        : <ChevronDown size={16} className={gruposFiltro === "pendientes" ? "text-amber-500" : "text-green-500"} />
+                      }
                     </span>
                   </button>
                   {isExpanded && (
@@ -487,14 +541,41 @@ export function SeguimientoClient({ prestamos, cursoEscolarActual, alumnos = [],
                         .map(([nombre, librosAlumno]) => (
                           <div key={nombre} className="px-4 py-2.5">
                             <p className="text-sm font-medium text-gray-800">{nombre}</p>
-                            <div className="mt-1 space-y-0.5">
-                              {librosAlumno.map((p) => (
-                                <p key={p.id} className="text-xs text-gray-500 flex items-center gap-1">
-                                  <BookOpen size={11} className="flex-shrink-0" />
-                                  {p.libro?.titulo ?? "—"}
-                                  {p.num_ejemplar && <span className="text-gray-400">· Ej. {p.num_ejemplar}</span>}
-                                </p>
-                              ))}
+                            <div className="mt-1 space-y-1">
+                              {librosAlumno.map((p) => {
+                                const [y, m, d] = (p.fecha_devolucion ?? "").split("-");
+                                const fechaStr = p.fecha_devolucion ? `${d}/${m}/${y.slice(2)}` : null;
+                                return (
+                                  <div key={p.id} className="flex items-center gap-2 flex-wrap">
+                                    <span className="text-xs text-gray-500 flex items-center gap-1 flex-1 min-w-0">
+                                      <BookOpen size={11} className="flex-shrink-0 text-gray-400" />
+                                      <span className="truncate">{p.libro?.titulo ?? "—"}</span>
+                                      {p.num_ejemplar && (
+                                        <span className="text-gray-400 flex-shrink-0">· Ej. {p.num_ejemplar}</span>
+                                      )}
+                                    </span>
+                                    {gruposFiltro === "devueltos" && (
+                                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                                        {p.estado_devolucion && (
+                                          <span className={`flex items-center gap-0.5 text-xs font-medium px-1.5 py-0.5 rounded ${
+                                            p.estado_devolucion === "bueno"
+                                              ? "bg-green-100 text-green-700"
+                                              : p.estado_devolucion === "deteriorado"
+                                              ? "bg-amber-100 text-amber-700"
+                                              : "bg-red-100 text-red-700"
+                                          }`}>
+                                            {estadoIcon[p.estado_devolucion]}
+                                            {estadoLabel[p.estado_devolucion]}
+                                          </span>
+                                        )}
+                                        {fechaStr && (
+                                          <span className="text-xs text-gray-400">{fechaStr}</span>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
                             </div>
                           </div>
                         ))}

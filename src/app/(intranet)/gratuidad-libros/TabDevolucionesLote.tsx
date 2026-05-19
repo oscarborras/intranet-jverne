@@ -73,6 +73,14 @@ export function TabDevolucionesLote({ prestamosActivos, onPrestamosChange, curso
   const [alumnoEstadosAsig, setAlumnoEstadosAsig] = useState<Record<string, EstadoDevolucion | null>>({});
   const [observacionesAsig, setObservacionesAsig] = useState<string>("");
 
+  // ── Ver devueltos state ───────────────────────────────────────────────────────
+  const [showDevueltos, setShowDevueltos] = useState(false);
+  const [prestamosDevueltos, setPrestamosDevueltos] = useState<PrestamoLibro[]>([]);
+  const [loadingDevueltos, setLoadingDevueltos] = useState(false);
+  const [selectedAlumnoDevueltoKey, setSelectedAlumnoDevueltoKey] = useState<string | null>(null);
+  const [editStates, setEditStates] = useState<Record<string, { estado: EstadoDevolucion; fecha: string }>>({});
+  const [savingEdit, setSavingEdit] = useState(false);
+
   const efectivoProfesorId = myProfesorId ?? (overrideProfesorId || null);
 
   // ── Refresh activos desde BD al montar ────────────────────────────────────
@@ -106,6 +114,51 @@ export function TabDevolucionesLote({ prestamosActivos, onPrestamosChange, curso
     refreshActivos();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cursoEscolar]);
+
+  // ── Fetch devueltos cuando el toggle está activo y hay grupo seleccionado ────
+  useEffect(() => {
+    if (!showDevueltos || !selectedUnidad) {
+      setPrestamosDevueltos([]);
+      setSelectedAlumnoDevueltoKey(null);
+      return;
+    }
+    let cancelled = false;
+    setLoadingDevueltos(true);
+
+    async function fetchDev() {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let query: any = supabase
+        .from("prestamos_libros")
+        .select("id, libro_id, alumno_id, alumno_nombre, alumno_grupo, num_ejemplar, fecha_prestamo, entregado_por, devuelto_por, curso_escolar, fecha_devolucion, estado_devolucion, observaciones, created_at, libro:libros_catalogo(titulo, asignatura, nivel, diversificacion)")
+        .eq("curso_escolar", cursoEscolar)
+        .not("fecha_devolucion", "is", null)
+        .order("alumno_nombre");
+
+      if (selectedUnidad === NO_ACTIVOS) {
+        const ids = [...inactiveAlumnoIds];
+        if (ids.length === 0) {
+          if (!cancelled) { setPrestamosDevueltos([]); setLoadingDevueltos(false); }
+          return;
+        }
+        query = query.in("alumno_id", ids);
+      } else {
+        query = query.eq("alumno_grupo", selectedUnidad);
+      }
+
+      const { data } = await query;
+      if (!cancelled) {
+        setPrestamosDevueltos((data ?? []).map((p: Record<string, unknown>) => ({
+          ...p,
+          libro: (p.libro as { titulo: string; asignatura: string; nivel: string; diversificacion?: boolean } | null) ?? undefined,
+        })) as PrestamoLibro[]);
+        setLoadingDevueltos(false);
+      }
+    }
+
+    fetchDev();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showDevueltos, selectedUnidad, cursoEscolar]);
 
   // ── Derived: common ─────────────────────────────────────────────────────────
 
@@ -199,6 +252,25 @@ export function TabDevolucionesLote({ prestamosActivos, onPrestamosChange, curso
     Object.values(alumnoEstadosAsig).filter((e) => e != null).length,
     [alumnoEstadosAsig]);
 
+  // ── Derived: ver devueltos ───────────────────────────────────────────────────
+
+  const alumnosConDevueltos = useMemo(() => {
+    const map: Record<string, { key: string; nombre: string; count: number }> = {};
+    for (const p of prestamosDevueltos) {
+      const key = p.alumno_id ?? p.alumno_nombre;
+      if (!map[key]) map[key] = { key, nombre: p.alumno_nombre, count: 0 };
+      map[key].count++;
+    }
+    return Object.values(map).sort((a, b) => a.nombre.localeCompare(b.nombre));
+  }, [prestamosDevueltos]);
+
+  const librosDevueltos = useMemo(() => {
+    if (!selectedAlumnoDevueltoKey) return [];
+    return prestamosDevueltos.filter((p) => (p.alumno_id ?? p.alumno_nombre) === selectedAlumnoDevueltoKey);
+  }, [prestamosDevueltos, selectedAlumnoDevueltoKey]);
+
+  const selectedAlumnoDevuelto = alumnosConDevueltos.find((a) => a.key === selectedAlumnoDevueltoKey) ?? null;
+
   // ── Actions: common ─────────────────────────────────────────────────────────
 
   function handleUnidadChange(unidad: string) {
@@ -209,6 +281,8 @@ export function TabDevolucionesLote({ prestamosActivos, onPrestamosChange, curso
     setSelectedLibroIdsAsig(new Set());
     setAlumnoEstadosAsig({});
     setObservacionesAsig("");
+    setSelectedAlumnoDevueltoKey(null);
+    setEditStates({});
     setSuccessMsg(null);
     setErrorMsg(null);
   }
@@ -223,6 +297,51 @@ export function TabDevolucionesLote({ prestamosActivos, onPrestamosChange, curso
     setObservacionesAsig("");
     setSuccessMsg(null);
     setErrorMsg(null);
+  }
+
+  function handleToggleDevueltos(checked: boolean) {
+    setShowDevueltos(checked);
+    setSelectedAlumnoDevueltoKey(null);
+    setEditStates({});
+    setPrestamosDevueltos([]);
+    setSuccessMsg(null);
+    setErrorMsg(null);
+  }
+
+  function selectAlumnoDevuelto(key: string) {
+    setSelectedAlumnoDevueltoKey(key);
+    const loans = prestamosDevueltos.filter((p) => (p.alumno_id ?? p.alumno_nombre) === key);
+    const states: Record<string, { estado: EstadoDevolucion; fecha: string }> = {};
+    for (const p of loans) {
+      states[p.id] = {
+        estado: (p.estado_devolucion as EstadoDevolucion) ?? "bueno",
+        fecha: p.fecha_devolucion ?? todayString(),
+      };
+    }
+    setEditStates(states);
+  }
+
+  async function handleGuardarEdicion() {
+    setSavingEdit(true);
+    setErrorMsg(null);
+    let hasError = false;
+    for (const [prestamoId, { estado, fecha }] of Object.entries(editStates)) {
+      const { error } = await supabase
+        .from("prestamos_libros")
+        .update({ estado_devolucion: estado, fecha_devolucion: fecha })
+        .eq("id", prestamoId);
+      if (error) { hasError = true; setErrorMsg(`Error: ${error.message}`); break; }
+    }
+    setSavingEdit(false);
+    if (!hasError) {
+      setPrestamosDevueltos((prev) =>
+        prev.map((p) => {
+          const edit = editStates[p.id];
+          return edit ? { ...p, estado_devolucion: edit.estado, fecha_devolucion: edit.fecha } : p;
+        })
+      );
+      setSuccessMsg("Cambios guardados correctamente.");
+    }
   }
 
   // ── Actions: por alumno ─────────────────────────────────────────────────────
@@ -483,7 +602,7 @@ export function TabDevolucionesLote({ prestamosActivos, onPrestamosChange, curso
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
-  const showPanels = Boolean(selectedUnidad) && alumnosConPrestamos.length > 0;
+  const showPanels = Boolean(selectedUnidad) && alumnosConPrestamos.length > 0 && !showDevueltos;
 
   return (
     <div className="space-y-5">
@@ -509,18 +628,20 @@ export function TabDevolucionesLote({ prestamosActivos, onPrestamosChange, curso
 
       {/* Barra superior */}
       <div className="flex flex-wrap items-center gap-3">
-        {/* Tipo de devolución */}
-        <div className="relative">
-          <select
-            value={tipoDevolucion}
-            onChange={(e) => handleTipoChange(e.target.value as TipoDevolucion)}
-            className="appearance-none border border-gray-300 rounded-lg pl-3 pr-8 py-2.5 text-sm font-medium bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="por_asignatura">Por asignatura</option>
-            <option value="por_alumno">Por alumno</option>
-          </select>
-          <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-        </div>
+        {/* Tipo de devolución — oculto en modo ver devueltos */}
+        {!showDevueltos && (
+          <div className="relative">
+            <select
+              value={tipoDevolucion}
+              onChange={(e) => handleTipoChange(e.target.value as TipoDevolucion)}
+              className="appearance-none border border-gray-300 rounded-lg pl-3 pr-8 py-2.5 text-sm font-medium bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="por_asignatura">Por asignatura</option>
+              <option value="por_alumno">Por alumno</option>
+            </select>
+            <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+          </div>
+        )}
 
         {/* Selector de grupo */}
         <div className="relative">
@@ -537,24 +658,38 @@ export function TabDevolucionesLote({ prestamosActivos, onPrestamosChange, curso
           <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
         </div>
 
-        {selectedUnidad && alumnosConPrestamos.length > 0 && (
+        {selectedUnidad && alumnosConPrestamos.length > 0 && !showDevueltos && (
           <span className="inline-flex items-center gap-1.5 bg-blue-50 text-blue-700 border border-blue-200 text-xs font-medium px-2.5 py-1.5 rounded-full">
             <Users size={12} />
             {alumnosConPrestamos.length} pendientes
           </span>
         )}
 
-        {selectedUnidad && (
-          <div className="flex items-center gap-1.5 ml-auto">
-            <CalendarDays size={14} className="text-gray-400 flex-shrink-0" />
-            <input
-              type="date"
-              value={fechaDevolucion}
-              onChange={(e) => setFechaDevolucion(e.target.value)}
-              className="border border-gray-300 rounded-lg px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-        )}
+        {/* Lado derecho: fecha + toggle ver devueltos */}
+        <div className="flex items-center gap-3 ml-auto">
+          {selectedUnidad && !showDevueltos && (
+            <div className="flex items-center gap-1.5">
+              <CalendarDays size={14} className="text-gray-400 flex-shrink-0" />
+              <input
+                type="date"
+                value={fechaDevolucion}
+                onChange={(e) => setFechaDevolucion(e.target.value)}
+                className="border border-gray-300 rounded-lg px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          )}
+          {selectedUnidad && (
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={showDevueltos}
+                onChange={(e) => handleToggleDevueltos(e.target.checked)}
+                className="w-4 h-4 rounded border-gray-300 accent-blue-600 cursor-pointer"
+              />
+              <span className="text-sm text-gray-600 font-medium whitespace-nowrap">Ver devueltos</span>
+            </label>
+          )}
+        </div>
       </div>
 
       {/* Mensajes */}
@@ -585,11 +720,141 @@ export function TabDevolucionesLote({ prestamosActivos, onPrestamosChange, curso
           <p className="text-sm mt-1">Solo aparecen grupos con préstamos activos</p>
         </div>
       )}
-      {selectedUnidad && alumnosConPrestamos.length === 0 && (
+      {selectedUnidad && alumnosConPrestamos.length === 0 && !showDevueltos && (
         <div className="text-center py-12 text-gray-400">
           <CheckCircle size={36} className="mx-auto mb-2 opacity-40" />
           <p className="font-medium">Todos los libros de este grupo están devueltos</p>
         </div>
+      )}
+
+      {/* ── Vista: Ver devueltos ──────────────────────────────────────────────── */}
+      {showDevueltos && selectedUnidad && (
+        loadingDevueltos ? (
+          <div className="text-center py-12 text-gray-400">
+            <RotateCcw size={36} className="mx-auto mb-2 opacity-40 animate-spin" />
+            <p className="text-sm font-medium">Cargando devoluciones...</p>
+          </div>
+        ) : prestamosDevueltos.length === 0 ? (
+          <div className="text-center py-12 text-gray-400">
+            <BookOpen size={36} className="mx-auto mb-2 opacity-40" />
+            <p className="font-medium">No hay devoluciones registradas en este grupo</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-start">
+
+            {/* Panel izquierdo — alumnos con devoluciones */}
+            <div className="md:col-span-2 flex flex-col gap-2">
+              <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+                  <span className="text-sm font-semibold text-gray-700">Alumnado</span>
+                  <span className="text-xs font-semibold tracking-wider text-gray-400 uppercase">
+                    {alumnosConDevueltos.length} alumnos
+                  </span>
+                </div>
+                <div className="divide-y divide-gray-50">
+                  {alumnosConDevueltos.map((alumno) => {
+                    const isSelected = alumno.key === selectedAlumnoDevueltoKey;
+                    return (
+                      <button
+                        key={alumno.key}
+                        onClick={() => selectAlumnoDevuelto(alumno.key)}
+                        className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${isSelected ? "bg-blue-50" : "hover:bg-gray-50"}`}
+                      >
+                        <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${isSelected ? "bg-blue-200 text-blue-800" : "bg-gray-200 text-gray-600"}`}>
+                          {initialsFromNombre(alumno.nombre)}
+                        </div>
+                        <span className="text-sm text-gray-800 flex-1 min-w-0 truncate">{alumno.nombre}</span>
+                        <span className="text-xs text-gray-500 bg-gray-100 border border-gray-200 px-2 py-0.5 rounded-full flex-shrink-0 tabular-nums">
+                          {alumno.count}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Panel derecho — libros devueltos con edición */}
+            <div className="md:col-span-3 flex flex-col gap-2">
+              {!selectedAlumnoDevuelto ? (
+                <div className="bg-white border border-gray-200 rounded-xl flex flex-col items-center justify-center py-16 text-gray-400">
+                  <BookOpen size={36} className="mb-2 opacity-40" />
+                  <p className="text-sm font-medium">Selecciona un alumno de la lista</p>
+                </div>
+              ) : (
+                <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                  <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-100 bg-gray-50">
+                    <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center text-xs font-bold text-blue-700 flex-shrink-0">
+                      {initialsFromNombre(selectedAlumnoDevuelto.nombre)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-900 truncate">{selectedAlumnoDevuelto.nombre}</p>
+                      <p className="text-xs text-gray-500">{selectedUnidad === NO_ACTIVOS ? "No activo" : selectedUnidad}</p>
+                    </div>
+                  </div>
+
+                  <div className="divide-y divide-gray-100">
+                    {librosDevueltos.map((p) => {
+                      const edit = editStates[p.id];
+                      if (!edit) return null;
+                      return (
+                        <div key={p.id} className="px-4 py-3 space-y-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <p className="text-sm font-medium text-gray-800 truncate">{p.libro?.titulo ?? "—"}</p>
+                              {p.libro?.diversificacion && (
+                                <span className="flex-shrink-0 text-[9px] font-semibold tracking-wide uppercase px-1.5 py-0.5 rounded bg-purple-100 text-purple-700">DIV</span>
+                              )}
+                            </div>
+                            <p className="text-xs text-gray-400">
+                              {p.libro?.asignatura}
+                              {p.num_ejemplar && <> · Ej. {p.num_ejemplar}</>}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <div className="flex gap-1">
+                              {(Object.keys(ESTADO_CONFIG) as EstadoDevolucion[]).map((e) => (
+                                <button
+                                  key={e}
+                                  onClick={() => setEditStates((prev) => ({ ...prev, [p.id]: { ...prev[p.id], estado: e } }))}
+                                  className={`text-xs font-medium px-2.5 py-1.5 rounded-lg border transition-colors ${
+                                    edit.estado === e ? ESTADO_CONFIG[e].active : `border-gray-200 text-gray-500 bg-white ${ESTADO_CONFIG[e].hover}`
+                                  }`}
+                                >
+                                  {ESTADO_CONFIG[e].label}
+                                </button>
+                              ))}
+                            </div>
+                            <div className="flex items-center gap-1.5 ml-auto">
+                              <CalendarDays size={13} className="text-gray-400 flex-shrink-0" />
+                              <input
+                                type="date"
+                                value={edit.fecha}
+                                onChange={(e) => setEditStates((prev) => ({ ...prev, [p.id]: { ...prev[p.id], fecha: e.target.value } }))}
+                                className="border border-gray-300 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="px-4 py-3 border-t border-gray-100 bg-gray-50 flex justify-end">
+                    <button
+                      onClick={handleGuardarEdicion}
+                      disabled={savingEdit}
+                      className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+                    >
+                      <Check size={14} />
+                      {savingEdit ? "Guardando..." : "Guardar cambios"}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )
       )}
 
       {/* ── Vista: Por alumno ─────────────────────────────────────────────────── */}
