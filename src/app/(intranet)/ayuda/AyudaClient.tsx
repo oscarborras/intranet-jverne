@@ -5,12 +5,12 @@ import {
   HelpCircle, Laptop, Users, CalendarDays, Plus, BookOpen,
   CheckCircle2, MapPin, ChevronRight, ArrowLeft, Clock,
   Mail, X, CalendarCheck, Smartphone, ShieldAlert,
-  BookMarked, FileText, GraduationCap, ExternalLink,
+  BookMarked, FileText, GraduationCap, ExternalLink, RotateCcw,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type ItemId = "carros" | "citas" | "movil";
+type ItemId = "carros" | "citas" | "movil" | "prestamos" | "devoluciones";
 type Category = "tutorial" | "protocolo";
 
 interface ItemMeta {
@@ -46,6 +46,26 @@ const ITEMS: ItemMeta[] = [
     badge: "7 pasos · 2 min",
     headerBg: "bg-red-600",
     headerText: "text-red-600",
+  },
+  {
+    id: "prestamos",
+    category: "tutorial",
+    icon: <BookMarked size={22} className="text-white" />,
+    title: "Registrar préstamos de libros",
+    description: "Entrega el lote de libros a un grupo completo o a alumnos individuales.",
+    badge: "6 pasos · 2 min",
+    headerBg: "bg-emerald-600",
+    headerText: "text-emerald-600",
+  },
+  {
+    id: "devoluciones",
+    category: "tutorial",
+    icon: <RotateCcw size={22} className="text-white" />,
+    title: "Registrar devoluciones de libros",
+    description: "Recoge los libros por asignatura o por alumno e indica el estado de cada ejemplar.",
+    badge: "6 pasos · 2 min",
+    headerBg: "bg-orange-500",
+    headerText: "text-orange-600",
   },
   {
     id: "movil",
@@ -347,6 +367,300 @@ function TutorialCitas() {
   );
 }
 
+// ─── Tutorial: Préstamos ──────────────────────────────────────────────────────
+
+function TutorialPrestamos() {
+  return (
+    <ol className="divide-y divide-gray-50">
+      <li className="px-6 py-5 flex gap-4">
+        <div className="flex-shrink-0 flex flex-col items-center">
+          <StepNum n={1} accent="blue" /><StepConnector />
+        </div>
+        <div className="flex-1 pb-1">
+          <p className="font-medium text-gray-900 text-sm mb-1">Accede a «Gratuidad de Libros»</p>
+          <p className="text-sm text-gray-500 mb-3">En el menú lateral, pulsa <strong className="text-gray-700">Gratuidad de Libros</strong>.</p>
+          <div className="bg-gray-50 rounded-lg border border-gray-100 p-3 text-xs space-y-1 max-w-[210px]">
+            <div className="flex items-center gap-2 text-gray-400 py-1 px-2"><CalendarDays size={12} /> Calendario</div>
+            <div className="flex items-center gap-2 text-emerald-700 font-semibold bg-emerald-50 py-1 px-2 rounded border border-emerald-200"><BookMarked size={12} /> Gratuidad de Libros</div>
+            <div className="flex items-center gap-2 text-gray-400 py-1 px-2"><BookOpen size={12} /> Anuncios</div>
+          </div>
+        </div>
+      </li>
+
+      <li className="px-6 py-5 flex gap-4">
+        <div className="flex-shrink-0 flex flex-col items-center">
+          <StepNum n={2} accent="blue" /><StepConnector />
+        </div>
+        <div className="flex-1 pb-1">
+          <p className="font-medium text-gray-900 text-sm mb-1">Selecciona la pestaña «Préstamos»</p>
+          <p className="text-sm text-gray-500 mb-3">Es la pestaña activa por defecto al entrar en la sección.</p>
+          <div className="flex gap-1 flex-wrap">
+            {[
+              { label: "Préstamos", active: true },
+              { label: "Devoluciones", active: false },
+              { label: "Seguimiento", active: false },
+            ].map(tab => (
+              <span key={tab.label} className={`px-3 py-1.5 rounded-lg text-[10px] font-medium border ${tab.active ? "bg-emerald-600 text-white border-emerald-600" : "bg-white text-gray-500 border-gray-200"}`}>
+                {tab.label}
+              </span>
+            ))}
+          </div>
+        </div>
+      </li>
+
+      <li className="px-6 py-5 flex gap-4">
+        <div className="flex-shrink-0 flex flex-col items-center">
+          <StepNum n={3} accent="blue" /><StepConnector />
+        </div>
+        <div className="flex-1 pb-1">
+          <p className="font-medium text-gray-900 text-sm mb-1">Elige el grupo en el selector</p>
+          <p className="text-sm text-gray-500 mb-3">Despliega el selector y elige la clase. Aparecerá un contador con el número de alumnos.</p>
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="border border-blue-400 rounded-lg px-3 py-1.5 text-[11px] font-medium bg-blue-50/40 text-gray-700 flex items-center gap-1.5">
+              2º ESO A <span className="text-gray-400">▼</span>
+            </div>
+            <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 border border-blue-200 text-xs font-medium px-2.5 py-1 rounded-full">
+              <Users size={11} /> 24 alumnos/as
+            </span>
+          </div>
+        </div>
+      </li>
+
+      <li className="px-6 py-5 flex gap-4">
+        <div className="flex-shrink-0 flex flex-col items-center">
+          <StepNum n={4} accent="blue" /><StepConnector />
+        </div>
+        <div className="flex-1 pb-1">
+          <p className="font-medium text-gray-900 text-sm mb-1">Paso 1 — Marca los libros a entregar</p>
+          <p className="text-sm text-gray-500 mb-3">El panel izquierdo muestra el lote del nivel. Marca los libros que repartirás hoy. El número <strong className="text-gray-700">disponibles/total</strong> aparece junto a cada título.</p>
+          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden max-w-[240px]">
+            <div className="px-3 py-2 border-b border-gray-100 flex items-center justify-between">
+              <span className="text-[10px] font-semibold text-gray-700">Lote del curso · 2º ESO</span>
+              <span className="text-[9px] text-green-700 bg-green-50 border border-green-200 px-1.5 py-0.5 rounded-full">3 libros</span>
+            </div>
+            {[
+              { titulo: "Lengua Castellana", stock: "24/25", checked: true, sinStock: false },
+              { titulo: "Matemáticas", stock: "22/25", checked: true, sinStock: false },
+              { titulo: "Historia de España", stock: "0/25", checked: false, sinStock: true },
+            ].map(l => (
+              <div key={l.titulo} className={`flex items-center gap-2 px-3 py-2 border-b border-gray-50 last:border-0 ${l.checked && !l.sinStock ? "bg-blue-50" : ""} ${l.sinStock ? "opacity-60" : ""}`}>
+                <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border-2 ${l.checked && !l.sinStock ? "bg-blue-600 border-blue-600" : "border-gray-300"}`}>
+                  {l.checked && !l.sinStock && <span className="text-white text-[8px] font-bold leading-none">✓</span>}
+                </div>
+                <span className="text-[10px] text-gray-800 flex-1 truncate">{l.titulo}</span>
+                <span className={`text-[10px] font-semibold tabular-nums flex-shrink-0 ${l.sinStock ? "text-red-500" : "text-gray-700"}`}>{l.stock}</span>
+              </div>
+            ))}
+            <div className="px-3 py-2 bg-gray-50 border-t border-gray-100">
+              <p className="text-[9px] text-gray-400">Disponibles / Total. Sin stock no se asignan.</p>
+            </div>
+          </div>
+        </div>
+      </li>
+
+      <li className="px-6 py-5 flex gap-4">
+        <div className="flex-shrink-0 flex flex-col items-center">
+          <StepNum n={5} accent="blue" /><StepConnector />
+        </div>
+        <div className="flex-1 pb-1">
+          <p className="font-medium text-gray-900 text-sm mb-1">Paso 2 — Selecciona los alumnos receptores</p>
+          <p className="text-sm text-gray-500 mb-3">En el panel derecho, marca los alumnos. Usa <strong className="text-gray-700">Seleccionar todo</strong> para marcar toda la clase de golpe. Los que ya tienen el lote completo aparecen como <span className="text-green-700 font-medium">Entregado</span>.</p>
+          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden max-w-[270px]">
+            <div className="px-3 py-2 border-b border-gray-100 flex justify-between">
+              <span className="text-[10px] font-semibold text-gray-700">Alumnado del grupo</span>
+              <span className="text-[9px] text-gray-400 font-semibold uppercase">3/24 entregados</span>
+            </div>
+            {[
+              { nombre: "García Pérez, Ana", estado: "Entregado", estColor: "text-green-700 bg-green-100", checked: false },
+              { nombre: "Martínez López, Luis", estado: "1/3", estColor: "text-amber-700 bg-amber-100", checked: true },
+              { nombre: "Sánchez Ruiz, Carmen", estado: "0/3", estColor: "text-gray-400", checked: true },
+            ].map(a => (
+              <div key={a.nombre} className={`flex items-center gap-2 px-3 py-2 border-b border-gray-50 last:border-0 ${a.checked ? "bg-blue-50" : ""}`}>
+                <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border-2 ${a.checked ? "bg-blue-600 border-blue-600" : "border-gray-300"}`}>
+                  {a.checked && <span className="text-white text-[8px] font-bold leading-none">✓</span>}
+                </div>
+                <span className="text-[10px] text-gray-800 flex-1 min-w-0 truncate">{a.nombre}</span>
+                <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded-full flex-shrink-0 ${a.estColor}`}>{a.estado}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </li>
+
+      <li className="px-6 py-5 flex gap-4">
+        <div className="flex-shrink-0">
+          <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
+            <CheckCircle2 size={16} className="text-green-600" />
+          </div>
+        </div>
+        <div className="flex-1">
+          <p className="font-medium text-gray-900 text-sm mb-1">Pulsa «Entregar lote» y listo</p>
+          <p className="text-sm text-gray-500 mb-3">El botón indica cuántos registros nuevos se crearán (alumnos × libros pendientes). Pulsa para confirmar; los alumnos pasarán a <span className="text-green-700 font-medium">Entregado</span>.</p>
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 text-white text-[11px] font-semibold">
+              <CheckCircle2 size={12} /> Entregar lote (46)
+            </span>
+            <span className="text-xs text-gray-400">→ se crean 46 préstamos</span>
+          </div>
+          <div className="mt-3 bg-green-50 border border-green-200 rounded-lg px-4 py-3 text-xs text-green-800">
+            ✓ 46 préstamos registrados correctamente.
+          </div>
+        </div>
+      </li>
+    </ol>
+  );
+}
+
+// ─── Tutorial: Devoluciones ───────────────────────────────────────────────────
+
+function TutorialDevoluciones() {
+  return (
+    <ol className="divide-y divide-gray-50">
+      <li className="px-6 py-5 flex gap-4">
+        <div className="flex-shrink-0 flex flex-col items-center">
+          <StepNum n={1} accent="blue" /><StepConnector />
+        </div>
+        <div className="flex-1 pb-1">
+          <p className="font-medium text-gray-900 text-sm mb-1">Selecciona la pestaña «Devoluciones»</p>
+          <p className="text-sm text-gray-500 mb-3">Desde <strong className="text-gray-700">Gratuidad de Libros</strong>, pulsa la pestaña <strong className="text-gray-700">Devoluciones</strong>.</p>
+          <div className="flex gap-1 flex-wrap">
+            {[
+              { label: "Préstamos", active: false },
+              { label: "Devoluciones", active: true },
+              { label: "Seguimiento", active: false },
+            ].map(tab => (
+              <span key={tab.label} className={`px-3 py-1.5 rounded-lg text-[10px] font-medium border ${tab.active ? "bg-orange-500 text-white border-orange-500" : "bg-white text-gray-500 border-gray-200"}`}>
+                {tab.label}
+              </span>
+            ))}
+          </div>
+        </div>
+      </li>
+
+      <li className="px-6 py-5 flex gap-4">
+        <div className="flex-shrink-0 flex flex-col items-center">
+          <StepNum n={2} accent="blue" /><StepConnector />
+        </div>
+        <div className="flex-1 pb-1">
+          <p className="font-medium text-gray-900 text-sm mb-1">Elige el modo y el grupo</p>
+          <p className="text-sm text-gray-500 mb-3">El modo <strong className="text-gray-700">Por asignatura</strong> (predeterminado) es el más rápido: procesa un libro para toda la clase a la vez. Elige también el grupo.</p>
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="border border-blue-400 rounded-lg px-3 py-1.5 text-[11px] font-medium bg-blue-50/40 text-gray-700">
+              Por asignatura <span className="text-gray-400">▼</span>
+            </div>
+            <div className="border border-gray-300 rounded-lg px-3 py-1.5 text-[11px] font-medium bg-white text-gray-700">
+              2º ESO A <span className="text-gray-400">▼</span>
+            </div>
+          </div>
+        </div>
+      </li>
+
+      <li className="px-6 py-5 flex gap-4">
+        <div className="flex-shrink-0 flex flex-col items-center">
+          <StepNum n={3} accent="blue" /><StepConnector />
+        </div>
+        <div className="flex-1 pb-1">
+          <p className="font-medium text-gray-900 text-sm mb-1">Paso 1 — Selecciona los libros que se devuelven</p>
+          <p className="text-sm text-gray-500 mb-3">El panel izquierdo muestra los libros del grupo con préstamos activos. El número indica cuántos alumnos tienen ese libro. Pulsa los que se estén devolviendo ahora.</p>
+          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden max-w-[250px]">
+            <div className="px-3 py-2 border-b border-gray-100 flex justify-between">
+              <span className="text-[10px] font-semibold text-gray-700">Libros del grupo</span>
+              <div className="flex gap-2 text-[9px]">
+                <span className="text-blue-600 font-medium cursor-pointer">Todos</span>
+                <span className="text-gray-300">·</span>
+                <span className="text-gray-400 font-medium cursor-pointer">Ninguno</span>
+              </div>
+            </div>
+            {[
+              { titulo: "Lengua Castellana", asig: "Lengua", count: "21", checked: true },
+              { titulo: "Matemáticas", asig: "Matemáticas", count: "19", checked: false },
+              { titulo: "Geografía e Historia", asig: "Sociales", count: "23", checked: false },
+            ].map(l => (
+              <div key={l.titulo} className={`flex items-center gap-2 px-3 py-2.5 border-b border-gray-50 last:border-0 ${l.checked ? "bg-blue-50" : ""}`}>
+                <div className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 border-2 ${l.checked ? "bg-blue-600 border-blue-600" : "border-gray-300"}`}>
+                  {l.checked && <span className="text-white text-[8px] font-bold leading-none">✓</span>}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10px] text-gray-800 truncate">{l.titulo}</p>
+                  <p className="text-[9px] text-gray-400">{l.asig}</p>
+                </div>
+                <span className="text-[9px] text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full flex-shrink-0">{l.count}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </li>
+
+      <li className="px-6 py-5 flex gap-4">
+        <div className="flex-shrink-0 flex flex-col items-center">
+          <StepNum n={4} accent="blue" /><StepConnector />
+        </div>
+        <div className="flex-1 pb-1">
+          <p className="font-medium text-gray-900 text-sm mb-1">Paso 2 — Indica el estado de la devolución por alumno</p>
+          <p className="text-sm text-gray-500 mb-3">Para cada alumno, pulsa el estado del libro: <strong className="text-green-700">Reutilizable</strong>, <strong className="text-amber-700">No reutilizable</strong> o <strong className="text-red-700">Perdido</strong>. Los botones globales de la cabecera aplican el mismo estado a todos a la vez.</p>
+          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden max-w-[310px]">
+            <div className="px-3 py-2 bg-gray-50 border-b border-gray-100 flex flex-wrap gap-1.5">
+              <span className="text-[9px] font-medium text-green-700 bg-green-50 border border-green-200 px-2 py-1 rounded-lg whitespace-nowrap">Todo reutilizable</span>
+              <span className="text-[9px] font-medium text-amber-700 bg-amber-50 border border-amber-200 px-2 py-1 rounded-lg whitespace-nowrap">Todo no reutilizable</span>
+              <span className="text-[9px] font-medium text-red-700 bg-red-50 border border-red-200 px-2 py-1 rounded-lg whitespace-nowrap">Todo perdido</span>
+            </div>
+            {[
+              { nombre: "García Pérez, Ana", estado: "Reutilizable", color: "bg-green-100 text-green-700 border-green-300" },
+              { nombre: "Martínez López, Luis", estado: "No reutilizable", color: "bg-amber-100 text-amber-700 border-amber-300" },
+              { nombre: "Sánchez Ruiz, Carmen", estado: null, color: "" },
+            ].map(a => (
+              <div key={a.nombre} className="flex items-center gap-2 px-3 py-2.5 border-b border-gray-50 last:border-0">
+                <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[9px] font-bold flex-shrink-0 ${a.estado ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-500"}`}>
+                  {a.nombre[0]}{a.nombre.split(" ").at(-1)?.[0]}
+                </div>
+                <span className="text-[10px] text-gray-800 flex-1 min-w-0 truncate">{a.nombre}</span>
+                {a.estado ? (
+                  <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded-lg border flex-shrink-0 ${a.color}`}>{a.estado}</span>
+                ) : (
+                  <span className="text-[9px] text-gray-300 flex-shrink-0">— sin marcar</span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </li>
+
+      <li className="px-6 py-5 flex gap-4">
+        <div className="flex-shrink-0 flex flex-col items-center">
+          <StepNum n={5} accent="blue" /><StepConnector />
+        </div>
+        <div className="flex-1 pb-1">
+          <p className="font-medium text-gray-900 text-sm mb-1">Añade observaciones si hay incidencias (opcional)</p>
+          <p className="text-sm text-gray-500 mb-3">Si hay libros deteriorados o perdidos, escribe una nota. Se adjuntará automáticamente a la incidencia generada.</p>
+          <div className="bg-white border border-gray-200 rounded-lg px-3 py-2.5 text-[11px] text-gray-400 max-w-xs">
+            Observaciones en caso de deterioros o extravíos (opcional) ...
+          </div>
+        </div>
+      </li>
+
+      <li className="px-6 py-5 flex gap-4">
+        <div className="flex-shrink-0">
+          <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
+            <CheckCircle2 size={16} className="text-green-600" />
+          </div>
+        </div>
+        <div className="flex-1">
+          <p className="font-medium text-gray-900 text-sm mb-1">Pulsa «Finalizar devolución» y listo</p>
+          <p className="text-sm text-gray-500 mb-3">El botón muestra cuántos alumnos tienen estado asignado del total pendiente. Los libros con estado <strong className="text-amber-700">No reutilizable</strong> o <strong className="text-red-700">Perdido</strong> generan una incidencia de gratuidad de forma automática.</p>
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-green-600 text-white text-[11px] font-semibold">
+              <RotateCcw size={12} /> Finalizar devolución (21/21)
+            </span>
+          </div>
+          <div className="mt-3 bg-green-50 border border-green-200 rounded-lg px-4 py-3 text-xs text-green-800">
+            ✓ 21 devoluciones registradas.
+          </div>
+        </div>
+      </li>
+    </ol>
+  );
+}
+
 // ─── Protocolo: Uso del móvil ─────────────────────────────────────────────────
 
 function ProtocoloMovil() {
@@ -465,10 +779,22 @@ function ProtocoloMovil() {
 const ITEM_CONTENT: Record<ItemId, React.ReactNode> = {
   carros: <TutorialCarros />,
   citas: <TutorialCitas />,
+  prestamos: <TutorialPrestamos />,
+  devoluciones: <TutorialDevoluciones />,
   movil: <ProtocoloMovil />,
 };
 
 const ITEM_TIPS: Record<ItemId, React.ReactNode> = {
+  prestamos: (
+    <p className="text-xs text-amber-800">
+      <strong>¿Entrega parcial?</strong> Si un alumno recibió solo algunos libros del lote, su contador aparece como <strong>2/3</strong>. Usa el botón <strong>Completar</strong> junto a su nombre para marcarlo manualmente como lote completo cuando reciba el resto.
+    </p>
+  ),
+  devoluciones: (
+    <p className="text-xs text-amber-800">
+      <strong>¿Devolución por alumno?</strong> Cambia el selector a <strong>Por alumno</strong> si prefieres procesar un alumno a la vez: elige el alumno en el panel izquierdo e indica el estado de cada libro en el derecho. Útil cuando un alumno entrega varios libros de distintas asignaturas al mismo tiempo.
+    </p>
+  ),
   carros: (
     <p className="text-xs text-amber-800">
       <strong>¿Varios días seguidos?</strong> Usa el botón <strong>Reserva múltiple</strong> (TDE y Directiva) para seleccionar un rango de fechas, días y tramos de una sola vez.
