@@ -592,7 +592,7 @@ export function TabDevolucionesLote({ prestamosActivos, onPrestamosChange, curso
   <title>Albar&aacute;n Devoluci&oacute;n &mdash; ${grupoLabel} &mdash; ${cursoEscolar}</title>
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
-    @page{size:A4 portrait;margin:10mm 13.5mm}
+    @page{size:A4 portrait;margin:10mm 12.5mm}
     body{font-family:Calibri,Arial,sans-serif;font-size:10pt;color:#000;background:#fff}
     .page{page-break-after:always;display:flex;flex-direction:column;min-height:267mm}
     .page:last-child{page-break-after:avoid}
@@ -989,9 +989,8 @@ export function TabDevolucionesLote({ prestamosActivos, onPrestamosChange, curso
                                 <button
                                   key={e}
                                   onClick={() => setEditStates((prev) => ({ ...prev, [p.id]: { ...prev[p.id], estado: e } }))}
-                                  className={`text-xs font-medium px-2.5 py-1.5 rounded-lg border transition-colors ${
-                                    edit.estado === e ? ESTADO_CONFIG[e].active : `border-gray-200 text-gray-500 bg-white ${ESTADO_CONFIG[e].hover}`
-                                  }`}
+                                  className={`text-xs font-medium px-2.5 py-1.5 rounded-lg border transition-colors ${edit.estado === e ? ESTADO_CONFIG[e].active : `border-gray-200 text-gray-500 bg-white ${ESTADO_CONFIG[e].hover}`
+                                    }`}
                                 >
                                   {ESTADO_CONFIG[e].label}
                                 </button>
@@ -1130,9 +1129,8 @@ export function TabDevolucionesLote({ prestamosActivos, onPrestamosChange, curso
                             <button
                               key={e}
                               onClick={() => handleEstado(p.libro_id, e)}
-                              className={`text-xs font-medium px-2.5 py-1.5 rounded-lg border transition-colors ${
-                                estado === e ? ESTADO_CONFIG[e].active : `border-gray-200 text-gray-500 bg-white ${ESTADO_CONFIG[e].hover}`
-                              }`}
+                              className={`text-xs font-medium px-2.5 py-1.5 rounded-lg border transition-colors ${estado === e ? ESTADO_CONFIG[e].active : `border-gray-200 text-gray-500 bg-white ${ESTADO_CONFIG[e].hover}`
+                                }`}
                             >
                               {ESTADO_CONFIG[e].label}
                             </button>
@@ -1196,9 +1194,8 @@ export function TabDevolucionesLote({ prestamosActivos, onPrestamosChange, curso
                       onClick={() => toggleLibroAsig(libro.libro_id)}
                       className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${isChecked ? "bg-blue-50" : "hover:bg-gray-50"}`}
                     >
-                      <div className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 border-2 transition-colors ${
-                        isChecked ? "bg-blue-600 border-blue-600" : "border-gray-300 bg-white"
-                      }`}>
+                      <div className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 border-2 transition-colors ${isChecked ? "bg-blue-600 border-blue-600" : "border-gray-300 bg-white"
+                        }`}>
                         {isChecked && <Check size={12} className="text-white" strokeWidth={3} />}
                       </div>
                       <div className="flex-1 min-w-0">
@@ -1302,9 +1299,8 @@ export function TabDevolucionesLote({ prestamosActivos, onPrestamosChange, curso
                             <button
                               key={e}
                               onClick={() => handleAlumnoEstadoAsig(alumno.key, e)}
-                              className={`text-xs font-medium px-2.5 py-1.5 rounded-lg border transition-colors ${
-                                estado === e ? ESTADO_CONFIG[e].active : `border-gray-200 text-gray-500 bg-white ${ESTADO_CONFIG[e].hover}`
-                              }`}
+                              className={`text-xs font-medium px-2.5 py-1.5 rounded-lg border transition-colors ${estado === e ? ESTADO_CONFIG[e].active : `border-gray-200 text-gray-500 bg-white ${ESTADO_CONFIG[e].hover}`
+                                }`}
                             >
                               {ESTADO_CONFIG[e].label}
                             </button>

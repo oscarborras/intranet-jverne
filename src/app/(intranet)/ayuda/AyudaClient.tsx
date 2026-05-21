@@ -5,7 +5,7 @@ import {
   HelpCircle, Laptop, Users, CalendarDays, Plus, BookOpen,
   CheckCircle2, MapPin, ChevronRight, ArrowLeft, Clock,
   Mail, X, CalendarCheck, Smartphone, ShieldAlert,
-  BookMarked, FileText, GraduationCap, ExternalLink, RotateCcw,
+  BookMarked, FileText, GraduationCap, ExternalLink, RotateCcw, Printer,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -63,7 +63,7 @@ const ITEMS: ItemMeta[] = [
     icon: <RotateCcw size={22} className="text-white" />,
     title: "Registrar devoluciones de libros",
     description: "Recoge los libros por asignatura o por alumno e indica el estado de cada ejemplar.",
-    badge: "6 pasos · 2 min",
+    badge: "7 pasos · 2 min",
     headerBg: "bg-orange-500",
     headerText: "text-orange-600",
   },
@@ -87,9 +87,8 @@ function StepConnector() {
 
 function StepNum({ n, accent }: { n: number; accent: "blue" | "red" }) {
   return (
-    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0 ${
-      accent === "red" ? "bg-red-100 text-red-700" : "bg-blue-100 text-blue-700"
-    }`}>
+    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0 ${accent === "red" ? "bg-red-100 text-red-700" : "bg-blue-100 text-blue-700"
+      }`}>
       {n}
     </div>
   );
@@ -125,13 +124,13 @@ function TutorialCarros() {
           <div className="bg-gray-50 rounded-lg border border-gray-100 p-3 max-w-[200px]">
             <div className="text-xs text-gray-500 font-semibold mb-2 text-center">Mayo 2026</div>
             <div className="grid grid-cols-7 gap-1 text-center text-[10px] text-gray-400 mb-1">
-              {["L","M","X","J","V","S","D"].map(d => <span key={d}>{d}</span>)}
+              {["L", "M", "X", "J", "V", "S", "D"].map(d => <span key={d}>{d}</span>)}
             </div>
             <div className="grid grid-cols-7 gap-1 text-center text-[11px]">
-              {["","","","","1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17","18","19","20","21"].map((d, i) =>
+              {["", "", "", "", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21"].map((d, i) =>
                 d === "14" ? <span key={i} className="w-5 h-5 mx-auto rounded-full bg-blue-600 text-white font-bold flex items-center justify-center">{d}</span>
-                : d === "" ? <span key={i} />
-                : <span key={i} className="w-5 h-5 mx-auto flex items-center justify-center text-gray-600 rounded-full">{d}</span>
+                  : d === "" ? <span key={i} />
+                    : <span key={i} className="w-5 h-5 mx-auto flex items-center justify-center text-gray-600 rounded-full">{d}</span>
               )}
             </div>
           </div>
@@ -596,6 +595,22 @@ function TutorialDevoluciones() {
           <StepNum n={4} accent="blue" /><StepConnector />
         </div>
         <div className="flex-1 pb-1">
+          <p className="font-medium text-gray-900 text-sm mb-1">Imprime la ficha de control si prefieres rellenar a mano las devoluciones (opcional)</p>
+          <p className="text-sm text-gray-500 mb-3">Con al menos un libro seleccionado aparece el botón <strong className="text-gray-700">Imprimir Ficha Control</strong> bajo la lista. Al pulsarlo se abre una nueva pestaña lista para imprimir o guardar como PDF, con una hoja por libro y el listado de alumnos del grupo.</p>
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 border border-gray-300 text-gray-700 text-[11px] font-medium px-3 py-2 rounded-lg bg-white">
+              <Printer size={13} /> Imprimir Ficha Control
+            </span>
+            <span className="text-[10px] text-gray-400">→ abre PDF en nueva pestaña</span>
+          </div>
+        </div>
+      </li>
+
+      <li className="px-6 py-5 flex gap-4">
+        <div className="flex-shrink-0 flex flex-col items-center">
+          <StepNum n={5} accent="blue" /><StepConnector />
+        </div>
+        <div className="flex-1 pb-1">
           <p className="font-medium text-gray-900 text-sm mb-1">Paso 2 — Indica el estado de la devolución por alumno</p>
           <p className="text-sm text-gray-500 mb-3">Para cada alumno, pulsa el estado del libro: <strong className="text-green-700">Reutilizable</strong>, <strong className="text-amber-700">No reutilizable</strong> o <strong className="text-red-700">Perdido</strong>. Los botones globales de la cabecera aplican el mismo estado a todos a la vez.</p>
           <div className="bg-white border border-gray-200 rounded-xl overflow-hidden max-w-[310px]">
@@ -627,7 +642,7 @@ function TutorialDevoluciones() {
 
       <li className="px-6 py-5 flex gap-4">
         <div className="flex-shrink-0 flex flex-col items-center">
-          <StepNum n={5} accent="blue" /><StepConnector />
+          <StepNum n={6} accent="blue" /><StepConnector />
         </div>
         <div className="flex-1 pb-1">
           <p className="font-medium text-gray-900 text-sm mb-1">Añade observaciones si hay incidencias (opcional)</p>
