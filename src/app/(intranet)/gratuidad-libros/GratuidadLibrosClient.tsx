@@ -15,6 +15,8 @@ interface Profesor { id: string; nombre: string; }
 type TabId = "prestamos" | "devoluciones" | "inventario" | "seguimiento" | "informes" | "incidencias";
 interface Tab { id: TabId; label: string; icon: React.ReactNode; }
 
+type ModoGratuidad = "prestamo" | "devolucion" | "completo";
+
 interface Props {
   prestamos: PrestamoLibro[];
   todosPrestamos: PrestamoLibro[];
@@ -28,6 +30,7 @@ interface Props {
   profesores: Profesor[];
   unidadesGratuidad: string[];
   completadosIniciales: string[];
+  modoGratuidad: ModoGratuidad;
 }
 
 export function GratuidadLibrosClient({
@@ -43,8 +46,14 @@ export function GratuidadLibrosClient({
   profesores,
   unidadesGratuidad,
   completadosIniciales,
+  modoGratuidad,
 }: Props) {
-  const [activeTab, setActiveTab] = useState<TabId>("prestamos");
+  // For professors, visibility of base tabs depends on the configured mode
+  const showPrestamos   = canManage || modoGratuidad === "prestamo"   || modoGratuidad === "completo";
+  const showDevoluciones = canManage || modoGratuidad === "devolucion" || modoGratuidad === "completo";
+
+  const defaultTab: TabId = showPrestamos ? "prestamos" : "devoluciones";
+  const [activeTab, setActiveTab] = useState<TabId>(defaultTab);
   const [pendingGrupo, setPendingGrupo] = useState<string | null>(null);
   // Fuente de verdad compartida entre pestañas para préstamos activos
   const [livePrestamosList, setLivePrestamos] = useState<PrestamoLibro[]>(prestamos);
@@ -55,8 +64,8 @@ export function GratuidadLibrosClient({
   }
 
   const tabs: Tab[] = [
-    { id: "prestamos",    label: "Préstamos",    icon: <BookOpen   size={15} /> },
-    { id: "devoluciones", label: "Devoluciones", icon: <RotateCcw  size={15} /> },
+    ...(showPrestamos    ? [{ id: "prestamos"    as TabId, label: "Préstamos",    icon: <BookOpen  size={15} /> }] : []),
+    ...(showDevoluciones ? [{ id: "devoluciones" as TabId, label: "Devoluciones", icon: <RotateCcw size={15} /> }] : []),
     ...(canManageInventario ? [
       { id: "inventario" as TabId, label: "Inventario", icon: <Library size={15} /> },
     ] : []),

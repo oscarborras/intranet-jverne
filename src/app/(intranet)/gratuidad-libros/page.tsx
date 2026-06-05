@@ -33,6 +33,7 @@ export default async function GratuidadLibrosPage() {
     { data: alumnosInactivosData },
     { data: cursosGratuidadData },
     { data: completadosData },
+    { data: modoGratuidadData },
   ] = await Promise.all([
     supabase.from("profesores").select("id, profesor").ilike("email", user.email!).single(),
 
@@ -98,11 +99,19 @@ export default async function GratuidadLibrosPage() {
       .from("gratuidad_lote_completado")
       .select("alumno_id")
       .eq("curso_escolar", cursoEscolarActual),
+
+    // Modo de funcionamiento del módulo de gratuidad
+    supabase
+      .from("config_intranet")
+      .select("valor")
+      .eq("clave", "modo_gratuidad_libros")
+      .single(),
   ]);
 
   const myProfesorId: string | null = myProfesor?.id ?? null;
   const unidadesGratuidad = (cursosGratuidadData ?? []).map((c) => c.nombre as string);
   const completadosIniciales = (completadosData ?? []).map((c) => c.alumno_id as string);
+  const modoGratuidad = ((modoGratuidadData as { valor?: string } | null)?.valor ?? "completo") as "prestamo" | "devolucion" | "completo";
 
   // Resolve professor names
   const allProfesorIds = [
@@ -158,6 +167,7 @@ export default async function GratuidadLibrosPage() {
       profesores={profesores}
       unidadesGratuidad={unidadesGratuidad}
       completadosIniciales={completadosIniciales}
+      modoGratuidad={modoGratuidad}
     />
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Settings, Save, CheckCircle, AlertCircle, SlidersHorizontal, UserX } from "lucide-react";
+import { Settings, Save, CheckCircle, AlertCircle, SlidersHorizontal, UserX, BookOpen, ChevronDown } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { ConfigIntranet } from "@/lib/types";
 
@@ -16,6 +16,7 @@ const LABELS: Record<string, string> = {
   fecha_fin_asuntos_propios:     "Fecha de fin del período",
   mostrar_grid_dashboard:        "Mostrar grid de módulos en el dashboard",
   mostrar_grid_dashboard_movil:  "Mostrar grid de módulos en móvil",
+  modo_gratuidad_libros:         "Modo de funcionamiento",
 };
 
 // Claves that store dates as dd/MM/yyyy
@@ -23,6 +24,18 @@ const DATE_CLAVES = new Set(["fecha_inicio_asuntos_propios", "fecha_fin_asuntos_
 
 // Claves that store booleans as "true"/"false"
 const BOOLEAN_CLAVES = new Set(["mostrar_grid_dashboard", "mostrar_grid_dashboard_movil"]);
+
+// Claves that render as a <select> with fixed options
+const SELECT_OPTIONS: Record<string, { value: string; label: string; description: string }[]> = {
+  modo_gratuidad_libros: [
+    { value: "prestamo",   label: "Modo Préstamo",   description: "Solo la pestaña Préstamos es visible para los profesores." },
+    { value: "devolucion", label: "Modo Devolución", description: "Solo la pestaña Devoluciones es visible para los profesores." },
+    { value: "completo",   label: "Modo Completo",   description: "Préstamos y Devoluciones son visibles para los profesores." },
+  ],
+};
+
+// Claves grouped under the "Gratuidad Libros" tab
+const GRATUIDAD_CLAVES = new Set(["modo_gratuidad_libros"]);
 
 function ddmmyyyyToInput(val: string): string {
   const [d, m, y] = val.split("/");
@@ -36,7 +49,7 @@ function inputToDdmmyyyy(val: string): string {
   return `${d}/${m}/${y}`;
 }
 
-type Tab = "asuntos_propios" | "otros";
+type Tab = "asuntos_propios" | "otros" | "gratuidad_libros";
 
 export function ConfiguracionClient({ config }: Props) {
   // Local state: clave → current valor (in input format for dates)
@@ -82,7 +95,8 @@ export function ConfiguracionClient({ config }: Props) {
   const asuntosRows = config.filter((r) =>
     ["max_profes_asuntos_propios", "fecha_inicio_asuntos_propios", "fecha_fin_asuntos_propios"].includes(r.clave)
   );
-  const otherRows = config.filter((r) => !asuntosRows.includes(r));
+  const gratuidadRows = config.filter((r) => GRATUIDAD_CLAVES.has(r.clave));
+  const otherRows = config.filter((r) => !asuntosRows.includes(r) && !gratuidadRows.includes(r));
 
   function renderField(row: ConfigIntranet) {
     const label = LABELS[row.clave] ?? row.clave;
@@ -90,6 +104,30 @@ export function ConfiguracionClient({ config }: Props) {
     const isBoolean = BOOLEAN_CLAVES.has(row.clave);
     const isNumber = row.clave === "max_profes_asuntos_propios";
     const boolVal = values[row.clave] === "true";
+    const selectOpts = SELECT_OPTIONS[row.clave];
+
+    if (selectOpts) {
+      const selected = selectOpts.find((o) => o.value === values[row.clave]) ?? selectOpts[0];
+      return (
+        <div key={row.clave}>
+          <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+          <p className="text-xs text-gray-400 mb-1.5">{row.descripcion}</p>
+          <div className="relative w-full sm:w-80">
+            <select
+              value={values[row.clave] ?? "completo"}
+              onChange={(e) => setValues((v) => ({ ...v, [row.clave]: e.target.value }))}
+              className="w-full appearance-none border border-gray-300 rounded-lg pl-3 pr-8 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+            >
+              {selectOpts.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+            <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+          </div>
+          <p className="text-xs text-blue-600 mt-1.5">{selected.description}</p>
+        </div>
+      );
+    }
 
     if (isBoolean) {
       return (
@@ -166,6 +204,13 @@ export function ConfiguracionClient({ config }: Props) {
       icon: <UserX size={15} />,
       rows: asuntosRows,
       description: "Límite de profesores ausentes por asuntos propios y período en que aplica.",
+    },
+    {
+      id: "gratuidad_libros" as Tab,
+      label: "Gratuidad Libros",
+      icon: <BookOpen size={15} />,
+      rows: gratuidadRows,
+      description: "Controla qué pestañas del módulo de gratuidad son visibles para los profesores.",
     },
     {
       id: "otros" as Tab,
