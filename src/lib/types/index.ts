@@ -194,6 +194,7 @@ export interface PeticionTIC {
   estado: PeticionTICEstado;
   autor_id: string;
   asignado_id: string | null;
+  solo_usuario: boolean;
   created_at: string;
   updated_at: string;
   autor?: { full_name: string };

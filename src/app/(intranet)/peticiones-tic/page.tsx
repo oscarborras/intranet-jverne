@@ -34,7 +34,7 @@ export default async function PeticionesTICPage() {
     .order("created_at", { ascending: false });
 
   if (!canViewAll) {
-    peticionesQuery = peticionesQuery.eq("autor_id", user!.id);
+    peticionesQuery = peticionesQuery.or(`solo_usuario.eq.false,autor_id.eq.${user!.id}`);
   }
 
   const { data: peticionesRaw } = await peticionesQuery;
