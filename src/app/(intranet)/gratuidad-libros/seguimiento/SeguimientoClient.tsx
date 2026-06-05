@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
   BookOpen, CheckCircle, AlertTriangle, XCircle, Clock,
-  ChevronDown, ChevronUp, Download, RotateCcw,
+  ChevronDown, ChevronUp, Download, RotateCcw, Undo2,
 } from "lucide-react";
 import type { PrestamoLibro, EstadoDevolucion, Alumno } from "@/lib/types";
 
@@ -142,6 +142,7 @@ export function SeguimientoClient({ prestamos, cursoEscolarActual, alumnos = [],
   const [tutorMap, setTutorMap] = useState<Record<string, string>>({});
   const [gratuidadGrupos, setGratuidadGrupos] = useState<Set<string>>(new Set());
   const [livePrestamos, setLivePrestamos] = useState<PrestamoLibro[]>(prestamos);
+  const [undoingId, setUndoingId] = useState<string | null>(null);
 
   // Re-fetch all loans on mount + fetch tutores
   useEffect(() => {
@@ -208,6 +209,25 @@ export function SeguimientoClient({ prestamos, cursoEscolarActual, alumnos = [],
     fetchData();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cursoEscolarActual]);
+
+  async function handleAnularDevolucion(prestamoId: string) {
+    setUndoingId(prestamoId);
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("prestamos_libros")
+      .update({ fecha_devolucion: null, devuelto_por: null, estado_devolucion: null, observaciones: null })
+      .eq("id", prestamoId);
+    if (!error) {
+      setLivePrestamos((prev) =>
+        prev.map((p) =>
+          p.id === prestamoId
+            ? { ...p, fecha_devolucion: null, devuelto_por: null, estado_devolucion: null, observaciones: null }
+            : p
+        )
+      );
+    }
+    setUndoingId(null);
+  }
 
   function toggleKey(key: string) {
     setExpandedKeys((prev) => {
@@ -571,6 +591,14 @@ export function SeguimientoClient({ prestamos, cursoEscolarActual, alumnos = [],
                                         {fechaStr && (
                                           <span className="text-xs text-gray-400">{fechaStr}</span>
                                         )}
+                                        <button
+                                          onClick={() => handleAnularDevolucion(p.id)}
+                                          disabled={undoingId === p.id}
+                                          title="Anular devolución (vuelve a préstamo activo)"
+                                          className="p-1 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded transition-colors disabled:opacity-40"
+                                        >
+                                          <Undo2 size={13} />
+                                        </button>
                                       </div>
                                     )}
                                   </div>

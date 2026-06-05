@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
-  CheckCircle, AlertTriangle, X, Users, CalendarDays, ChevronDown, RotateCcw, BookOpen, Check, Printer,
+  CheckCircle, AlertTriangle, X, Users, CalendarDays, ChevronDown, RotateCcw, BookOpen, Check, Printer, Undo2,
 } from "lucide-react";
 import type { PrestamoLibro, EstadoDevolucion, TipoIncidencia, Alumno } from "@/lib/types";
 
@@ -80,6 +80,9 @@ export function TabDevolucionesLote({ prestamosActivos, onPrestamosChange, curso
   const [selectedAlumnoDevueltoKey, setSelectedAlumnoDevueltoKey] = useState<string | null>(null);
   const [editStates, setEditStates] = useState<Record<string, { estado: EstadoDevolucion; fecha: string }>>({});
   const [savingEdit, setSavingEdit] = useState(false);
+  const [undoingId, setUndoingId] = useState<string | null>(null);
+  const [pendingConfirm, setPendingConfirm] = useState<"por_alumno" | "por_asignatura" | null>(null);
+  const [pendingAnularId, setPendingAnularId] = useState<string | null>(null);
 
   const efectivoProfesorId = myProfesorId ?? (overrideProfesorId || null);
 
@@ -342,6 +345,35 @@ export function TabDevolucionesLote({ prestamosActivos, onPrestamosChange, curso
       );
       setSuccessMsg("Cambios guardados correctamente.");
     }
+  }
+
+  async function handleAnularDevolucion(prestamoId: string) {
+    setUndoingId(prestamoId);
+    setErrorMsg(null);
+    const { error } = await supabase
+      .from("prestamos_libros")
+      .update({ fecha_devolucion: null, devuelto_por: null, estado_devolucion: null, observaciones: null })
+      .eq("id", prestamoId);
+    if (error) {
+      setErrorMsg(`Error: ${error.message}`);
+      setUndoingId(null);
+      return;
+    }
+    const restored = prestamosDevueltos.find((p) => p.id === prestamoId);
+    if (restored) {
+      onPrestamosChange((prev) => [
+        ...prev,
+        { ...restored, fecha_devolucion: null, devuelto_por: null, estado_devolucion: null, observaciones: null },
+      ]);
+    }
+    const remaining = prestamosDevueltos.filter(
+      (p) => p.id !== prestamoId && (p.alumno_id ?? p.alumno_nombre) === selectedAlumnoDevueltoKey
+    );
+    if (remaining.length === 0) setSelectedAlumnoDevueltoKey(null);
+    setPrestamosDevueltos((prev) => prev.filter((p) => p.id !== prestamoId));
+    setEditStates((prev) => { const next = { ...prev }; delete next[prestamoId]; return next; });
+    setUndoingId(null);
+    setSuccessMsg("Devolución anulada. El libro vuelve a estar activo.");
   }
 
   // ── Actions: por alumno ─────────────────────────────────────────────────────
@@ -971,17 +1003,27 @@ export function TabDevolucionesLote({ prestamosActivos, onPrestamosChange, curso
                       if (!edit) return null;
                       return (
                         <div key={p.id} className="px-4 py-3 space-y-2">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-1.5 min-w-0">
-                              <p className="text-sm font-medium text-gray-800 truncate">{p.libro?.titulo ?? "—"}</p>
-                              {p.libro?.diversificacion && (
-                                <span className="flex-shrink-0 text-[9px] font-semibold tracking-wide uppercase px-1.5 py-0.5 rounded bg-purple-100 text-purple-700">DIV</span>
-                              )}
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <p className="text-sm font-medium text-gray-800 truncate">{p.libro?.titulo ?? "—"}</p>
+                                {p.libro?.diversificacion && (
+                                  <span className="flex-shrink-0 text-[9px] font-semibold tracking-wide uppercase px-1.5 py-0.5 rounded bg-purple-100 text-purple-700">DIV</span>
+                                )}
+                              </div>
+                              <p className="text-xs text-gray-400">
+                                {p.libro?.asignatura}
+                                {p.num_ejemplar && <> · Ej. {p.num_ejemplar}</>}
+                              </p>
                             </div>
-                            <p className="text-xs text-gray-400">
-                              {p.libro?.asignatura}
-                              {p.num_ejemplar && <> · Ej. {p.num_ejemplar}</>}
-                            </p>
+                            <button
+                              onClick={() => setPendingAnularId(p.id)}
+                              disabled={undoingId === p.id}
+                              title="Anular devolución (vuelve a préstamo activo)"
+                              className="flex-shrink-0 p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-40"
+                            >
+                              <Undo2 size={14} />
+                            </button>
                           </div>
                           <div className="flex items-center gap-2 flex-wrap">
                             <div className="flex gap-1">
@@ -1097,7 +1139,7 @@ export function TabDevolucionesLote({ prestamosActivos, onPrestamosChange, curso
                       Todo reutilizable
                     </button>
                     <button
-                      onClick={handleFinalizar}
+                      onClick={() => setPendingConfirm("por_alumno")}
                       disabled={countToReturn === 0 || saving}
                       className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-40 text-white text-sm font-medium px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap"
                     >
@@ -1271,7 +1313,7 @@ export function TabDevolucionesLote({ prestamosActivos, onPrestamosChange, curso
                   </div>
                   <div className="flex justify-center">
                     <button
-                      onClick={handleFinalizarAsig}
+                      onClick={() => setPendingConfirm("por_asignatura")}
                       disabled={countAsigToReturn === 0 || saving}
                       className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-40 text-white text-sm font-medium px-5 py-2 rounded-lg transition-colors whitespace-nowrap"
                     >
@@ -1322,7 +1364,7 @@ export function TabDevolucionesLote({ prestamosActivos, onPrestamosChange, curso
                   />
                   <div className="flex justify-center">
                     <button
-                      onClick={handleFinalizarAsig}
+                      onClick={() => setPendingConfirm("por_asignatura")}
                       disabled={countAsigToReturn === 0 || saving}
                       className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-40 text-white text-sm font-medium px-5 py-2 rounded-lg transition-colors whitespace-nowrap"
                     >
@@ -1336,6 +1378,92 @@ export function TabDevolucionesLote({ prestamosActivos, onPrestamosChange, curso
           </div>
         </div>
       )}
+      {/* Modal: confirmar anulación de devolución */}
+      {pendingAnularId && (() => {
+        const p = prestamosDevueltos.find((x) => x.id === pendingAnularId);
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm">
+              <div className="px-5 py-4 border-b flex items-center gap-3">
+                <Undo2 size={20} className="text-red-500 flex-shrink-0" />
+                <h2 className="font-semibold text-gray-900">Anular devolución</h2>
+              </div>
+              <div className="px-5 py-4 space-y-1">
+                <p className="text-sm text-gray-600">
+                  ¿Anular la devolución de <span className="font-semibold">{p?.libro?.titulo ?? "este libro"}</span> de{" "}
+                  <span className="font-semibold">{p?.alumno_nombre ?? "este alumno"}</span>?
+                </p>
+                <p className="text-xs text-gray-400">El libro volverá a aparecer como préstamo activo.</p>
+              </div>
+              <div className="flex gap-3 px-5 py-4 border-t">
+                <button
+                  onClick={() => setPendingAnularId(null)}
+                  className="flex-1 border border-gray-300 text-gray-700 text-sm font-medium py-2.5 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => {
+                    const id = pendingAnularId;
+                    setPendingAnularId(null);
+                    handleAnularDevolucion(id);
+                  }}
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white text-sm font-medium py-2.5 rounded-lg transition-colors"
+                >
+                  Anular devolución
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Modal: confirmar devolución */}
+      {pendingConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm">
+            <div className="px-5 py-4 border-b flex items-center gap-3">
+              <RotateCcw size={20} className="text-green-600 flex-shrink-0" />
+              <h2 className="font-semibold text-gray-900">Confirmar devolución</h2>
+            </div>
+            <div className="px-5 py-4">
+              {pendingConfirm === "por_alumno" ? (
+                <p className="text-sm text-gray-600">
+                  ¿Registrar la devolución de{" "}
+                  <span className="font-semibold">{countToReturn} libro{countToReturn !== 1 ? "s" : ""}</span>{" "}
+                  de <span className="font-semibold">{selectedAlumno?.nombre}</span>?
+                </p>
+              ) : (
+                <p className="text-sm text-gray-600">
+                  ¿Registrar la devolución de{" "}
+                  <span className="font-semibold">{countAsigToReturn} alumno{countAsigToReturn !== 1 ? "s" : ""}</span>{" "}
+                  ({selectedLibroIdsAsig.size} libro{selectedLibroIdsAsig.size !== 1 ? "s" : ""})?
+                </p>
+              )}
+            </div>
+            <div className="flex gap-3 px-5 py-4 border-t">
+              <button
+                onClick={() => setPendingConfirm(null)}
+                className="flex-1 border border-gray-300 text-gray-700 text-sm font-medium py-2.5 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  const tipo = pendingConfirm;
+                  setPendingConfirm(null);
+                  if (tipo === "por_alumno") handleFinalizar();
+                  else handleFinalizarAsig();
+                }}
+                className="flex-1 bg-green-600 hover:bg-green-700 text-white text-sm font-medium py-2.5 rounded-lg transition-colors"
+              >
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
