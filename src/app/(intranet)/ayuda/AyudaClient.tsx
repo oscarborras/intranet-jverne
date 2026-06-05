@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import {
   HelpCircle, Laptop, Users, CalendarDays, Plus, BookOpen,
   CheckCircle2, MapPin, ChevronRight, ArrowLeft, Clock,
@@ -12,6 +12,7 @@ import {
 
 type ItemId = "carros" | "citas" | "movil" | "prestamos" | "devoluciones";
 type Category = "tutorial" | "protocolo";
+type ModuleId = "carros-portatiles" | "citas-familias" | "gratuidad-libros";
 
 interface ItemMeta {
   id: ItemId;
@@ -22,6 +23,16 @@ interface ItemMeta {
   badge: string;
   headerBg: string;
   headerText: string;
+}
+
+interface ModuleMeta {
+  id: ModuleId;
+  slug: string;
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  color: string;
+  tutorials: ItemId[];
 }
 
 // ─── Catalogue ────────────────────────────────────────────────────────────────
@@ -76,6 +87,36 @@ const ITEMS: ItemMeta[] = [
     badge: "5 reglas",
     headerBg: "bg-amber-500",
     headerText: "text-amber-600",
+  },
+];
+
+const MODULES: ModuleMeta[] = [
+  {
+    id: "carros-portatiles",
+    slug: "reservas/carros",
+    icon: <Laptop size={22} className="text-white" />,
+    title: "Carros de Portátiles",
+    description: "Reserva y gestión de carros de portátiles para el aula.",
+    color: "bg-blue-600",
+    tutorials: ["carros"],
+  },
+  {
+    id: "citas-familias",
+    slug: "citas-familias",
+    icon: <Users size={22} className="text-white" />,
+    title: "Citas con Familias",
+    description: "Confirmación y gestión de citas con las familias del alumnado.",
+    color: "bg-red-600",
+    tutorials: ["citas"],
+  },
+  {
+    id: "gratuidad-libros",
+    slug: "gratuidad-libros",
+    icon: <BookMarked size={22} className="text-white" />,
+    title: "Gratuidad de Libros",
+    description: "Préstamos y devoluciones del programa de gratuidad de libros.",
+    color: "bg-emerald-600",
+    tutorials: ["prestamos", "devoluciones"],
   },
 ];
 
@@ -848,25 +889,121 @@ function ItemCard({ item, onSelect }: { item: ItemMeta; onSelect: (id: ItemId) =
   );
 }
 
+// ─── Module card ──────────────────────────────────────────────────────────────
+
+function ModuleCard({ module, onClick }: { module: ModuleMeta; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="bg-white rounded-xl border border-gray-100 p-4 flex items-center gap-4 text-left hover:border-gray-200 hover:shadow-sm transition-all group w-full"
+    >
+      <div className={`w-11 h-11 rounded-xl ${module.color} flex items-center justify-center flex-shrink-0`}>
+        {module.icon}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="font-semibold text-gray-900 text-sm">{module.title}</p>
+        <p className="text-xs text-gray-500 mt-0.5 leading-snug">{module.description}</p>
+        <p className="text-[11px] text-gray-400 mt-1">
+          {module.tutorials.length} tutorial{module.tutorials.length !== 1 ? "es" : ""}
+        </p>
+      </div>
+      <ChevronRight size={16} className="text-gray-300 group-hover:text-gray-500 flex-shrink-0 transition-colors" />
+    </button>
+  );
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function AyudaClient() {
-  const [active, setActive] = useState<ItemId | null>(null);
-  const meta = active ? ITEMS.find(t => t.id === active)! : null;
+interface Props {
+  inactiveModuleSlugs: string[];
+}
 
-  const tutorials = ITEMS.filter(i => i.category === "tutorial");
-  const protocolos = ITEMS.filter(i => i.category === "protocolo");
+export function AyudaClient({ inactiveModuleSlugs }: Props) {
+  const [activeModule, setActiveModule] = useState<ModuleId | null>(null);
+  const [activeItem, setActiveItem]     = useState<ItemId | null>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  function handlePrint() {
+    if (!activeItemMeta || !contentRef.current) return;
+    const category = activeItemMeta.category === "protocolo" ? "Protocolo" : "Tutorial";
+    const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>${activeItemMeta.title}</title>
+  <script src="https://cdn.tailwindcss.com"><\/script>
+  <style>
+    @page { size: A4 portrait; margin: 14mm 16mm; }
+    @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+  </style>
+</head>
+<body class="bg-white">
+  <div class="mb-5 pb-4 border-b border-gray-200">
+    <p class="text-[11px] font-semibold text-gray-400 uppercase tracking-widest mb-1">${category} · IES Julio Verne</p>
+    <h1 class="text-xl font-bold text-gray-900">${activeItemMeta.title}</h1>
+    <p class="text-sm text-gray-400 mt-0.5">${activeItemMeta.badge}</p>
+  </div>
+  <div>${contentRef.current.innerHTML}</div>
+  <script>window.addEventListener('load', function(){ setTimeout(function(){ window.print(); }, 600); });<\/script>
+</body>
+</html>`;
+    const blob = new Blob([html], { type: "text/html" });
+    const url = URL.createObjectURL(blob);
+    const win = window.open(url, "_blank");
+    if (win) setTimeout(() => URL.revokeObjectURL(url), 60000);
+  }
+
+  const visibleModules  = MODULES.filter((m) => !inactiveModuleSlugs.includes(m.slug));
+  const protocolos      = ITEMS.filter((i) => i.category === "protocolo");
+  const activeItemMeta  = activeItem   ? ITEMS.find((t) => t.id === activeItem)!    : null;
+  const activeModuleMeta = activeModule ? MODULES.find((m) => m.id === activeModule)! : null;
+
+  // Multi-step navigation ─────────────────────────────────────────────────────
+
+  function handleModuleClick(mod: ModuleMeta) {
+    setActiveModule(mod.id);
+    // Single-tutorial module → skip intermediate list, go straight to detail
+    if (mod.tutorials.length === 1) setActiveItem(mod.tutorials[0]);
+    else setActiveItem(null);
+  }
+
+  function handleBack() {
+    if (activeItem !== null) {
+      if (!activeModuleMeta || activeModuleMeta.tutorials.length === 1) {
+        // Protocol item OR single-tutorial module → back to home
+        setActiveModule(null);
+        setActiveItem(null);
+      } else {
+        // Multi-tutorial module → back to module list
+        setActiveItem(null);
+      }
+    } else {
+      // Module list → back to home
+      setActiveModule(null);
+    }
+  }
+
+  const showHome       = !activeModule && !activeItem;
+  const showModuleList = activeModule !== null && activeItem === null;
+  const showDetail     = activeItem !== null;
+
+  const backLabel = showDetail && activeModuleMeta && activeModuleMeta.tutorials.length > 1
+    ? activeModuleMeta.title
+    : "Ayuda y Tutoriales";
+
+  // ── Render ──────────────────────────────────────────────────────────────────
 
   return (
     <div className="max-w-2xl mx-auto space-y-4">
+
       {/* Header */}
       <div className="flex items-center gap-3">
-        {active ? (
+        {!showHome ? (
           <button
-            onClick={() => setActive(null)}
+            onClick={handleBack}
             className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors"
           >
-            <ArrowLeft size={16} /> Ayuda y Tutoriales
+            <ArrowLeft size={16} /> {backLabel}
           </button>
         ) : (
           <>
@@ -879,70 +1016,108 @@ export function AyudaClient() {
         )}
       </div>
 
-      {/* Web del Claustro */}
-      {!active && (
-        <a
-          href="https://sites.google.com/iesjulioverne.es/webclaustro/inicio?authuser=0"
-          target="_blank"
-          rel="noreferrer"
-          className="flex items-center gap-4 bg-white rounded-xl border border-gray-100 p-4 hover:border-gray-200 hover:shadow-sm transition-all group"
-        >
-          <div className="w-11 h-11 rounded-xl bg-indigo-600 flex items-center justify-center flex-shrink-0">
-            <ExternalLink size={20} className="text-white" />
+      {/* ── Home view ─────────────────────────────────────────────────────── */}
+      {showHome && (
+        <>
+          {/* Web del Claustro — always visible */}
+          <a
+            href="https://sites.google.com/iesjulioverne.es/webclaustro/inicio?authuser=0"
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center gap-4 bg-white rounded-xl border border-gray-100 p-4 hover:border-gray-200 hover:shadow-sm transition-all group"
+          >
+            <div className="w-11 h-11 rounded-xl bg-indigo-600 flex items-center justify-center flex-shrink-0">
+              <ExternalLink size={20} className="text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-gray-900 text-sm">Web de ayuda del Claustro</p>
+              <p className="text-xs text-gray-500 mt-0.5">Documentación y recursos del claustro de IES Julio Verne</p>
+            </div>
+            <ChevronRight size={16} className="text-gray-300 group-hover:text-gray-500 flex-shrink-0 transition-colors" />
+          </a>
+
+          <div className="space-y-5">
+            {/* Module tutorial buttons — filtered by active modules */}
+            {visibleModules.length > 0 && (
+              <section>
+                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2 px-1">Tutoriales</p>
+                <div className="grid gap-2">
+                  {visibleModules.map((mod) => (
+                    <ModuleCard key={mod.id} module={mod} onClick={() => handleModuleClick(mod)} />
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* Protocols — always visible */}
+            <section>
+              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2 px-1">Protocolos</p>
+              <div className="grid gap-2">
+                {protocolos.map((item) => (
+                  <ItemCard key={item.id} item={item} onSelect={(id) => { setActiveModule(null); setActiveItem(id); }} />
+                ))}
+              </div>
+            </section>
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="font-semibold text-gray-900 text-sm">Web de ayuda del Claustro</p>
-            <p className="text-xs text-gray-500 mt-0.5">Documentación y recursos del claustro de IES Julio Verne</p>
-          </div>
-          <ChevronRight size={16} className="text-gray-300 group-hover:text-gray-500 flex-shrink-0 transition-colors" />
-        </a>
+        </>
       )}
 
-      {/* Home: sections */}
-      {!active && (
-        <div className="space-y-5">
-          {/* Tutorials */}
-          <section>
-            <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2 px-1">Tutoriales</p>
-            <div className="grid gap-2">
-              {tutorials.map(t => <ItemCard key={t.id} item={t} onSelect={setActive} />)}
+      {/* ── Module list view (multi-tutorial modules) ─────────────────────── */}
+      {showModuleList && activeModuleMeta && (
+        <div className="space-y-3">
+          <div className={`${activeModuleMeta.color} rounded-xl px-5 py-4 flex items-center gap-4`}>
+            <div className="w-11 h-11 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
+              {activeModuleMeta.icon}
             </div>
-          </section>
-
-          {/* Protocols */}
-          <section>
-            <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2 px-1">Protocolos</p>
-            <div className="grid gap-2">
-              {protocolos.map(t => <ItemCard key={t.id} item={t} onSelect={setActive} />)}
+            <div>
+              <p className="text-white/70 text-xs font-medium uppercase tracking-wider mb-0.5">Tutoriales</p>
+              <h2 className="text-white font-bold text-base">{activeModuleMeta.title}</h2>
             </div>
-          </section>
+          </div>
+          <div className="grid gap-2">
+            {activeModuleMeta.tutorials.map((itemId) => {
+              const item = ITEMS.find((i) => i.id === itemId)!;
+              return <ItemCard key={itemId} item={item} onSelect={(id) => setActiveItem(id)} />;
+            })}
+          </div>
         </div>
       )}
 
-      {/* Detail view */}
-      {active && meta && (
+      {/* ── Detail view ───────────────────────────────────────────────────── */}
+      {showDetail && activeItemMeta && (
         <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-          <div className={`${meta.headerBg} px-6 py-5 flex items-center gap-4`}>
+          <div className={`${activeItemMeta.headerBg} px-6 py-5 flex items-center gap-4`}>
             <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
-              {meta.icon}
+              {activeItemMeta.icon}
             </div>
-            <div>
+            <div className="flex-1 min-w-0">
               <p className="text-[11px] font-semibold text-white/60 uppercase tracking-widest mb-0.5">
-                {meta.category === "protocolo" ? "Protocolo" : "Tutorial"}
+                {activeItemMeta.category === "protocolo" ? "Protocolo" : "Tutorial"}
               </p>
-              <h2 className="text-white font-semibold text-base leading-snug">{meta.title}</h2>
-              <p className="text-white/60 text-xs mt-0.5">{meta.badge}</p>
+              <h2 className="text-white font-semibold text-base leading-snug">{activeItemMeta.title}</h2>
+              <p className="text-white/60 text-xs mt-0.5">{activeItemMeta.badge}</p>
             </div>
+            <button
+              onClick={handlePrint}
+              title="Descargar / imprimir PDF"
+              className="flex-shrink-0 flex items-center gap-1.5 bg-white/15 hover:bg-white/25 text-white text-xs font-medium px-3 py-2 rounded-lg transition-colors"
+            >
+              <Printer size={14} />
+              PDF
+            </button>
           </div>
 
-          {ITEM_CONTENT[active]}
+          <div ref={contentRef}>
+            {ITEM_CONTENT[activeItem!]}
+          </div>
 
           <div className="bg-amber-50 border-t border-amber-100 px-6 py-4 flex gap-3 items-start">
             <span className="text-amber-500 text-base flex-shrink-0">💡</span>
-            {ITEM_TIPS[active]}
+            {ITEM_TIPS[activeItem!]}
           </div>
         </div>
       )}
+
     </div>
   );
 }
