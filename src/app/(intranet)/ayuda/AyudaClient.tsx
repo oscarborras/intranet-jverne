@@ -5,12 +5,12 @@ import {
   HelpCircle, Laptop, Users, CalendarDays, Plus, BookOpen,
   CheckCircle2, MapPin, ChevronRight, ArrowLeft, Clock,
   Mail, X, CalendarCheck, Smartphone, ShieldAlert,
-  BookMarked, FileText, GraduationCap, ExternalLink, RotateCcw, Printer,
+  BookMarked, FileText, GraduationCap, ExternalLink, RotateCcw, Printer, ClipboardCheck,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type ItemId = "carros" | "citas" | "movil" | "prestamos" | "devoluciones";
+type ItemId = "carros" | "citas" | "movil" | "prestamos" | "devoluciones" | "revisiones";
 type Category = "tutorial" | "protocolo";
 type ModuleId = "carros-portatiles" | "citas-familias" | "gratuidad-libros";
 
@@ -79,6 +79,16 @@ const ITEMS: ItemMeta[] = [
     headerText: "text-orange-600",
   },
   {
+    id: "revisiones",
+    category: "tutorial",
+    icon: <ClipboardCheck size={22} className="text-white" />,
+    title: "Revisar el estado de los libros",
+    description: "Examina y registra el estado de los libros antes de la devolución formal al coordinador.",
+    badge: "7 pasos · 2 min",
+    headerBg: "bg-indigo-600",
+    headerText: "text-indigo-600",
+  },
+  {
     id: "movil",
     category: "protocolo",
     icon: <Smartphone size={22} className="text-white" />,
@@ -116,7 +126,7 @@ const MODULES: ModuleMeta[] = [
     title: "Gratuidad de Libros",
     description: "Préstamos y devoluciones del programa de gratuidad de libros.",
     color: "bg-emerald-600",
-    tutorials: ["prestamos", "devoluciones"],
+    tutorials: ["prestamos", "devoluciones", "revisiones"],
   },
 ];
 
@@ -717,6 +727,174 @@ function TutorialDevoluciones() {
   );
 }
 
+// ─── Tutorial: Revisiones ────────────────────────────────────────────────────
+
+function TutorialRevisiones() {
+  return (
+    <ol className="divide-y divide-gray-50">
+      <li className="px-6 py-5 flex gap-4">
+        <div className="flex-shrink-0 flex flex-col items-center">
+          <StepNum n={1} accent="blue" /><StepConnector />
+        </div>
+        <div className="flex-1 pb-1">
+          <p className="font-medium text-gray-900 text-sm mb-1">Selecciona la pestaña «Revisiones»</p>
+          <p className="text-sm text-gray-500 mb-3">Desde <strong className="text-gray-700">Gratuidad de Libros</strong>, pulsa la pestaña <strong className="text-gray-700">Revisiones</strong>.</p>
+          <div className="flex gap-1 flex-wrap">
+            {[
+              { label: "Préstamos", active: false },
+              { label: "Devoluciones", active: false },
+              { label: "Revisiones", active: true },
+            ].map(tab => (
+              <span key={tab.label} className={`px-3 py-1.5 rounded-lg text-[10px] font-medium border ${tab.active ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-gray-500 border-gray-200"}`}>
+                {tab.label}
+              </span>
+            ))}
+          </div>
+        </div>
+      </li>
+
+      <li className="px-6 py-5 flex gap-4">
+        <div className="flex-shrink-0 flex flex-col items-center">
+          <StepNum n={2} accent="blue" /><StepConnector />
+        </div>
+        <div className="flex-1 pb-1">
+          <p className="font-medium text-gray-900 text-sm mb-1">Elige el modo y el grupo</p>
+          <p className="text-sm text-gray-500 mb-3">El modo <strong className="text-gray-700">Por asignatura</strong> (predeterminado) es el más rápido: procesa un libro para toda la clase a la vez. Elige también el grupo a revisar.</p>
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="border border-indigo-400 rounded-lg px-3 py-1.5 text-[11px] font-medium bg-indigo-50/40 text-gray-700">
+              Por asignatura <span className="text-gray-400">▼</span>
+            </div>
+            <div className="border border-gray-300 rounded-lg px-3 py-1.5 text-[11px] font-medium bg-white text-gray-700">
+              2º ESO A <span className="text-gray-400">▼</span>
+            </div>
+          </div>
+        </div>
+      </li>
+
+      <li className="px-6 py-5 flex gap-4">
+        <div className="flex-shrink-0 flex flex-col items-center">
+          <StepNum n={3} accent="blue" /><StepConnector />
+        </div>
+        <div className="flex-1 pb-1">
+          <p className="font-medium text-gray-900 text-sm mb-1">Paso 1 — Selecciona los libros a revisar</p>
+          <p className="text-sm text-gray-500 mb-3">El panel izquierdo muestra los libros del grupo con préstamos activos. El número indica cuántos alumnos tienen ese libro. Pulsa los que vayas a revisar ahora.</p>
+          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden max-w-[250px]">
+            <div className="px-3 py-2 border-b border-gray-100 flex justify-between">
+              <span className="text-[10px] font-semibold text-gray-700">Libros del grupo</span>
+              <div className="flex gap-2 text-[9px]">
+                <span className="text-indigo-600 font-medium">Todos</span>
+                <span className="text-gray-300">·</span>
+                <span className="text-gray-400 font-medium">Ninguno</span>
+              </div>
+            </div>
+            {[
+              { titulo: "Lengua Castellana", asig: "Lengua", count: "21", checked: true },
+              { titulo: "Matemáticas", asig: "Matemáticas", count: "19", checked: true },
+              { titulo: "Geografía e Historia", asig: "Sociales", count: "23", checked: false },
+            ].map(l => (
+              <div key={l.titulo} className={`flex items-center gap-2 px-3 py-2.5 border-b border-gray-50 last:border-0 ${l.checked ? "bg-indigo-50" : ""}`}>
+                <div className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 border-2 ${l.checked ? "bg-indigo-600 border-indigo-600" : "border-gray-300"}`}>
+                  {l.checked && <span className="text-white text-[8px] font-bold leading-none">✓</span>}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10px] text-gray-800 truncate">{l.titulo}</p>
+                  <p className="text-[9px] text-gray-400">{l.asig}</p>
+                </div>
+                <span className="text-[9px] text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full flex-shrink-0">{l.count}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </li>
+
+      <li className="px-6 py-5 flex gap-4">
+        <div className="flex-shrink-0 flex flex-col items-center">
+          <StepNum n={4} accent="blue" /><StepConnector />
+        </div>
+        <div className="flex-1 pb-1">
+          <p className="font-medium text-gray-900 text-sm mb-1">Paso 2 — Indica el estado por alumno</p>
+          <p className="text-sm text-gray-500 mb-3">Para cada alumno pulsa el estado del ejemplar: <strong className="text-green-700">Reutilizable</strong>, <strong className="text-amber-700">No reutilizable</strong> o <strong className="text-red-700">Perdido</strong>. Los botones de la cabecera aplican el mismo estado a todos a la vez.</p>
+          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden max-w-[310px]">
+            <div className="px-3 py-2 bg-gray-50 border-b border-gray-100 flex flex-wrap gap-1.5">
+              <span className="text-[9px] font-medium text-green-700 bg-green-50 border border-green-200 px-2 py-1 rounded-lg whitespace-nowrap">Todo reutilizable</span>
+              <span className="text-[9px] font-medium text-amber-700 bg-amber-50 border border-amber-200 px-2 py-1 rounded-lg whitespace-nowrap">Todo no reutilizable</span>
+              <span className="text-[9px] font-medium text-red-700 bg-red-50 border border-red-200 px-2 py-1 rounded-lg whitespace-nowrap">Todo perdido</span>
+            </div>
+            {[
+              { nombre: "García Pérez, Ana", estado: "Reutilizable", color: "bg-green-100 text-green-700 border-green-300" },
+              { nombre: "Martínez López, Luis", estado: "No reutilizable", color: "bg-amber-100 text-amber-700 border-amber-300" },
+              { nombre: "Sánchez Ruiz, Carmen", estado: null, color: "" },
+            ].map(a => (
+              <div key={a.nombre} className="flex items-center gap-2 px-3 py-2.5 border-b border-gray-50 last:border-0">
+                <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[9px] font-bold flex-shrink-0 ${a.estado ? "bg-indigo-100 text-indigo-700" : "bg-gray-100 text-gray-500"}`}>
+                  {a.nombre[0]}{a.nombre.split(" ").at(-1)?.[0]}
+                </div>
+                <span className="text-[10px] text-gray-800 flex-1 min-w-0 truncate">{a.nombre}</span>
+                {a.estado ? (
+                  <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded-lg border flex-shrink-0 ${a.color}`}>{a.estado}</span>
+                ) : (
+                  <span className="text-[9px] text-gray-300 flex-shrink-0">— sin marcar</span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </li>
+
+      <li className="px-6 py-5 flex gap-4">
+        <div className="flex-shrink-0 flex flex-col items-center">
+          <StepNum n={5} accent="blue" /><StepConnector />
+        </div>
+        <div className="flex-1 pb-1">
+          <p className="font-medium text-gray-900 text-sm mb-1">Añade observaciones si hay deterioros o extravíos (opcional)</p>
+          <p className="text-sm text-gray-500 mb-3">Si hay libros deteriorados o perdidos, escribe una nota. Se adjuntará automáticamente a la incidencia que se genere.</p>
+          <div className="bg-white border border-gray-200 rounded-lg px-3 py-2.5 text-[11px] text-gray-400 max-w-xs">
+            Observaciones en caso de deterioros o extravíos (opcional) …
+          </div>
+        </div>
+      </li>
+
+      <li className="px-6 py-5 flex gap-4">
+        <div className="flex-shrink-0 flex flex-col items-center">
+          <StepNum n={6} accent="blue" /><StepConnector />
+        </div>
+        <div className="flex-1 pb-1">
+          <p className="font-medium text-gray-900 text-sm mb-1">Pulsa «Guardar revisión» y confirma</p>
+          <p className="text-sm text-gray-500 mb-3">El botón indica cuántos alumnos tienen estado asignado del total. Aparece un diálogo de confirmación; pulsa <strong className="text-gray-700">Confirmar</strong> para guardar.</p>
+          <div className="space-y-2">
+            <span className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-indigo-600 text-white text-[11px] font-semibold">
+              <ClipboardCheck size={12} /> Guardar revisión (19/21)
+            </span>
+            <div className="bg-white border border-gray-200 rounded-xl p-3 max-w-[220px] shadow-sm">
+              <p className="text-[11px] font-semibold text-gray-900 mb-1.5">Confirmar revisión</p>
+              <p className="text-[10px] text-gray-500 mb-3">¿Guardar la revisión de <strong className="text-gray-700">19 alumnos</strong> (2 libros)?</p>
+              <div className="flex gap-2">
+                <span className="flex-1 text-center border border-gray-200 text-[10px] text-gray-500 py-1.5 rounded-lg">Cancelar</span>
+                <span className="flex-1 text-center bg-indigo-600 text-[10px] text-white font-semibold py-1.5 rounded-lg">Confirmar</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </li>
+
+      <li className="px-6 py-5 flex gap-4">
+        <div className="flex-shrink-0">
+          <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
+            <CheckCircle2 size={16} className="text-green-600" />
+          </div>
+        </div>
+        <div className="flex-1">
+          <p className="font-medium text-gray-900 text-sm mb-1">¡Listo! Revisión guardada</p>
+          <p className="text-sm text-gray-500 mb-3">Los libros aparecen con el badge <span className="inline-flex items-center text-[9px] font-semibold px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 border border-indigo-200">Revisado</span> y pueden volver a revisarse en cualquier momento. Los libros marcados como <strong className="text-amber-700">No reutilizable</strong> o <strong className="text-red-700">Perdido</strong> generan una incidencia de gratuidad automáticamente.</p>
+          <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-3 text-xs text-green-800">
+            ✓ 38 revisiones guardadas.
+          </div>
+        </div>
+      </li>
+    </ol>
+  );
+}
+
 // ─── Protocolo: Uso del móvil ─────────────────────────────────────────────────
 
 function ProtocoloMovil() {
@@ -837,6 +1015,7 @@ const ITEM_CONTENT: Record<ItemId, React.ReactNode> = {
   citas: <TutorialCitas />,
   prestamos: <TutorialPrestamos />,
   devoluciones: <TutorialDevoluciones />,
+  revisiones: <TutorialRevisiones />,
   movil: <ProtocoloMovil />,
 };
 
@@ -859,6 +1038,11 @@ const ITEM_TIPS: Record<ItemId, React.ReactNode> = {
   citas: (
     <p className="text-xs text-amber-800">
       <strong>Enlace para familias:</strong> Comparte <strong>/familias/solicitar</strong> con las familias para que pidan cita desde casa sin necesidad de acceso a la intranet.
+    </p>
+  ),
+  revisiones: (
+    <p className="text-xs text-amber-800">
+      <strong>¿Ver o anular una revisión ya guardada?</strong> Activa el toggle <strong>Ver revisados</strong> en la barra superior para consultar el estado de los libros ya revisados y, si es necesario, anular la revisión con el botón de deshacer (↩).
     </p>
   ),
   movil: (
