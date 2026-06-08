@@ -68,7 +68,7 @@ interface Props {
 
 // ─── Componente ───────────────────────────────────────────────────────────────
 
-export function TabIncidencias({ libros, alumnos, cursoEscolar, myProfesorId, canManage }: Props) {
+export function TabIncidencias({ libros, alumnos, cursoEscolar, myProfesorId, canManage, profesores }: Props) {
   const supabase = createClient();
 
   // ── State principal ────────────────────────────────────────────────────────
@@ -77,6 +77,9 @@ export function TabIncidencias({ libros, alumnos, cursoEscolar, myProfesorId, ca
   const [filtro, setFiltro] = useState<FiltroEstado>("abierta");
   const [selected, setSelected] = useState<Incidencia | null>(null);
   const [showNueva, setShowNueva] = useState(false);
+  const [overrideProfesorId, setOverrideProfesorId] = useState<string>(myProfesorId ?? "");
+
+  const efectivoProfesorId = myProfesorId ?? (overrideProfesorId || null);
 
   // ── State: cambio de estado en detalle ────────────────────────────────────
   const [cambioEstado, setCambioEstado] = useState<EstadoIncidencia>("en_gestion");
@@ -106,6 +109,7 @@ export function TabIncidencias({ libros, alumnos, cursoEscolar, myProfesorId, ca
       .select(`
         *,
         libro:libros_catalogo(titulo, isbn, editorial),
+        prestamo:prestamos_libros(fecha_devolucion),
         historial:gratuidad_incidencias_historial(
           id, estado, nota, created_at,
           profesor:profesores(profesor)
@@ -176,23 +180,26 @@ export function TabIncidencias({ libros, alumnos, cursoEscolar, myProfesorId, ca
 
     if (error) { setCambioError(error.message); setSavingCambio(false); return; }
 
+    const myProfesorNombre = profesores.find((p) => p.id === efectivoProfesorId)?.nombre ?? null;
+
     const { data: histEntry } = await supabase
       .from("gratuidad_incidencias_historial")
       .insert({
         incidencia_id: selected.id,
         estado: cambioEstado,
         nota: cambioNota.trim() || null,
-        profesor_id: myProfesorId,
+        profesor_id: efectivoProfesorId,
       })
-      .select("id, estado, nota, created_at")
+      .select("id, estado, nota, created_at, profesor:profesores(profesor)")
       .single();
 
     const newEntry: IncidenciaHistorial = histEntry
-      ? { ...histEntry, incidencia_id: selected.id, profesor_id: myProfesorId }
+      ? { ...(histEntry as unknown as IncidenciaHistorial), incidencia_id: selected.id, profesor_id: myProfesorId }
       : {
           id: crypto.randomUUID(), incidencia_id: selected.id,
           estado: cambioEstado, nota: cambioNota.trim() || null,
-          profesor_id: myProfesorId, created_at: new Date().toISOString(),
+          profesor_id: efectivoProfesorId, created_at: new Date().toISOString(),
+          profesor: myProfesorNombre ? { profesor: myProfesorNombre } : undefined,
         };
 
     const updater = (i: Incidencia): Incidencia =>
@@ -263,7 +270,7 @@ export function TabIncidencias({ libros, alumnos, cursoEscolar, myProfesorId, ca
       incidencia_id: newInc.id,
       estado: "abierta",
       nota: null,
-      profesor_id: myProfesorId,
+      profesor_id: efectivoProfesorId,
     });
 
     setIncidencias((prev) => [{ ...(newInc as unknown as Incidencia), historial: [] }, ...prev]);
@@ -275,6 +282,25 @@ export function TabIncidencias({ libros, alumnos, cursoEscolar, myProfesorId, ca
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="space-y-5">
+
+      {/* Selector de profesor para canManage sin perfil de profesor */}
+      {canManage && !myProfesorId && (
+        <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5">
+          <AlertTriangle size={14} className="text-amber-500 flex-shrink-0" />
+          <span className="text-sm text-amber-800 font-medium whitespace-nowrap">Registrar como:</span>
+          <div className="relative">
+            <select
+              value={overrideProfesorId}
+              onChange={(e) => setOverrideProfesorId(e.target.value)}
+              className="appearance-none border border-amber-300 rounded-lg pl-3 pr-8 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 min-w-48"
+            >
+              <option value="">— Selecciona un profesor —</option>
+              {profesores.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+            </select>
+            <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+          </div>
+        </div>
+      )}
 
       {/* Cabecera */}
       <div className="flex items-start justify-between gap-3 flex-wrap">
@@ -342,6 +368,7 @@ export function TabIncidencias({ libros, alumnos, cursoEscolar, myProfesorId, ca
                   <th className="text-left px-4 py-3">Alumno/a</th>
                   <th className="text-left px-4 py-3">Libro</th>
                   <th className="text-left px-4 py-3">Tipo</th>
+                  <th className="text-left px-4 py-3">Origen</th>
                   <th className="text-left px-4 py-3">Fecha</th>
                   <th className="text-left px-4 py-3">Estado</th>
                 </tr>
@@ -366,6 +393,17 @@ export function TabIncidencias({ libros, alumnos, cursoEscolar, myProfesorId, ca
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${TIPO_CONFIG[inc.tipo].className}`}>
                         {TIPO_CONFIG[inc.tipo].label}
                       </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      {(() => {
+                        const devuelta = Boolean(inc.prestamo?.fecha_devolucion);
+                        const esDevolucion = inc.origen === "devolucion" || devuelta;
+                        return (
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${esDevolucion ? "bg-gray-50 text-gray-600 border-gray-200" : "bg-indigo-50 text-indigo-700 border-indigo-200"}`}>
+                            {esDevolucion ? "Devolución" : "Revisión"}
+                          </span>
+                        );
+                      })()}
                     </td>
                     <td className="px-4 py-3 text-xs text-gray-500">{formatDate(inc.created_at)}</td>
                     <td className="px-4 py-3">

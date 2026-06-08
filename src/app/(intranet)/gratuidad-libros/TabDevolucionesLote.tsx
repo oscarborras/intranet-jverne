@@ -14,6 +14,11 @@ const DEVOLUCION_TO_TIPO: Partial<Record<EstadoDevolucion, TipoIncidencia>> = {
   perdido: "perdida",
 };
 
+const TIPO_LABEL: Record<string, string> = {
+  deterioro: "no reutilizable",
+  perdida: "perdido",
+};
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function todayString(): string {
@@ -91,7 +96,7 @@ export function TabDevolucionesLote({ prestamosActivos, onPrestamosChange, curso
     async function refreshActivos() {
       const { data } = await supabase
         .from("prestamos_libros")
-        .select("id, libro_id, alumno_id, alumno_nombre, alumno_grupo, num_ejemplar, fecha_prestamo, entregado_por, devuelto_por, curso_escolar, fecha_devolucion, estado_devolucion, observaciones, created_at, libro:libros_catalogo(titulo, asignatura, nivel, diversificacion)")
+        .select("id, libro_id, alumno_id, alumno_nombre, alumno_grupo, num_ejemplar, fecha_prestamo, entregado_por, devuelto_por, curso_escolar, fecha_devolucion, estado_devolucion, observaciones, en_revision, estado_revision, fecha_revision, created_at, libro:libros_catalogo(titulo, asignatura, nivel, diversificacion)")
         .eq("curso_escolar", cursoEscolar)
         .is("fecha_devolucion", null)
         .order("alumno_grupo")
@@ -132,7 +137,7 @@ export function TabDevolucionesLote({ prestamosActivos, onPrestamosChange, curso
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let query: any = supabase
         .from("prestamos_libros")
-        .select("id, libro_id, alumno_id, alumno_nombre, alumno_grupo, num_ejemplar, fecha_prestamo, entregado_por, devuelto_por, curso_escolar, fecha_devolucion, estado_devolucion, observaciones, created_at, libro:libros_catalogo(titulo, asignatura, nivel, diversificacion)")
+        .select("id, libro_id, alumno_id, alumno_nombre, alumno_grupo, num_ejemplar, fecha_prestamo, entregado_por, devuelto_por, curso_escolar, fecha_devolucion, estado_devolucion, observaciones, en_revision, estado_revision, fecha_revision, created_at, libro:libros_catalogo(titulo, asignatura, nivel, diversificacion)")
         .eq("curso_escolar", cursoEscolar)
         .not("fecha_devolucion", "is", null)
         .order("alumno_nombre");
@@ -380,7 +385,14 @@ export function TabDevolucionesLote({ prestamosActivos, onPrestamosChange, curso
 
   function selectAlumno(key: string) {
     setSelectedAlumnoKey(key);
-    setBookStates({});
+    // Pre-fill estado from estado_revision for already-reviewed books
+    const prefill: Record<string, EstadoDevolucion | null> = {};
+    for (const p of prestamosActivos) {
+      const pKey = p.alumno_id ?? p.alumno_nombre;
+      if (pKey !== key) continue;
+      if (p.en_revision && p.estado_revision) prefill[p.libro_id] = p.estado_revision;
+    }
+    setBookStates(prefill);
     setObservaciones("");
     setSuccessMsg(null);
   }
@@ -458,39 +470,68 @@ export function TabDevolucionesLote({ prestamosActivos, onPrestamosChange, curso
       return e === "deteriorado" || e === "perdido";
     });
     if (incidentLoans.length > 0) {
-      const { data: lastInc } = await supabase
+      const { data: existingIncs } = await supabase
         .from("gratuidad_incidencias")
-        .select("codigo")
-        .order("created_at", { ascending: false })
-        .limit(1);
-      let nextNum = lastInc?.[0] ? parseInt(lastInc[0].codigo.replace("INC-", ""), 10) : 0;
+        .select("id, tipo, prestamo_id")
+        .in("prestamo_id", incidentLoans.map((l) => l.id))
+        .in("estado", ["abierta", "en_gestion"]);
+      const existingByPrestamo: Record<string, { id: string; tipo: string }> = Object.fromEntries(
+        (existingIncs ?? []).map((inc) => [inc.prestamo_id as string, { id: inc.id as string, tipo: inc.tipo as string }])
+      );
+      const newLoans = incidentLoans.filter((l) => !existingByPrestamo[l.id]);
+
       for (const loan of incidentLoans) {
-        nextNum++;
-        const codigo = `INC-${String(nextNum).padStart(3, "0")}`;
+        const existing = existingByPrestamo[loan.id];
+        if (!existing) continue;
         const tipo = DEVOLUCION_TO_TIPO[bookStates[loan.libro_id] as EstadoDevolucion]!;
-        const { data: newInc } = await supabase
+        const tipoChanged = existing.tipo !== tipo;
+        if (tipoChanged) await supabase.from("gratuidad_incidencias").update({ tipo }).eq("id", existing.id);
+        await supabase.from("gratuidad_incidencias_historial").insert({
+          incidencia_id: existing.id,
+          estado: "abierta",
+          nota: tipoChanged
+            ? `Estado actualizado en devolución: ${TIPO_LABEL[existing.tipo] ?? existing.tipo} → ${TIPO_LABEL[tipo]}.${observaciones.trim() ? " " + observaciones.trim() : ""}`
+            : `Confirmado en devolución.${observaciones.trim() ? " " + observaciones.trim() : ""}`,
+          profesor_id: efectivoProfesorId,
+        });
+      }
+
+      if (newLoans.length > 0) {
+        const { data: lastInc } = await supabase
           .from("gratuidad_incidencias")
-          .insert({
-            codigo,
-            prestamo_id: loan.id,
-            alumno_id: loan.alumno_id,
-            alumno_nombre: loan.alumno_nombre,
-            alumno_grupo: loan.alumno_grupo,
-            libro_id: loan.libro_id,
-            tipo,
-            descripcion: observaciones.trim() || null,
-            estado: "abierta",
-            curso_escolar: cursoEscolar,
-          })
-          .select("id")
-          .single();
-        if (newInc?.id) {
-          await supabase.from("gratuidad_incidencias_historial").insert({
-            incidencia_id: newInc.id,
-            estado: "abierta",
-            nota: "Incidencia abierta automáticamente al registrar la devolución.",
-            profesor_id: efectivoProfesorId,
-          });
+          .select("codigo")
+          .order("created_at", { ascending: false })
+          .limit(1);
+        let nextNum = lastInc?.[0] ? parseInt((lastInc[0].codigo as string).replace("INC-", ""), 10) : 0;
+        for (const loan of newLoans) {
+          nextNum++;
+          const codigo = `INC-${String(nextNum).padStart(3, "0")}`;
+          const tipo = DEVOLUCION_TO_TIPO[bookStates[loan.libro_id] as EstadoDevolucion]!;
+          const { data: newInc } = await supabase
+            .from("gratuidad_incidencias")
+            .insert({
+              codigo,
+              prestamo_id: loan.id,
+              alumno_id: loan.alumno_id,
+              alumno_nombre: loan.alumno_nombre,
+              alumno_grupo: loan.alumno_grupo,
+              libro_id: loan.libro_id,
+              tipo,
+              descripcion: observaciones.trim() || null,
+              estado: "abierta",
+              origen: "devolucion",
+              curso_escolar: cursoEscolar,
+            })
+            .select("id")
+            .single();
+          if (newInc?.id) {
+            await supabase.from("gratuidad_incidencias_historial").insert({
+              incidencia_id: newInc.id,
+              estado: "abierta",
+              nota: "Incidencia abierta automáticamente al registrar la devolución.",
+              profesor_id: efectivoProfesorId,
+            });
+          }
         }
       }
     }
@@ -677,19 +718,35 @@ export function TabDevolucionesLote({ prestamosActivos, onPrestamosChange, curso
 
   // ── Actions: por asignatura ─────────────────────────────────────────────────
 
+  function prefillEstadosAsig(libroIds: Set<string>): Record<string, EstadoDevolucion | null> {
+    const prefill: Record<string, EstadoDevolucion | null> = {};
+    for (const p of prestamosActivos) {
+      if (!p.en_revision || !p.estado_revision) continue;
+      if (!libroIds.has(p.libro_id)) continue;
+      const matchesGroup = selectedUnidad === NO_ACTIVOS
+        ? Boolean(p.alumno_id && inactiveAlumnoIds.has(p.alumno_id))
+        : p.alumno_grupo === selectedUnidad;
+      if (!matchesGroup) continue;
+      const key = p.alumno_id ?? p.alumno_nombre;
+      prefill[key] = p.estado_revision;
+    }
+    return prefill;
+  }
+
   function toggleLibroAsig(libroId: string) {
     setSelectedLibroIdsAsig((prev) => {
       const next = new Set(prev);
       if (next.has(libroId)) next.delete(libroId);
       else next.add(libroId);
+      setAlumnoEstadosAsig(prefillEstadosAsig(next));
       return next;
     });
-    setAlumnoEstadosAsig({});
   }
 
   function selectAllLibrosAsig() {
-    setSelectedLibroIdsAsig(new Set(librosDelGrupoAsig.map((l) => l.libro_id)));
-    setAlumnoEstadosAsig({});
+    const ids = new Set(librosDelGrupoAsig.map((l) => l.libro_id));
+    setSelectedLibroIdsAsig(ids);
+    setAlumnoEstadosAsig(prefillEstadosAsig(ids));
   }
 
   function clearAllLibrosAsig() {
@@ -758,39 +815,68 @@ export function TabDevolucionesLote({ prestamosActivos, onPrestamosChange, curso
     }
 
     if (incidentEntries.length > 0) {
-      const { data: lastInc } = await supabase
+      const { data: existingIncs } = await supabase
         .from("gratuidad_incidencias")
-        .select("codigo")
-        .order("created_at", { ascending: false })
-        .limit(1);
-      let nextNum = lastInc?.[0] ? parseInt(lastInc[0].codigo.replace("INC-", ""), 10) : 0;
+        .select("id, tipo, prestamo_id")
+        .in("prestamo_id", incidentEntries.map((e) => e.loan.id))
+        .in("estado", ["abierta", "en_gestion"]);
+      const existingByPrestamo: Record<string, { id: string; tipo: string }> = Object.fromEntries(
+        (existingIncs ?? []).map((inc) => [inc.prestamo_id as string, { id: inc.id as string, tipo: inc.tipo as string }])
+      );
+      const newEntries = incidentEntries.filter((e) => !existingByPrestamo[e.loan.id]);
+
       for (const { loan, estado } of incidentEntries) {
-        nextNum++;
-        const codigo = `INC-${String(nextNum).padStart(3, "0")}`;
+        const existing = existingByPrestamo[loan.id];
+        if (!existing) continue;
         const tipo = DEVOLUCION_TO_TIPO[estado]!;
-        const { data: newInc } = await supabase
+        const tipoChanged = existing.tipo !== tipo;
+        if (tipoChanged) await supabase.from("gratuidad_incidencias").update({ tipo }).eq("id", existing.id);
+        await supabase.from("gratuidad_incidencias_historial").insert({
+          incidencia_id: existing.id,
+          estado: "abierta",
+          nota: tipoChanged
+            ? `Estado actualizado en devolución: ${TIPO_LABEL[existing.tipo] ?? existing.tipo} → ${TIPO_LABEL[tipo]}.${observacionesAsig.trim() ? " " + observacionesAsig.trim() : ""}`
+            : `Confirmado en devolución.${observacionesAsig.trim() ? " " + observacionesAsig.trim() : ""}`,
+          profesor_id: efectivoProfesorId,
+        });
+      }
+
+      if (newEntries.length > 0) {
+        const { data: lastInc } = await supabase
           .from("gratuidad_incidencias")
-          .insert({
-            codigo,
-            prestamo_id: loan.id,
-            alumno_id: loan.alumno_id,
-            alumno_nombre: loan.alumno_nombre,
-            alumno_grupo: loan.alumno_grupo,
-            libro_id: loan.libro_id,
-            tipo,
-            descripcion: observacionesAsig.trim() || null,
-            estado: "abierta",
-            curso_escolar: cursoEscolar,
-          })
-          .select("id")
-          .single();
-        if (newInc?.id) {
-          await supabase.from("gratuidad_incidencias_historial").insert({
-            incidencia_id: newInc.id,
-            estado: "abierta",
-            nota: "Incidencia abierta automáticamente al registrar la devolución.",
-            profesor_id: efectivoProfesorId,
-          });
+          .select("codigo")
+          .order("created_at", { ascending: false })
+          .limit(1);
+        let nextNum = lastInc?.[0] ? parseInt((lastInc[0].codigo as string).replace("INC-", ""), 10) : 0;
+        for (const { loan, estado } of newEntries) {
+          nextNum++;
+          const codigo = `INC-${String(nextNum).padStart(3, "0")}`;
+          const tipo = DEVOLUCION_TO_TIPO[estado]!;
+          const { data: newInc } = await supabase
+            .from("gratuidad_incidencias")
+            .insert({
+              codigo,
+              prestamo_id: loan.id,
+              alumno_id: loan.alumno_id,
+              alumno_nombre: loan.alumno_nombre,
+              alumno_grupo: loan.alumno_grupo,
+              libro_id: loan.libro_id,
+              tipo,
+              descripcion: observacionesAsig.trim() || null,
+              estado: "abierta",
+              origen: "devolucion",
+              curso_escolar: cursoEscolar,
+            })
+            .select("id")
+            .single();
+          if (newInc?.id) {
+            await supabase.from("gratuidad_incidencias_historial").insert({
+              incidencia_id: newInc.id,
+              estado: "abierta",
+              nota: "Incidencia abierta automáticamente al registrar la devolución.",
+              profesor_id: efectivoProfesorId,
+            });
+          }
         }
       }
     }
@@ -1155,10 +1241,13 @@ export function TabDevolucionesLote({ prestamosActivos, onPrestamosChange, curso
                     return (
                       <div key={p.id} className="flex items-center gap-3 px-4 py-3">
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5 min-w-0">
+                          <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
                             <p className="text-sm font-medium text-gray-800 truncate">{p.libro?.titulo ?? "—"}</p>
                             {p.libro?.diversificacion && (
                               <span className="flex-shrink-0 text-[9px] font-semibold tracking-wide uppercase px-1.5 py-0.5 rounded bg-purple-100 text-purple-700">DIV</span>
+                            )}
+                            {p.en_revision && (
+                              <span className="flex-shrink-0 text-[9px] font-semibold tracking-wide uppercase px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 border border-indigo-200">Revisado</span>
                             )}
                           </div>
                           <p className="text-xs text-gray-400">
@@ -1327,13 +1416,19 @@ export function TabDevolucionesLote({ prestamosActivos, onPrestamosChange, curso
                 <div className="divide-y divide-gray-100">
                   {alumnosConLibrosAsig.map((alumno) => {
                     const estado = alumnoEstadosAsig[alumno.key] ?? null;
+                    const anyRevisado = alumno.prestamos.some((p) => p.en_revision);
                     return (
                       <div key={alumno.key} className="flex items-center gap-3 px-4 py-3">
                         <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${estado ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-600"}`}>
                           {initialsFromNombre(alumno.nombre)}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-800 truncate">{alumno.nombre}</p>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <p className="text-sm font-medium text-gray-800 truncate">{alumno.nombre}</p>
+                            {anyRevisado && (
+                              <span className="flex-shrink-0 text-[9px] font-semibold tracking-wide uppercase px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 border border-indigo-200">Revisado</span>
+                            )}
+                          </div>
                           <p className="text-xs text-gray-400">{alumno.prestamos.length} libro{alumno.prestamos.length !== 1 ? "s" : ""}</p>
                         </div>
                         <div className="flex gap-1 flex-shrink-0">

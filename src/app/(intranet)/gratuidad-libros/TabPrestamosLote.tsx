@@ -394,7 +394,7 @@ export function TabPrestamosLote({ alumnos, alumnosInactivos, libros, prestamos,
     const { data, error } = await supabase
       .from("prestamos_libros")
       .insert(inserts)
-      .select("id, libro_id, alumno_id, alumno_nombre, alumno_grupo, num_ejemplar, fecha_prestamo, entregado_por, devuelto_por, curso_escolar, fecha_devolucion, estado_devolucion, observaciones, created_at, libro:libros_catalogo(titulo, asignatura, nivel)");
+      .select("id, libro_id, alumno_id, alumno_nombre, alumno_grupo, num_ejemplar, fecha_prestamo, entregado_por, devuelto_por, curso_escolar, fecha_devolucion, estado_devolucion, observaciones, en_revision, estado_revision, fecha_revision, created_at, libro:libros_catalogo(titulo, asignatura, nivel)");
 
     setSaving(false);
     setStockAlertas([]);

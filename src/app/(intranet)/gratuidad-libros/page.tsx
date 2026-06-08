@@ -137,7 +137,7 @@ export default async function GratuidadLibrosPage() {
     ...p,
     libro: p.libro as unknown as { titulo: string; asignatura: string; nivel: string },
     entregado_por_nombre: { profesor: nameMap[p.entregado_por as string] ?? "—" },
-  }));
+  })) as unknown as PrestamoLibro[];
 
   const todosPrestamos: PrestamoLibro[] = (rawTodosPrestamos ?? []).map((p) => ({
     ...p,
@@ -146,7 +146,7 @@ export default async function GratuidadLibrosPage() {
     devuelto_por_nombre: p.devuelto_por
       ? { profesor: nameMap[p.devuelto_por as string] ?? "—" }
       : undefined,
-  }));
+  })) as unknown as PrestamoLibro[];
 
   const profesores = (profesoresData ?? []).map((p) => ({
     id: p.id as string,

@@ -28,9 +28,11 @@ const BOOLEAN_CLAVES = new Set(["mostrar_grid_dashboard", "mostrar_grid_dashboar
 // Claves that render as a <select> with fixed options
 const SELECT_OPTIONS: Record<string, { value: string; label: string; description: string }[]> = {
   modo_gratuidad_libros: [
-    { value: "prestamo",   label: "Modo Préstamo",   description: "Solo la pestaña Préstamos es visible para los profesores." },
-    { value: "devolucion", label: "Modo Devolución", description: "Solo la pestaña Devoluciones es visible para los profesores." },
-    { value: "completo",   label: "Modo Completo",   description: "Préstamos y Devoluciones son visibles para los profesores." },
+    { value: "prestamo",            label: "Modo Préstamo",              description: "Solo la pestaña Préstamos es visible para los profesores." },
+    { value: "devolucion",          label: "Modo Devolución",            description: "Solo la pestaña Devoluciones es visible para los profesores." },
+    { value: "completo",            label: "Modo Completo",              description: "Préstamos y Devoluciones son visibles para los profesores." },
+    { value: "revision",            label: "Modo Revisión",              description: "Solo la pestaña Revisiones es visible para los profesores. El coordinador finaliza las devoluciones." },
+    { value: "revision_devolucion", label: "Modo Revisión + Devoluciones", description: "Los profesores ven las pestañas Revisiones y Devoluciones." },
   ],
 };
 

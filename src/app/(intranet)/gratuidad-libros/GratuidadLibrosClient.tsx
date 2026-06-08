@@ -1,21 +1,22 @@
 "use client";
 
 import { useState } from "react";
-import { BookOpen, Library, BarChart2, RotateCcw, FileBarChart, ShieldAlert } from "lucide-react";
+import { BookOpen, Library, BarChart2, RotateCcw, FileBarChart, ShieldAlert, ClipboardCheck } from "lucide-react";
 import type { LibroCatalogo, PrestamoLibro, Alumno } from "@/lib/types";
 import { CatalogoLibrosClient } from "./catalogo/CatalogoLibrosClient";
 import { SeguimientoClient } from "./seguimiento/SeguimientoClient";
 import { TabPrestamosLote } from "./TabPrestamosLote";
 import { TabDevolucionesLote } from "./TabDevolucionesLote";
+import { TabRevisionesLote } from "./TabRevisionesLote";
 import { TabInformes } from "./TabInformes";
 import { TabIncidencias } from "./TabIncidencias";
 
 interface Profesor { id: string; nombre: string; }
 
-type TabId = "prestamos" | "devoluciones" | "inventario" | "seguimiento" | "informes" | "incidencias";
+type TabId = "prestamos" | "devoluciones" | "revisiones" | "inventario" | "seguimiento" | "informes" | "incidencias";
 interface Tab { id: TabId; label: string; icon: React.ReactNode; }
 
-type ModoGratuidad = "prestamo" | "devolucion" | "completo";
+type ModoGratuidad = "prestamo" | "devolucion" | "completo" | "revision" | "revision_devolucion";
 
 interface Props {
   prestamos: PrestamoLibro[];
@@ -49,10 +50,11 @@ export function GratuidadLibrosClient({
   modoGratuidad,
 }: Props) {
   // For professors, visibility of base tabs depends on the configured mode
-  const showPrestamos   = canManage || modoGratuidad === "prestamo"   || modoGratuidad === "completo";
-  const showDevoluciones = canManage || modoGratuidad === "devolucion" || modoGratuidad === "completo";
+  const showPrestamos    = canManage || modoGratuidad === "prestamo"   || modoGratuidad === "completo";
+  const showDevoluciones = canManage || modoGratuidad === "devolucion" || modoGratuidad === "completo" || modoGratuidad === "revision_devolucion";
+  const showRevisiones   = canManage || modoGratuidad === "revision"   || modoGratuidad === "revision_devolucion";
 
-  const defaultTab: TabId = showPrestamos ? "prestamos" : "devoluciones";
+  const defaultTab: TabId = showPrestamos ? "prestamos" : showRevisiones ? "revisiones" : "devoluciones";
   const [activeTab, setActiveTab] = useState<TabId>(defaultTab);
   const [pendingGrupo, setPendingGrupo] = useState<string | null>(null);
   // Fuente de verdad compartida entre pestañas para préstamos activos
@@ -64,8 +66,9 @@ export function GratuidadLibrosClient({
   }
 
   const tabs: Tab[] = [
-    ...(showPrestamos    ? [{ id: "prestamos"    as TabId, label: "Préstamos",    icon: <BookOpen  size={15} /> }] : []),
-    ...(showDevoluciones ? [{ id: "devoluciones" as TabId, label: "Devoluciones", icon: <RotateCcw size={15} /> }] : []),
+    ...(showPrestamos    ? [{ id: "prestamos"    as TabId, label: "Préstamos",    icon: <BookOpen       size={15} /> }] : []),
+    ...(showDevoluciones ? [{ id: "devoluciones" as TabId, label: "Devoluciones", icon: <RotateCcw      size={15} /> }] : []),
+    ...(showRevisiones   ? [{ id: "revisiones"   as TabId, label: "Revisiones",   icon: <ClipboardCheck size={15} /> }] : []),
     ...(canManageInventario ? [
       { id: "inventario" as TabId, label: "Inventario", icon: <Library size={15} /> },
     ] : []),
@@ -124,6 +127,18 @@ export function GratuidadLibrosClient({
       )}
       {activeTab === "devoluciones" && (
         <TabDevolucionesLote
+          prestamosActivos={livePrestamosList}
+          onPrestamosChange={setLivePrestamos}
+          cursoEscolar={cursoEscolarActual}
+          myProfesorId={myProfesorId}
+          canManage={canManage}
+          profesores={profesores}
+          alumnosInactivos={alumnosInactivos}
+          initialGrupo={pendingGrupo ?? undefined}
+        />
+      )}
+      {activeTab === "revisiones" && (
+        <TabRevisionesLote
           prestamosActivos={livePrestamosList}
           onPrestamosChange={setLivePrestamos}
           cursoEscolar={cursoEscolarActual}

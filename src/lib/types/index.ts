@@ -370,6 +370,7 @@ export interface Incidencia {
   tipo: TipoIncidencia;
   descripcion: string | null;
   estado: EstadoIncidencia;
+  origen: "devolucion" | "revision";
   curso_escolar: string;
   coste_estimado: number | null;
   gestionado_por: string | null;
@@ -378,6 +379,7 @@ export interface Incidencia {
   created_at: string;
   updated_at: string;
   libro?: { titulo: string; isbn: string | null; editorial: string | null };
+  prestamo?: { fecha_devolucion: string | null } | null;
   historial?: IncidenciaHistorial[];
 }
 
@@ -420,6 +422,9 @@ export interface PrestamoLibro {
   observaciones: string | null;
   entregado_por: string;
   devuelto_por: string | null;
+  en_revision: boolean;
+  estado_revision: EstadoDevolucion | null;
+  fecha_revision: string | null;
   created_at: string;
   // Relaciones resueltas en el servidor
   libro?: { titulo: string; asignatura: string; nivel: string; diversificacion?: boolean };
