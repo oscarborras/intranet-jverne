@@ -7,7 +7,6 @@ import Link from "next/link";
 import {
   LogOut,
   ChevronDown,
-  User,
   Menu,
   X,
   LayoutDashboard,
@@ -189,10 +188,6 @@ export function Header({ userName, userEmail, userRoles, inactiveModuleSlugs }: 
                       ))}
                     </div>
                   </div>
-                  <button className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors">
-                    <User size={15} />
-                    Mi perfil
-                  </button>
                   <button
                     onClick={handleLogout}
                     className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"

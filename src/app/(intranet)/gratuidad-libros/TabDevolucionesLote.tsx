@@ -66,6 +66,7 @@ export function TabDevolucionesLote({ prestamosActivos, onPrestamosChange, curso
   const [saving, setSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [showProfesorError, setShowProfesorError] = useState(false);
   const [overrideProfesorId, setOverrideProfesorId] = useState<string>(myProfesorId ?? "");
 
   // ── Por alumno state ─────────────────────────────────────────────────────────
@@ -1225,7 +1226,10 @@ export function TabDevolucionesLote({ prestamosActivos, onPrestamosChange, curso
                       Todo reutilizable
                     </button>
                     <button
-                      onClick={() => setPendingConfirm("por_alumno")}
+                      onClick={() => {
+                        if (!efectivoProfesorId) { setShowProfesorError(true); return; }
+                        setPendingConfirm("por_alumno");
+                      }}
                       disabled={countToReturn === 0 || saving}
                       className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-40 text-white text-sm font-medium px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap"
                     >
@@ -1402,7 +1406,10 @@ export function TabDevolucionesLote({ prestamosActivos, onPrestamosChange, curso
                   </div>
                   <div className="flex justify-center">
                     <button
-                      onClick={() => setPendingConfirm("por_asignatura")}
+                      onClick={() => {
+                        if (!efectivoProfesorId) { setShowProfesorError(true); return; }
+                        setPendingConfirm("por_asignatura");
+                      }}
                       disabled={countAsigToReturn === 0 || saving}
                       className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-40 text-white text-sm font-medium px-5 py-2 rounded-lg transition-colors whitespace-nowrap"
                     >
@@ -1459,7 +1466,10 @@ export function TabDevolucionesLote({ prestamosActivos, onPrestamosChange, curso
                   />
                   <div className="flex justify-center">
                     <button
-                      onClick={() => setPendingConfirm("por_asignatura")}
+                      onClick={() => {
+                        if (!efectivoProfesorId) { setShowProfesorError(true); return; }
+                        setPendingConfirm("por_asignatura");
+                      }}
                       disabled={countAsigToReturn === 0 || saving}
                       className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-40 text-white text-sm font-medium px-5 py-2 rounded-lg transition-colors whitespace-nowrap"
                     >
@@ -1512,6 +1522,29 @@ export function TabDevolucionesLote({ prestamosActivos, onPrestamosChange, curso
           </div>
         );
       })()}
+
+      {/* Modal: error — profesor no seleccionado */}
+      {showProfesorError && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm">
+            <div className="px-5 py-4 border-b flex items-center gap-3">
+              <AlertTriangle size={20} className="text-amber-500 flex-shrink-0" />
+              <h2 className="font-semibold text-gray-900">Falta seleccionar profesor</h2>
+            </div>
+            <div className="px-5 py-4">
+              <p className="text-sm text-gray-600">Selecciona el profesor que registra la devolución antes de guardar.</p>
+            </div>
+            <div className="px-5 py-4 border-t">
+              <button
+                onClick={() => setShowProfesorError(false)}
+                className="w-full bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium py-2.5 rounded-lg transition-colors"
+              >
+                Entendido
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal: confirmar devolución */}
       {pendingConfirm && (

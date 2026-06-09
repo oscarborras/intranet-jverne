@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
   CheckCircle, AlertTriangle, X, Users, ChevronDown, BookOpen, Check, ClipboardCheck, Undo2, Eye,
@@ -54,6 +54,7 @@ export function TabRevisionesLote({ prestamosActivos, onPrestamosChange, cursoEs
   const [saving, setSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [showProfesorError, setShowProfesorError] = useState(false);
   const [overrideProfesorId, setOverrideProfesorId] = useState<string>(myProfesorId ?? "");
   const [showRevisados, setShowRevisados] = useState(false);
 
@@ -72,6 +73,34 @@ export function TabRevisionesLote({ prestamosActivos, onPrestamosChange, cursoEs
   const [pendingAnularId, setPendingAnularId] = useState<string | null>(null);
 
   const efectivoProfesorId = myProfesorId ?? (overrideProfesorId || null);
+
+  // ── Sync revision state on mount (ensures admin sees reviews done by others) ─
+  useEffect(() => {
+    async function syncRevisionStates() {
+      const { data } = await supabase
+        .from("prestamos_libros")
+        .select("id, en_revision, estado_revision, fecha_revision, revisado_por")
+        .eq("curso_escolar", cursoEscolar)
+        .is("fecha_devolucion", null);
+      if (!data || data.length === 0) return;
+      type RevRow = { id: string; en_revision: boolean; estado_revision: string | null; fecha_revision: string | null; revisado_por: string | null };
+      const revMap = Object.fromEntries((data as RevRow[]).map((r) => [r.id, r]));
+      onPrestamosChange((prev) =>
+        prev.map((p) => {
+          const r = revMap[p.id];
+          if (!r) return p;
+          return {
+            ...p,
+            en_revision: r.en_revision,
+            estado_revision: r.estado_revision as EstadoDevolucion | null,
+            fecha_revision: r.fecha_revision,
+            revisado_por: r.revisado_por,
+          };
+        })
+      );
+    }
+    syncRevisionStates();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Derived: inactive students ──────────────────────────────────────────────
   const inactiveAlumnoIds = useMemo(
@@ -823,7 +852,10 @@ export function TabRevisionesLote({ prestamosActivos, onPrestamosChange, cursoEs
                       Todo reutilizable
                     </button>
                     <button
-                      onClick={() => setPendingConfirm("por_alumno")}
+                      onClick={() => {
+                        if (!efectivoProfesorId) { setShowProfesorError(true); return; }
+                        setPendingConfirm("por_alumno");
+                      }}
                       disabled={countToReview === 0 || saving}
                       className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white text-sm font-medium px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap"
                     >
@@ -973,7 +1005,10 @@ export function TabRevisionesLote({ prestamosActivos, onPrestamosChange, cursoEs
                   </div>
                   <div className="flex justify-center">
                     <button
-                      onClick={() => setPendingConfirm("por_asignatura")}
+                      onClick={() => {
+                        if (!efectivoProfesorId) { setShowProfesorError(true); return; }
+                        setPendingConfirm("por_asignatura");
+                      }}
                       disabled={countAsigToReview === 0 || saving}
                       className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white text-sm font-medium px-5 py-2 rounded-lg transition-colors whitespace-nowrap"
                     >
@@ -1026,7 +1061,10 @@ export function TabRevisionesLote({ prestamosActivos, onPrestamosChange, cursoEs
                   />
                   <div className="flex justify-center">
                     <button
-                      onClick={() => setPendingConfirm("por_asignatura")}
+                      onClick={() => {
+                        if (!efectivoProfesorId) { setShowProfesorError(true); return; }
+                        setPendingConfirm("por_asignatura");
+                      }}
                       disabled={countAsigToReview === 0 || saving}
                       className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white text-sm font-medium px-5 py-2 rounded-lg transition-colors whitespace-nowrap"
                     >
@@ -1080,6 +1118,29 @@ export function TabRevisionesLote({ prestamosActivos, onPrestamosChange, cursoEs
           </div>
         );
       })()}
+
+      {/* Modal: error — profesor no seleccionado */}
+      {showProfesorError && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm">
+            <div className="px-5 py-4 border-b flex items-center gap-3">
+              <AlertTriangle size={20} className="text-amber-500 flex-shrink-0" />
+              <h2 className="font-semibold text-gray-900">Falta seleccionar profesor</h2>
+            </div>
+            <div className="px-5 py-4">
+              <p className="text-sm text-gray-600">Selecciona el profesor que registra la revisión antes de guardar.</p>
+            </div>
+            <div className="px-5 py-4 border-t">
+              <button
+                onClick={() => setShowProfesorError(false)}
+                className="w-full bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium py-2.5 rounded-lg transition-colors"
+              >
+                Entendido
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal: confirmar guardar revisión */}
       {pendingConfirm && (
