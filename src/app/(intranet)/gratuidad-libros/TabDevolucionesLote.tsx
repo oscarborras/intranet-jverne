@@ -26,6 +26,12 @@ function todayString(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+function formatDate(fecha: string | null): string {
+  if (!fecha) return "";
+  const [y, m, d] = fecha.split("-");
+  return `${d}/${m}/${y}`;
+}
+
 function initialsFromNombre(nombre: string): string {
   const [apellidos = "", nombre_ = ""] = nombre.split(",").map((s) => s.trim());
   return ((apellidos[0] ?? "") + (nombre_[0] ?? "")).toUpperCase() || nombre.slice(0, 2).toUpperCase();
@@ -97,7 +103,7 @@ export function TabDevolucionesLote({ prestamosActivos, onPrestamosChange, curso
     async function refreshActivos() {
       const { data } = await supabase
         .from("prestamos_libros")
-        .select("id, libro_id, alumno_id, alumno_nombre, alumno_grupo, num_ejemplar, fecha_prestamo, entregado_por, devuelto_por, curso_escolar, fecha_devolucion, estado_devolucion, observaciones, en_revision, estado_revision, fecha_revision, created_at, libro:libros_catalogo(titulo, asignatura, nivel, diversificacion)")
+        .select("id, libro_id, alumno_id, alumno_nombre, alumno_grupo, num_ejemplar, fecha_prestamo, entregado_por, devuelto_por, curso_escolar, fecha_devolucion, devolucion_registrada_at, estado_devolucion, observaciones, en_revision, estado_revision, fecha_revision, created_at, libro:libros_catalogo(titulo, asignatura, nivel, diversificacion)")
         .eq("curso_escolar", cursoEscolar)
         .is("fecha_devolucion", null)
         .order("alumno_grupo")
@@ -138,7 +144,7 @@ export function TabDevolucionesLote({ prestamosActivos, onPrestamosChange, curso
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let query: any = supabase
         .from("prestamos_libros")
-        .select("id, libro_id, alumno_id, alumno_nombre, alumno_grupo, num_ejemplar, fecha_prestamo, entregado_por, devuelto_por, curso_escolar, fecha_devolucion, estado_devolucion, observaciones, en_revision, estado_revision, fecha_revision, created_at, libro:libros_catalogo(titulo, asignatura, nivel, diversificacion)")
+        .select("id, libro_id, alumno_id, alumno_nombre, alumno_grupo, num_ejemplar, fecha_prestamo, entregado_por, devuelto_por, curso_escolar, fecha_devolucion, devolucion_registrada_at, estado_devolucion, observaciones, en_revision, estado_revision, fecha_revision, created_at, libro:libros_catalogo(titulo, asignatura, nivel, diversificacion)")
         .eq("curso_escolar", cursoEscolar)
         .not("fecha_devolucion", "is", null)
         .order("alumno_nombre");
@@ -156,9 +162,11 @@ export function TabDevolucionesLote({ prestamosActivos, onPrestamosChange, curso
 
       const { data } = await query;
       if (!cancelled) {
+        const nameMap = Object.fromEntries(profesores.map((pr) => [pr.id, pr.nombre]));
         setPrestamosDevueltos((data ?? []).map((p: Record<string, unknown>) => ({
           ...p,
           libro: (p.libro as { titulo: string; asignatura: string; nivel: string; diversificacion?: boolean } | null) ?? undefined,
+          devuelto_por_nombre: p.devuelto_por ? { profesor: nameMap[p.devuelto_por as string] ?? "—" } : undefined,
         })) as PrestamoLibro[]);
         setLoadingDevueltos(false);
       }
@@ -358,7 +366,7 @@ export function TabDevolucionesLote({ prestamosActivos, onPrestamosChange, curso
     setErrorMsg(null);
     const { error } = await supabase
       .from("prestamos_libros")
-      .update({ fecha_devolucion: null, devuelto_por: null, estado_devolucion: null, observaciones: null })
+      .update({ fecha_devolucion: null, devolucion_registrada_at: null, devuelto_por: null, estado_devolucion: null, observaciones: null })
       .eq("id", prestamoId);
     if (error) {
       setErrorMsg(`Error: ${error.message}`);
@@ -449,12 +457,14 @@ export function TabDevolucionesLote({ prestamosActivos, onPrestamosChange, curso
       }
     }
 
+    const devolucionTimestamp = new Date().toISOString();
     let hasError = false;
     for (const [estado, ids] of Object.entries(byEstado) as [EstadoDevolucion, string[]][]) {
       const { error } = await supabase
         .from("prestamos_libros")
         .update({
           fecha_devolucion: fechaDevolucion,
+          devolucion_registrada_at: devolucionTimestamp,
           estado_devolucion: estado,
           devuelto_por: efectivoProfesorId,
           observaciones: observaciones.trim() || null,
@@ -790,12 +800,14 @@ export function TabDevolucionesLote({ prestamosActivos, onPrestamosChange, curso
       }
     }
 
+    const devolucionTimestamp = new Date().toISOString();
     let hasError = false;
     for (const [estado, ids] of Object.entries(byEstado) as [EstadoDevolucion, string[]][]) {
       const { error } = await supabase
         .from("prestamos_libros")
         .update({
           fecha_devolucion: fechaDevolucion,
+          devolucion_registrada_at: devolucionTimestamp,
           estado_devolucion: estado,
           devuelto_por: efectivoProfesorId,
           observaciones: observacionesAsig.trim() || null,
@@ -1102,6 +1114,17 @@ export function TabDevolucionesLote({ prestamosActivos, onPrestamosChange, curso
                                 {p.libro?.asignatura}
                                 {p.num_ejemplar && <> · Ej. {p.num_ejemplar}</>}
                               </p>
+                              {(p.fecha_devolucion || p.devuelto_por_nombre) && (
+                                <p className="text-xs text-indigo-500 mt-0.5">
+                                  {(() => {
+                                    if (p.devolucion_registrada_at) {
+                                      return `Devuelto: ${new Date(p.devolucion_registrada_at).toLocaleString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}`;
+                                    }
+                                    return p.fecha_devolucion ? `Devuelto: ${formatDate(p.fecha_devolucion)}` : "";
+                                  })()}
+                                  {p.devuelto_por_nombre && ` · ${p.devuelto_por_nombre.profesor}`}
+                                </p>
+                              )}
                             </div>
                             <button
                               onClick={() => setPendingAnularId(p.id)}

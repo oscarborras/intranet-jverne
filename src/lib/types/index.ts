@@ -418,6 +418,7 @@ export interface PrestamoLibro {
   num_ejemplar: string | null;
   fecha_prestamo: string;
   fecha_devolucion: string | null;
+  devolucion_registrada_at: string | null;
   estado_devolucion: EstadoDevolucion | null;
   observaciones: string | null;
   entregado_por: string;

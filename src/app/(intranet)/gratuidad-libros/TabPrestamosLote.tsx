@@ -411,6 +411,7 @@ export function TabPrestamosLote({ alumnos, alumnosInactivos, libros, prestamos,
       estado_revision: null,
       fecha_revision: null,
       revisado_por: null,
+      devolucion_registrada_at: null,
     }));
     onPrestamosChange((prev) => [...prev, ...newPrestamos]);
     setSelectedAlumnoIds(new Set());
