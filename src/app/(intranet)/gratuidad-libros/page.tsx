@@ -40,7 +40,7 @@ export default async function GratuidadLibrosPage() {
     // Active loans — includes alumno_id for the new batch system
     supabase
       .from("prestamos_libros")
-      .select("id, libro_id, alumno_id, alumno_nombre, alumno_grupo, num_ejemplar, fecha_prestamo, entregado_por, devuelto_por, curso_escolar, fecha_devolucion, estado_devolucion, observaciones, created_at, libro:libros_catalogo(titulo, asignatura, nivel)")
+      .select("id, libro_id, alumno_id, alumno_nombre, alumno_grupo, num_ejemplar, fecha_prestamo, entregado_por, devuelto_por, curso_escolar, fecha_devolucion, estado_devolucion, observaciones, created_at, en_revision, estado_revision, fecha_revision, libro:libros_catalogo(titulo, asignatura, nivel)")
       .eq("curso_escolar", cursoEscolarActual)
       .is("fecha_devolucion", null)
       .order("alumno_grupo")
