@@ -425,9 +425,11 @@ export interface PrestamoLibro {
   en_revision: boolean;
   estado_revision: EstadoDevolucion | null;
   fecha_revision: string | null;
+  revisado_por: string | null;
   created_at: string;
   // Relaciones resueltas en el servidor
   libro?: { titulo: string; asignatura: string; nivel: string; diversificacion?: boolean };
   entregado_por_nombre?: { profesor: string };
   devuelto_por_nombre?: { profesor: string };
+  revisado_por_nombre?: { profesor: string };
 }

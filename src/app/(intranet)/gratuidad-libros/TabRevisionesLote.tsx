@@ -349,7 +349,7 @@ export function TabRevisionesLote({ prestamosActivos, onPrestamosChange, cursoEs
     for (const [estado, ids] of Object.entries(byEstado) as [EstadoDevolucion, string[]][]) {
       const { error } = await supabase
         .from("prestamos_libros")
-        .update({ en_revision: true, estado_revision: estado, fecha_revision: reviewTimestamp })
+        .update({ en_revision: true, estado_revision: estado, fecha_revision: reviewTimestamp, revisado_por: efectivoProfesorId })
         .in("id", ids);
       if (error) { hasError = true; setErrorMsg(`Error: ${error.message}`); break; }
     }
@@ -370,7 +370,8 @@ export function TabRevisionesLote({ prestamosActivos, onPrestamosChange, cursoEs
       prev.map((p) => {
         const estado = bookStates[p.libro_id];
         if (!reviewedIds.has(p.id) || !estado) return p;
-        return { ...p, en_revision: true, estado_revision: estado, fecha_revision: reviewTimestamp };
+        const revisorNombre = profesores.find((pr) => pr.id === efectivoProfesorId)?.nombre ?? undefined;
+        return { ...p, en_revision: true, estado_revision: estado, fecha_revision: reviewTimestamp, revisado_por: efectivoProfesorId, revisado_por_nombre: revisorNombre ? { profesor: revisorNombre } : undefined };
       })
     );
 
@@ -461,7 +462,7 @@ export function TabRevisionesLote({ prestamosActivos, onPrestamosChange, cursoEs
     for (const [estado, ids] of Object.entries(byEstado) as [EstadoDevolucion, string[]][]) {
       const { error } = await supabase
         .from("prestamos_libros")
-        .update({ en_revision: true, estado_revision: estado, fecha_revision: reviewTimestamp })
+        .update({ en_revision: true, estado_revision: estado, fecha_revision: reviewTimestamp, revisado_por: efectivoProfesorId })
         .in("id", ids);
       if (error) { hasError = true; setErrorMsg(`Error: ${error.message}`); break; }
     }
@@ -489,7 +490,8 @@ export function TabRevisionesLote({ prestamosActivos, onPrestamosChange, cursoEs
       prev.map((p) => {
         const estado = estadoMap[p.id];
         if (!estado) return p;
-        return { ...p, en_revision: true, estado_revision: estado, fecha_revision: reviewTimestamp };
+        const revisorNombre = profesores.find((pr) => pr.id === efectivoProfesorId)?.nombre ?? undefined;
+        return { ...p, en_revision: true, estado_revision: estado, fecha_revision: reviewTimestamp, revisado_por: efectivoProfesorId, revisado_por_nombre: revisorNombre ? { profesor: revisorNombre } : undefined };
       })
     );
 
@@ -506,13 +508,13 @@ export function TabRevisionesLote({ prestamosActivos, onPrestamosChange, cursoEs
     setErrorMsg(null);
     const { error } = await supabase
       .from("prestamos_libros")
-      .update({ en_revision: false, estado_revision: null, fecha_revision: null })
+      .update({ en_revision: false, estado_revision: null, fecha_revision: null, revisado_por: null })
       .eq("id", prestamoId);
     if (error) { setErrorMsg(`Error: ${error.message}`); return; }
     onPrestamosChange((prev) =>
       prev.map((p) =>
         p.id === prestamoId
-          ? { ...p, en_revision: false, estado_revision: null, fecha_revision: null }
+          ? { ...p, en_revision: false, estado_revision: null, fecha_revision: null, revisado_por: null, revisado_por_nombre: undefined }
           : p
       )
     );
@@ -728,7 +730,9 @@ export function TabRevisionesLote({ prestamosActivos, onPrestamosChange, cursoEs
                                 </span>
                               )}
                               {fechaRev && (
-                                <span className="text-[10px] text-gray-400">Revisado: {fechaRev}</span>
+                                <span className="text-[10px] text-gray-400">
+                                  Revisado: {fechaRev}{p.revisado_por_nombre ? ` · ${p.revisado_por_nombre.profesor}` : ""}
+                                </span>
                               )}
                             </div>
                           </div>

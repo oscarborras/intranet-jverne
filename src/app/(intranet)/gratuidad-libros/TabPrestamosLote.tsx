@@ -407,6 +407,10 @@ export function TabPrestamosLote({ alumnos, alumnosInactivos, libros, prestamos,
     const newPrestamos: PrestamoLibro[] = data.map((p) => ({
       ...p,
       libro: (p.libro as unknown as { titulo: string; asignatura: string; nivel: string }[] | null)?.[0] ?? undefined,
+      en_revision: false,
+      estado_revision: null,
+      fecha_revision: null,
+      revisado_por: null,
     }));
     onPrestamosChange((prev) => [...prev, ...newPrestamos]);
     setSelectedAlumnoIds(new Set());

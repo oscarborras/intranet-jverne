@@ -40,7 +40,7 @@ export default async function GratuidadLibrosPage() {
     // Active loans — includes alumno_id for the new batch system
     supabase
       .from("prestamos_libros")
-      .select("id, libro_id, alumno_id, alumno_nombre, alumno_grupo, num_ejemplar, fecha_prestamo, entregado_por, devuelto_por, curso_escolar, fecha_devolucion, estado_devolucion, observaciones, created_at, en_revision, estado_revision, fecha_revision, libro:libros_catalogo(titulo, asignatura, nivel)")
+      .select("id, libro_id, alumno_id, alumno_nombre, alumno_grupo, num_ejemplar, fecha_prestamo, entregado_por, devuelto_por, revisado_por, curso_escolar, fecha_devolucion, estado_devolucion, observaciones, created_at, en_revision, estado_revision, fecha_revision, libro:libros_catalogo(titulo, asignatura, nivel)")
       .eq("curso_escolar", cursoEscolarActual)
       .is("fecha_devolucion", null)
       .order("alumno_grupo")
@@ -117,6 +117,7 @@ export default async function GratuidadLibrosPage() {
   const allProfesorIds = [
     ...new Set([
       ...(rawPrestamosActivos ?? []).map((p) => p.entregado_por as string),
+      ...(rawPrestamosActivos ?? []).filter((p) => p.revisado_por).map((p) => p.revisado_por as string),
       ...(rawTodosPrestamos ?? []).map((p) => p.entregado_por as string),
       ...(rawTodosPrestamos ?? []).filter((p) => p.devuelto_por).map((p) => p.devuelto_por as string),
     ]),
@@ -137,6 +138,7 @@ export default async function GratuidadLibrosPage() {
     ...p,
     libro: p.libro as unknown as { titulo: string; asignatura: string; nivel: string },
     entregado_por_nombre: { profesor: nameMap[p.entregado_por as string] ?? "—" },
+    revisado_por_nombre: p.revisado_por ? { profesor: nameMap[p.revisado_por as string] ?? "—" } : undefined,
   })) as unknown as PrestamoLibro[];
 
   const todosPrestamos: PrestamoLibro[] = (rawTodosPrestamos ?? []).map((p) => ({
