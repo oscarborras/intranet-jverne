@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
-  AlertTriangle, BookOpen, CheckCircle, ChevronDown, Clock, Plus, Search, X,
+  AlertTriangle, BookOpen, CheckCircle, ChevronDown, Clock, Plus, Search, Users, X,
 } from "lucide-react";
 import type {
   LibroCatalogo, Alumno,
@@ -87,6 +87,13 @@ export function TabIncidencias({ libros, alumnos, cursoEscolar, myProfesorId, ca
   const [savingCambio, setSavingCambio] = useState(false);
   const [cambioError, setCambioError] = useState<string | null>(null);
 
+  // ── State: acordeón y gestión masiva ─────────────────────────────────────
+  const [collapsedAlumnos, setCollapsedAlumnos] = useState<Set<string>>(new Set());
+  const [bulkTarget, setBulkTarget] = useState<{ alumnoKey: string; alumno_nombre: string; alumno_grupo: string; incidencias: Incidencia[] } | null>(null);
+  const [bulkEstado, setBulkEstado] = useState<EstadoIncidencia>("resuelta");
+  const [bulkNota, setBulkNota] = useState("");
+  const [savingBulk, setSavingBulk] = useState(false);
+
   // ── State: nueva incidencia ────────────────────────────────────────────────
   const [alumnoSearch, setAlumnoSearch] = useState("");
   const [showSugg, setShowSugg] = useState(false);
@@ -141,6 +148,16 @@ export function TabIncidencias({ libros, alumnos, cursoEscolar, myProfesorId, ca
     () => libros.filter((l) => l.activo).sort((a, b) => a.titulo.localeCompare(b.titulo)),
     [libros]
   );
+
+  const grouped = useMemo(() => {
+    const map = new Map<string, { alumnoKey: string; alumno_nombre: string; alumno_grupo: string; incidencias: Incidencia[] }>();
+    for (const inc of filtered) {
+      const key = `${inc.alumno_id ?? inc.alumno_nombre}|||${inc.alumno_grupo}`;
+      if (!map.has(key)) map.set(key, { alumnoKey: key, alumno_nombre: inc.alumno_nombre, alumno_grupo: inc.alumno_grupo, incidencias: [] });
+      map.get(key)!.incidencias.push(inc);
+    }
+    return Array.from(map.values());
+  }, [filtered]);
 
   const alumnosSugeridos = useMemo(() => {
     if (!alumnoSearch.trim()) return [];
@@ -279,6 +296,49 @@ export function TabIncidencias({ libros, alumnos, cursoEscolar, myProfesorId, ca
     setSavingNueva(false);
   }
 
+  // ── Handlers: acordeón y gestión masiva ─────────────────────────────────
+  function toggleExpand(alumnoKey: string) {
+    setCollapsedAlumnos((prev) => {
+      const next = new Set(prev);
+      if (next.has(alumnoKey)) next.delete(alumnoKey);
+      else next.add(alumnoKey);
+      return next;
+    });
+  }
+
+  function openBulk(group: { alumnoKey: string; alumno_nombre: string; alumno_grupo: string; incidencias: Incidencia[] }) {
+    setBulkTarget(group);
+    setBulkEstado("resuelta");
+    setBulkNota("");
+  }
+
+  async function handleBulkAction() {
+    if (!bulkTarget) return;
+    setSavingBulk(true);
+    const gestionables = bulkTarget.incidencias.filter((i) => i.estado !== "archivada");
+    const ids = gestionables.map((i) => i.id);
+
+    const patch: Record<string, unknown> = { estado: bulkEstado };
+    if (bulkEstado === "resuelta" || bulkEstado === "archivada") patch.fecha_resolucion = localDateStr();
+
+    await supabase.from("gratuidad_incidencias").update(patch).in("id", ids);
+    const histEntries = ids.map((id) => ({ incidencia_id: id, estado: bulkEstado, nota: bulkNota.trim() || null, profesor_id: efectivoProfesorId }));
+    await supabase.from("gratuidad_incidencias_historial").insert(histEntries);
+
+    const myProfesorNombre = profesores.find((p) => p.id === efectivoProfesorId)?.nombre ?? null;
+    const now = new Date().toISOString();
+    setIncidencias((prev) =>
+      prev.map((inc) => {
+        if (!ids.includes(inc.id)) return inc;
+        const entry: IncidenciaHistorial = { id: crypto.randomUUID(), incidencia_id: inc.id, estado: bulkEstado, nota: bulkNota.trim() || null, profesor_id: efectivoProfesorId, created_at: now, profesor: myProfesorNombre ? { profesor: myProfesorNombre } : undefined };
+        return { ...inc, estado: bulkEstado, historial: [...(inc.historial ?? []), entry] };
+      })
+    );
+    setBulkTarget(null);
+    setBulkNota("");
+    setSavingBulk(false);
+  }
+
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="space-y-5">
@@ -359,63 +419,131 @@ export function TabIncidencias({ libros, alumnos, cursoEscolar, myProfesorId, ca
           </p>
         </div>
       ) : (
-        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-xs font-semibold uppercase tracking-wider text-gray-400 border-b border-gray-100 bg-gray-50">
-                  <th className="text-left px-4 py-3">Código</th>
-                  <th className="text-left px-4 py-3">Alumno/a</th>
-                  <th className="text-left px-4 py-3">Libro</th>
-                  <th className="text-left px-4 py-3">Tipo</th>
-                  <th className="text-left px-4 py-3">Origen</th>
-                  <th className="text-left px-4 py-3">Fecha</th>
-                  <th className="text-left px-4 py-3">Estado</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {filtered.map((inc) => (
-                  <tr
-                    key={inc.id}
-                    onClick={() => openDetail(inc)}
-                    className={`cursor-pointer hover:bg-gray-50 transition-colors ${ESTADO_CONFIG[inc.estado].rowClass}`}
-                  >
-                    <td className="px-4 py-3 font-mono text-xs text-gray-400">{inc.codigo}</td>
-                    <td className="px-4 py-3">
-                      <p className="font-medium text-gray-800">{inc.alumno_nombre}</p>
-                      <p className="text-xs text-gray-400">{inc.alumno_grupo}</p>
-                    </td>
-                    <td className="px-4 py-3">
-                      <p className="text-gray-800">{inc.libro?.titulo ?? "—"}</p>
-                      {inc.libro?.isbn && <p className="text-xs text-gray-400">{inc.libro.isbn}</p>}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${TIPO_CONFIG[inc.tipo].className}`}>
-                        {TIPO_CONFIG[inc.tipo].label}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      {(() => {
-                        const devuelta = Boolean(inc.prestamo?.fecha_devolucion);
-                        const esDevolucion = inc.origen === "devolucion" || devuelta;
-                        return (
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${esDevolucion ? "bg-gray-50 text-gray-600 border-gray-200" : "bg-indigo-50 text-indigo-700 border-indigo-200"}`}>
-                            {esDevolucion ? "Devolución" : "Revisión"}
-                          </span>
-                        );
-                      })()}
-                    </td>
-                    <td className="px-4 py-3 text-xs text-gray-500">{formatDate(inc.created_at)}</td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${ESTADO_CONFIG[inc.estado].badgeClass}`}>
-                        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${ESTADO_CONFIG[inc.estado].dot}`} />
-                        {ESTADO_CONFIG[inc.estado].label}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden divide-y divide-gray-100">
+          {grouped.map((group) => {
+            const isExpanded = !collapsedAlumnos.has(group.alumnoKey);
+            const gestionables = group.incidencias.filter((i) => i.estado !== "archivada");
+            return (
+              <div key={group.alumnoKey}>
+                {/* Cabecera del grupo */}
+                <div
+                  className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors select-none"
+                  onClick={() => toggleExpand(group.alumnoKey)}
+                >
+                  <div className="w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center text-sm font-bold text-amber-700 flex-shrink-0">
+                    {initialsFromNombre(group.alumno_nombre)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-sm text-gray-900 truncate">{group.alumno_nombre}</p>
+                    <p className="text-xs text-gray-500">{group.alumno_grupo}</p>
+                  </div>
+                  <span className="flex-shrink-0 text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                    {group.incidencias.length} {group.incidencias.length === 1 ? "incidencia" : "incidencias"}
+                  </span>
+                  {canManage && gestionables.length > 1 && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); openBulk(group); }}
+                      className="flex-shrink-0 flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-2.5 py-1 rounded-lg transition-colors"
+                    >
+                      <Users size={12} />
+                      Gestionar todas
+                    </button>
+                  )}
+                  <ChevronDown size={16} className={`text-gray-400 flex-shrink-0 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`} />
+                </div>
+
+                {/* Filas de incidencias */}
+                {isExpanded && (
+                  <div className="divide-y divide-gray-50">
+                    {group.incidencias.map((inc) => (
+                      <div
+                        key={inc.id}
+                        onClick={() => openDetail(inc)}
+                        className={`flex items-start gap-3 px-4 py-3 pl-16 cursor-pointer hover:bg-gray-50 transition-colors ${ESTADO_CONFIG[inc.estado].rowClass}`}
+                      >
+                        <div className="flex-1 min-w-0 space-y-1">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-mono text-xs text-gray-400">{inc.codigo}</span>
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${TIPO_CONFIG[inc.tipo].className}`}>
+                              {TIPO_CONFIG[inc.tipo].label}
+                            </span>
+                            {(() => {
+                              const esDevolucion = inc.origen === "devolucion" || Boolean(inc.prestamo?.fecha_devolucion);
+                              return (
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${esDevolucion ? "bg-gray-50 text-gray-600 border-gray-200" : "bg-indigo-50 text-indigo-700 border-indigo-200"}`}>
+                                  {esDevolucion ? "Devolución" : "Revisión"}
+                                </span>
+                              );
+                            })()}
+                          </div>
+                          <p className="text-sm text-gray-800 truncate">{inc.libro?.titulo ?? "—"}</p>
+                          <p className="text-xs text-gray-400">{formatDate(inc.created_at)}</p>
+                        </div>
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium flex-shrink-0 ${ESTADO_CONFIG[inc.estado].badgeClass}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${ESTADO_CONFIG[inc.estado].dot}`} />
+                          {ESTADO_CONFIG[inc.estado].label}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── Modal: Gestión masiva ─────────────────────────────────────────── */}
+      {bulkTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm">
+            <div className="flex items-center justify-between px-5 py-4 border-b">
+              <div>
+                <h3 className="font-semibold text-gray-900">Gestionar incidencias</h3>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {bulkTarget.alumno_nombre} · {bulkTarget.incidencias.filter((i) => i.estado !== "archivada").length} incidencias activas
+                </p>
+              </div>
+              <button onClick={() => setBulkTarget(null)} className="text-gray-400 hover:text-gray-600 p-1 rounded-lg transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="px-5 py-4 space-y-3">
+              <div className="relative">
+                <select
+                  value={bulkEstado}
+                  onChange={(e) => setBulkEstado(e.target.value as EstadoIncidencia)}
+                  className="w-full appearance-none border border-gray-300 rounded-lg pl-3 pr-8 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {(["en_gestion", "resuelta", "archivada"] as EstadoIncidencia[]).map((e) => (
+                    <option key={e} value={e}>{ESTADO_CONFIG[e].label}</option>
+                  ))}
+                </select>
+                <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+              </div>
+              <textarea
+                value={bulkNota}
+                onChange={(e) => setBulkNota(e.target.value)}
+                placeholder="Nota opcional..."
+                rows={2}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              />
+            </div>
+            <div className="flex gap-3 px-5 py-4 border-t">
+              <button
+                onClick={() => setBulkTarget(null)}
+                className="flex-1 border border-gray-300 text-gray-700 text-sm font-medium py-2.5 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleBulkAction}
+                disabled={savingBulk}
+                className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-medium py-2.5 rounded-lg transition-colors"
+              >
+                {savingBulk ? "Guardando..." : "Aplicar a todas"}
+              </button>
+            </div>
           </div>
         </div>
       )}
