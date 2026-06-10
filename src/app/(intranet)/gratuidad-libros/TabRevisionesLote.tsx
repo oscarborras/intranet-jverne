@@ -905,7 +905,7 @@ export function TabRevisionesLote({ prestamosActivos, onPrestamosChange, cursoEs
                   {librosDelAlumno.map((p) => {
                     const estado = bookStates[p.libro_id] ?? null;
                     return (
-                      <div key={p.id} className="flex items-center gap-3 px-4 py-3">
+                      <div key={p.id} className="px-4 py-3 space-y-2 sm:space-y-0 sm:flex sm:items-center sm:gap-3">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1.5 min-w-0">
                             <p className="text-sm font-medium text-gray-800 truncate">{p.libro?.titulo ?? "—"}</p>
@@ -921,7 +921,7 @@ export function TabRevisionesLote({ prestamosActivos, onPrestamosChange, cursoEs
                             {p.num_ejemplar && <> · Ej. {p.num_ejemplar}</>}
                           </p>
                         </div>
-                        <div className="flex gap-1 flex-shrink-0">
+                        <div className="flex gap-1 flex-wrap">
                           {(Object.keys(ESTADO_CONFIG) as EstadoDevolucion[]).map((e) => (
                             <button
                               key={e}
@@ -1058,20 +1058,22 @@ export function TabRevisionesLote({ prestamosActivos, onPrestamosChange, cursoEs
                   {alumnosConLibrosAsig.map((alumno) => {
                     const estado = alumnoEstadosAsig[alumno.key] ?? null;
                     return (
-                      <div key={alumno.key} className="flex items-center gap-3 px-4 py-3">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${estado ? "bg-indigo-100 text-indigo-700" : "bg-gray-100 text-gray-600"}`}>
-                          {initialsFromNombre(alumno.nombre)}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5 min-w-0">
-                            <p className="text-sm font-medium text-gray-800 truncate">{alumno.nombre}</p>
-                            {alumno.prestamos.some((p) => p.en_revision) && (
-                              <span className="flex-shrink-0 text-[9px] font-semibold tracking-wide uppercase px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 border border-indigo-200">Revisado</span>
-                            )}
+                      <div key={alumno.key} className="px-4 py-3 space-y-2 sm:space-y-0 sm:flex sm:items-center sm:gap-3">
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${estado ? "bg-indigo-100 text-indigo-700" : "bg-gray-100 text-gray-600"}`}>
+                            {initialsFromNombre(alumno.nombre)}
                           </div>
-                          <p className="text-xs text-gray-400">{alumno.prestamos.length} libro{alumno.prestamos.length !== 1 ? "s" : ""}</p>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <p className="text-sm font-medium text-gray-800 truncate">{alumno.nombre}</p>
+                              {alumno.prestamos.some((p) => p.en_revision) && (
+                                <span className="flex-shrink-0 text-[9px] font-semibold tracking-wide uppercase px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 border border-indigo-200">Revisado</span>
+                              )}
+                            </div>
+                            <p className="text-xs text-gray-400">{alumno.prestamos.length} libro{alumno.prestamos.length !== 1 ? "s" : ""}</p>
+                          </div>
                         </div>
-                        <div className="flex gap-1 flex-shrink-0">
+                        <div className="flex gap-1 flex-wrap">
                           {(Object.keys(ESTADO_CONFIG) as EstadoDevolucion[]).map((e) => (
                             <button
                               key={e}
