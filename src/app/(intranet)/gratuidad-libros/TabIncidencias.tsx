@@ -87,6 +87,9 @@ export function TabIncidencias({ libros, alumnos, cursoEscolar, myProfesorId, ca
   const [savingCambio, setSavingCambio] = useState(false);
   const [cambioError, setCambioError] = useState<string | null>(null);
 
+  // ── State: búsqueda ──────────────────────────────────────────────────────
+  const [busqueda, setBusqueda] = useState("");
+
   // ── State: acordeón y gestión masiva ─────────────────────────────────────
   const [collapsedAlumnos, setCollapsedAlumnos] = useState<Set<string>>(new Set());
   const [bulkTarget, setBulkTarget] = useState<{ alumnoKey: string; alumno_nombre: string; alumno_grupo: string; incidencias: Incidencia[] } | null>(null);
@@ -150,14 +153,18 @@ export function TabIncidencias({ libros, alumnos, cursoEscolar, myProfesorId, ca
   );
 
   const grouped = useMemo(() => {
+    const q = busqueda.trim().toLowerCase();
+    const source = q
+      ? filtered.filter((i) => i.alumno_nombre.toLowerCase().includes(q) || i.alumno_grupo.toLowerCase().includes(q))
+      : filtered;
     const map = new Map<string, { alumnoKey: string; alumno_nombre: string; alumno_grupo: string; incidencias: Incidencia[] }>();
-    for (const inc of filtered) {
+    for (const inc of source) {
       const key = `${inc.alumno_id ?? inc.alumno_nombre}|||${inc.alumno_grupo}`;
       if (!map.has(key)) map.set(key, { alumnoKey: key, alumno_nombre: inc.alumno_nombre, alumno_grupo: inc.alumno_grupo, incidencias: [] });
       map.get(key)!.incidencias.push(inc);
     }
     return Array.from(map.values());
-  }, [filtered]);
+  }, [filtered, busqueda]);
 
   const alumnosSugeridos = useMemo(() => {
     if (!alumnoSearch.trim()) return [];
@@ -403,17 +410,39 @@ export function TabIncidencias({ libros, alumnos, cursoEscolar, myProfesorId, ca
         </nav>
       </div>
 
+      {/* Búsqueda */}
+      <div className="relative">
+        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+        <input
+          type="text"
+          value={busqueda}
+          onChange={(e) => setBusqueda(e.target.value)}
+          placeholder="Buscar por alumno o curso..."
+          className="w-full border border-gray-200 rounded-lg pl-9 pr-9 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+        {busqueda && (
+          <button
+            onClick={() => setBusqueda("")}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            <X size={14} />
+          </button>
+        )}
+      </div>
+
       {/* Contenido */}
       {loading ? (
         <div className="text-center py-12 text-gray-400">
           <Clock size={32} className="mx-auto mb-2 opacity-40 animate-pulse" />
           <p className="text-sm">Cargando incidencias...</p>
         </div>
-      ) : filtered.length === 0 ? (
+      ) : grouped.length === 0 ? (
         <div className="text-center py-12 text-gray-400">
           <CheckCircle size={36} className="mx-auto mb-2 opacity-40" />
           <p className="font-medium">
-            {filtro === "todas"
+            {busqueda.trim()
+              ? `Sin resultados para "${busqueda.trim()}"`
+              : filtro === "todas"
               ? "No hay incidencias registradas en este curso"
               : `No hay incidencias ${FILTROS.find((f) => f.key === filtro)?.label.toLowerCase() ?? ""}`}
           </p>
