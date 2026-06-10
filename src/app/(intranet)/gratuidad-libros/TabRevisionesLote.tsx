@@ -323,6 +323,31 @@ export function TabRevisionesLote({ prestamosActivos, onPrestamosChange, cursoEs
     }
   }
 
+  // ── Helper: archive a revision incidencia ────────────────────────────────────
+  async function archiveIncidencia(prestamoId: string, nota: string) {
+    const { data } = await supabase
+      .from("gratuidad_incidencias")
+      .select("id")
+      .eq("prestamo_id", prestamoId)
+      .eq("origen", "revision")
+      .in("estado", ["abierta", "en_gestion"])
+      .limit(1)
+      .maybeSingle();
+    if (!data) return;
+    const _now = new Date();
+    const todayDate = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, "0")}-${String(_now.getDate()).padStart(2, "0")}`;
+    await supabase
+      .from("gratuidad_incidencias")
+      .update({ estado: "archivada", fecha_resolucion: todayDate })
+      .eq("id", data.id as string);
+    await supabase.from("gratuidad_incidencias_historial").insert({
+      incidencia_id: data.id as string,
+      estado: "archivada",
+      nota,
+      profesor_id: efectivoProfesorId,
+    });
+  }
+
   // ── Actions: por alumno ─────────────────────────────────────────────────────
   function selectAlumno(key: string) {
     setSelectedAlumnoKey(key);
@@ -392,6 +417,12 @@ export function TabRevisionesLote({ prestamosActivos, onPrestamosChange, cursoEs
     });
     for (const loan of incidentLoans) {
       await createIncidencia(loan, bookStates[loan.libro_id] as EstadoDevolucion, observaciones.trim() || null);
+    }
+
+    // Archive incidencias for loans revised back to bueno
+    const buenosLoans = librosDelAlumno.filter((p) => bookStates[p.libro_id] === "bueno");
+    for (const loan of buenosLoans) {
+      await archiveIncidencia(loan.id, "Revisión corregida: el libro fue marcado como reutilizable. Incidencia archivada automáticamente.");
     }
 
     // Update livePrestamosList: mark reviewed books
@@ -498,12 +529,16 @@ export function TabRevisionesLote({ prestamosActivos, onPrestamosChange, cursoEs
 
     if (hasError) { setSaving(false); return; }
 
-    // Create incidencias for deteriorado/perdido
+    // Create incidencias for deteriorado/perdido; archive for bueno
     for (const alumno of alumnosConLibrosAsig) {
       const estado = alumnoEstadosAsig[alumno.key];
       if (estado === "deteriorado" || estado === "perdido") {
         for (const loan of alumno.prestamos) {
           await createIncidencia(loan, estado, observacionesAsig.trim() || null);
+        }
+      } else if (estado === "bueno") {
+        for (const loan of alumno.prestamos) {
+          await archiveIncidencia(loan.id, "Revisión corregida: el libro fue marcado como reutilizable. Incidencia archivada automáticamente.");
         }
       }
     }
@@ -535,6 +570,7 @@ export function TabRevisionesLote({ prestamosActivos, onPrestamosChange, cursoEs
   // ── Actions: anular revisión ────────────────────────────────────────────────
   async function handleAnularRevision(prestamoId: string) {
     setErrorMsg(null);
+    await archiveIncidencia(prestamoId, "Revisión anulada: el libro vuelve a pendiente de revisión. Incidencia archivada automáticamente.");
     const { error } = await supabase
       .from("prestamos_libros")
       .update({ en_revision: false, estado_revision: null, fecha_revision: null, revisado_por: null })

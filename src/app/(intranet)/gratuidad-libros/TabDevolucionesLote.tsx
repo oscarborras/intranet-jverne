@@ -338,6 +338,30 @@ export function TabDevolucionesLote({ prestamosActivos, onPrestamosChange, curso
     setEditStates(states);
   }
 
+  // ── Helper: archive any open incidencia for a loan ────────────────────────────
+  async function archiveIncidencia(prestamoId: string, nota: string) {
+    const { data } = await supabase
+      .from("gratuidad_incidencias")
+      .select("id")
+      .eq("prestamo_id", prestamoId)
+      .in("estado", ["abierta", "en_gestion"])
+      .limit(1)
+      .maybeSingle();
+    if (!data) return;
+    const _now = new Date();
+    const todayDate = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, "0")}-${String(_now.getDate()).padStart(2, "0")}`;
+    await supabase
+      .from("gratuidad_incidencias")
+      .update({ estado: "archivada", fecha_resolucion: todayDate })
+      .eq("id", data.id as string);
+    await supabase.from("gratuidad_incidencias_historial").insert({
+      incidencia_id: data.id as string,
+      estado: "archivada",
+      nota,
+      profesor_id: efectivoProfesorId,
+    });
+  }
+
   async function handleGuardarEdicion() {
     setSavingEdit(true);
     setErrorMsg(null);
@@ -351,6 +375,12 @@ export function TabDevolucionesLote({ prestamosActivos, onPrestamosChange, curso
     }
     setSavingEdit(false);
     if (!hasError) {
+      // Archive open incidencias for books whose state was corrected to bueno
+      for (const [prestamoId, { estado }] of Object.entries(editStates)) {
+        if (estado === "bueno") {
+          await archiveIncidencia(prestamoId, "Devolución corregida: el libro fue marcado como reutilizable. Incidencia archivada automáticamente.");
+        }
+      }
       setPrestamosDevueltos((prev) =>
         prev.map((p) => {
           const edit = editStates[p.id];
@@ -364,6 +394,7 @@ export function TabDevolucionesLote({ prestamosActivos, onPrestamosChange, curso
   async function handleAnularDevolucion(prestamoId: string) {
     setUndoingId(prestamoId);
     setErrorMsg(null);
+    await archiveIncidencia(prestamoId, "Devolución anulada: el libro vuelve a préstamo activo. Incidencia archivada automáticamente.");
     const { error } = await supabase
       .from("prestamos_libros")
       .update({ fecha_devolucion: null, devolucion_registrada_at: null, devuelto_por: null, estado_devolucion: null, observaciones: null })
@@ -545,6 +576,12 @@ export function TabDevolucionesLote({ prestamosActivos, onPrestamosChange, curso
           }
         }
       }
+    }
+
+    // Archive open incidencias for books returned as bueno
+    const buenosLoans = librosDelAlumno.filter((p) => bookStates[p.libro_id] === "bueno");
+    for (const loan of buenosLoans) {
+      await archiveIncidencia(loan.id, "Devolución registrada como reutilizable. Incidencia archivada automáticamente.");
     }
 
     const total = allReturnedIds.size;
@@ -890,6 +927,15 @@ export function TabDevolucionesLote({ prestamosActivos, onPrestamosChange, curso
               profesor_id: efectivoProfesorId,
             });
           }
+        }
+      }
+    }
+
+    // Archive open incidencias for books returned as bueno
+    for (const alumno of alumnosConLibrosAsig) {
+      if (alumnoEstadosAsig[alumno.key] === "bueno") {
+        for (const loan of alumno.prestamos) {
+          await archiveIncidencia(loan.id, "Devolución registrada como reutilizable. Incidencia archivada automáticamente.");
         }
       }
     }
