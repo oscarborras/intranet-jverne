@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
-  CheckCircle, AlertTriangle, X, Users, ChevronDown, BookOpen, Check, ClipboardCheck, Undo2, Eye,
+  CheckCircle, AlertTriangle, X, Users, ChevronDown, BookOpen, Check, ClipboardCheck, Undo2, Eye, Printer,
 } from "lucide-react";
 import type { PrestamoLibro, EstadoDevolucion, TipoIncidencia, Alumno } from "@/lib/types";
 
@@ -441,6 +441,170 @@ export function TabRevisionesLote({ prestamosActivos, onPrestamosChange, cursoEs
     setObservaciones("");
     setSaving(false);
     setSuccessMsg(`${total} revisión${total !== 1 ? "es" : ""} guardada${total !== 1 ? "s" : ""}.`);
+  }
+
+  // ── Print: ficha de control de revisión ─────────────────────────────────────
+  function handleImprimirFicha() {
+    const selectedBooks = librosDelGrupoAsig.filter(l => selectedLibroIdsAsig.has(l.libro_id));
+    const now = new Date();
+    const fechaStr = `${String(now.getDate()).padStart(2, "0")} / ${String(now.getMonth() + 1).padStart(2, "0")} / ${now.getFullYear()}`;
+    const grupoLabel = selectedUnidad === NO_ACTIVOS ? "Alumnos no activos" : selectedUnidad;
+
+    const pages = selectedBooks.map(libro => {
+      const alumnos = prestamosActivos
+        .filter(p => {
+          const matchesGroup = selectedUnidad === NO_ACTIVOS
+            ? Boolean(p.alumno_id && inactiveAlumnoIds.has(p.alumno_id))
+            : p.alumno_grupo === selectedUnidad;
+          return matchesGroup && p.libro_id === libro.libro_id;
+        })
+        .sort((a, b) => a.alumno_nombre.localeCompare(b.alumno_nombre));
+
+      const rowsHtml = alumnos.map((p, i) => `
+        <tr>
+          <td class="num">${i + 1}</td>
+          <td class="nombre">${p.alumno_nombre}</td>
+          <td class="check"></td>
+          <td class="check"></td>
+          <td class="check"></td>
+          <td class="obs"></td>
+        </tr>`).join("");
+
+      return `
+        <div class="page">
+
+          <div class="pg-header">
+            <span>IES Julio Verne &middot; Programa de gratuidad de libros &middot; Curso ${cursoEscolar}</span>
+            <span>Albar&aacute;n de revisi&oacute;n de libros &middot; ESO</span>
+          </div>
+
+          <div class="doc-title">
+            <div class="doc-title-sub">IES JULIO VERNE &nbsp;&middot;&nbsp; CURSO ${cursoEscolar}</div>
+            <div class="doc-title-main">Albar&aacute;n de revisi&oacute;n de libros del alumnado</div>
+            <div class="doc-title-note">Una hoja por asignatura y grupo &nbsp;&middot;&nbsp; Estados: Reutilizable / No reutilizable / Perdido</div>
+          </div>
+
+          <section>
+            <h2>1. &nbsp;Identificaci&oacute;n</h2>
+            <table class="id-table">
+              <tr>
+                <td class="label">Asignatura</td>
+                <td class="value">${libro.titulo}${libro.asignatura ? ` (${libro.asignatura})` : ""}</td>
+                <td class="label">Curso / Grupo</td>
+                <td class="value">${grupoLabel}</td>
+              </tr>
+              <tr>
+                <td class="label">Profesor/a responsable</td>
+                <td class="value"></td>
+                <td class="label">Fecha</td>
+                <td class="value">${fechaStr}</td>
+              </tr>
+            </table>
+          </section>
+
+          <section>
+            <h2>2. &nbsp;Resumen de revisi&oacute;n</h2>
+            <table class="summary-table">
+              <thead>
+                <tr>
+                  <th>Alumnado total</th>
+                  <th>Reutilizables (R)</th>
+                  <th>No reutilizables (NR)</th>
+                  <th>Perdidos (P)</th>
+                  <th>Sin revisar</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td>${alumnos.length}</td><td></td><td></td><td></td><td></td></tr>
+              </tbody>
+            </table>
+          </section>
+
+          <section>
+            <h2>3. &nbsp;Criterios para clasificar el estado</h2>
+            <table class="criteria-table">
+              <tr>
+                <td><strong>R &middot; Reutilizable:</strong> completo, sin escritos, sin hojas rotas, tapas en buen estado.</td>
+                <td><strong>NR &middot; No reutilizable:</strong> escritos, subrayados, hojas rotas o tapas deterioradas.</td>
+                <td><strong>P &middot; Perdido:</strong> el alumno/a no tiene el libro.</td>
+              </tr>
+            </table>
+          </section>
+
+          <section>
+            <h2>4. &nbsp;Registro de revisi&oacute;n del alumnado</h2>
+            <p class="note">Marca con una <strong>X</strong> la columna correspondiente: <strong>R</strong> (reutilizable) &nbsp;&middot;&nbsp; <strong>NR</strong> (no reutilizable) &nbsp;&middot;&nbsp; <strong>P</strong> (perdido o no entregado).</p>
+            <table class="registro-table">
+              <thead>
+                <tr>
+                  <th class="num">N&ordm;</th>
+                  <th class="nombre">Apellidos, Nombre</th>
+                  <th class="check">R</th>
+                  <th class="check">NR</th>
+                  <th class="check">P</th>
+                  <th class="obs">Observaciones (desperfectos, partes afectadas, etc.)</th>
+                </tr>
+              </thead>
+              <tbody>${rowsHtml}</tbody>
+            </table>
+          </section>
+
+          <section class="firma-section">
+            <h2>5. &nbsp;Firma del profesor / a responsable</h2>
+          </section>
+
+        </div>`;
+    }).join("");
+
+    const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Albar&aacute;n Revisi&oacute;n &mdash; ${grupoLabel} &mdash; ${cursoEscolar}</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    @page{size:A4 portrait;margin:10mm 12.5mm}
+    body{font-family:Calibri,Arial,sans-serif;font-size:10pt;color:#000;background:#fff}
+    .page{page-break-after:always;display:flex;flex-direction:column;min-height:267mm}
+    .page:last-child{page-break-after:avoid}
+    .pg-header{display:flex;justify-content:space-between;font-size:7.5pt;color:#666;border-bottom:1px solid #bfbfbf;padding-bottom:3px;margin-bottom:8px}
+    .doc-title{text-align:center;margin-bottom:10px}
+    .doc-title-sub{font-size:9pt;font-weight:bold;color:#666;letter-spacing:.3px}
+    .doc-title-main{font-size:17pt;font-weight:bold;color:#1f4e79;margin:3px 0}
+    .doc-title-note{font-size:9pt;font-style:italic;color:#666}
+    section{margin-bottom:8px}
+    h2{font-size:9pt;font-weight:bold;color:#1f4e79;border-bottom:1px solid #bfbfbf;padding-bottom:2px;margin-bottom:4px}
+    .id-table{width:100%;border-collapse:collapse}
+    .id-table td{border:1px solid #bfbfbf;padding:4px 7px;font-size:9.5pt}
+    .id-table td.label{background:#f2f2f2;font-weight:bold;width:22%;white-space:nowrap}
+    .id-table td.value{width:28%}
+    .summary-table{width:100%;border-collapse:collapse}
+    .summary-table th{background:#1f4e79;color:#fff;border:1px solid #bfbfbf;padding:4px 6px;font-size:8.5pt;text-align:center}
+    .summary-table td{border:1px solid #bfbfbf;padding:6px;text-align:center;font-size:9.5pt}
+    .criteria-table{width:100%;border-collapse:collapse;font-size:8.5pt}
+    .criteria-table td{border:1px solid #bfbfbf;padding:5px 8px;vertical-align:top;width:33.3%;line-height:1.5}
+    .note{font-size:8pt;color:#555;margin-bottom:3px}
+    .registro-table{width:100%;border-collapse:collapse}
+    .registro-table th{background:#1f4e79;color:#fff;border:1px solid #888;padding:4px;font-size:8.5pt;text-align:center}
+    .registro-table td{border:1px solid #bfbfbf;padding:2px 4px;font-size:9pt;height:19px}
+    .registro-table td.num,.registro-table th.num{text-align:center;width:26px}
+    .registro-table td.check,.registro-table th.check{text-align:center;width:30px}
+    .registro-table td.obs,.registro-table th.obs{width:36%;font-size:8pt}
+    .registro-table tbody tr:nth-child(even){background:#f8f8f8}
+    .firma-section{margin-top:8px;flex:1}
+    .pg-footer{margin-top:auto;padding-top:5px;border-top:1px solid #bfbfbf;font-size:7.5pt;color:#666;text-align:center}
+  </style>
+</head>
+<body>
+  ${pages}
+  <script>window.onload=function(){window.print()}<\/script>
+</body>
+</html>`;
+
+    const blob = new Blob([html], { type: "text/html" });
+    const url = URL.createObjectURL(blob);
+    const win = window.open(url, "_blank");
+    if (win) setTimeout(() => URL.revokeObjectURL(url), 30000);
   }
 
   // ── Actions: por asignatura ─────────────────────────────────────────────────
@@ -1000,6 +1164,20 @@ export function TabRevisionesLote({ prestamosActivos, onPrestamosChange, cursoEs
                 })}
               </div>
             </div>
+
+            {/* Botón imprimir ficha — visible cuando hay libros seleccionados */}
+            {selectedLibroIdsAsig.size > 0 && (
+              <button
+                onClick={handleImprimirFicha}
+                className="flex items-center justify-center gap-2 border border-gray-300 text-gray-700 hover:bg-gray-50 text-sm font-medium px-3 py-2.5 rounded-lg transition-colors w-full"
+              >
+                <Printer size={15} />
+                Imprimir Ficha Control
+                {selectedLibroIdsAsig.size > 1 && (
+                  <span className="text-xs text-gray-400">({selectedLibroIdsAsig.size} hojas)</span>
+                )}
+              </button>
+            )}
           </div>
 
           {/* Panel derecho — alumnos con estado */}
