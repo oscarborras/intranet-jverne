@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
-  AlertTriangle, BookOpen, CheckCircle, ChevronDown, Clock, Plus, Search, Users, X,
+  AlertTriangle, BookOpen, CheckCircle, ChevronDown, Clock, Plus, Printer, Search, Users, X,
 } from "lucide-react";
 import type {
   LibroCatalogo, Alumno,
@@ -344,6 +344,151 @@ export function TabIncidencias({ libros, alumnos, cursoEscolar, myProfesorId, ca
     setBulkTarget(null);
     setBulkNota("");
     setSavingBulk(false);
+  }
+
+  // ── Print: carta de pago ────────────────────────────────────────────────────
+  function handleCartaPago() {
+    if (!selected) return;
+
+    const alumnoKey = selected.alumno_id ?? selected.alumno_nombre;
+    const librosAPagar = incidencias.filter((i) => {
+      const key = i.alumno_id ?? i.alumno_nombre;
+      return key === alumnoKey && (i.tipo === "deterioro" || i.tipo === "perdida") && i.estado !== "archivada";
+    });
+
+    if (librosAPagar.length === 0) return;
+
+    const now = new Date();
+    const fechaStr = `${String(now.getDate()).padStart(2, "0")} / ${String(now.getMonth() + 1).padStart(2, "0")} / ${now.getFullYear()}`;
+
+    const tipoLabel: Record<string, string> = { deterioro: "Deterioro / No reutilizable", perdida: "Pérdida / Extravío" };
+
+    const rowsHtml = librosAPagar.map((inc, i) => `
+        <tr>
+          <td class="check-col"><span class="checkbox"></span></td>
+          <td class="num">${i + 1}</td>
+          <td class="titulo">${inc.libro?.titulo ?? "—"}</td>
+          <td class="motivo">${tipoLabel[inc.tipo] ?? inc.tipo}</td>
+        </tr>`).join("");
+
+    const copyHtml = (etiqueta: string) => `
+      <div class="copy">
+        <div class="copy-label">${etiqueta}</div>
+
+        <div class="doc-header">
+          <div>
+            <div class="center-name">IES JULIO VERNE</div>
+            <div class="center-sub">Programa de Gratuidad de Libros &middot; ${cursoEscolar}</div>
+          </div>
+          <div class="title-block">
+            <div class="doc-title">CARTA DE PAGO</div>
+            <div class="doc-subtitle">Justificante de reposici&oacute;n de libros</div>
+          </div>
+        </div>
+
+        <table class="info-table">
+          <tr>
+            <td class="lbl">Alumno/a</td>
+            <td class="val strong" colspan="3">${selected.alumno_nombre}</td>
+          </tr>
+          <tr>
+            <td class="lbl">Curso / Grupo</td>
+            <td class="val">${selected.alumno_grupo}</td>
+            <td class="lbl">Fecha</td>
+            <td class="val">${fechaStr}</td>
+          </tr>
+          <tr>
+            <td class="lbl">Persona que realiza el pago</td>
+            <td class="val write" colspan="3"></td>
+          </tr>
+          <tr>
+            <td class="lbl">DNI / NIE</td>
+            <td class="val write" colspan="3"></td>
+          </tr>
+        </table>
+
+        <div class="section-title">Relaci&oacute;n de libros a reponer</div>
+        <table class="books-table">
+          <thead>
+            <tr>
+              <th class="check-col">&nbsp;</th>
+              <th class="num">N&ordm;</th>
+              <th class="titulo">T&iacute;tulo del libro</th>
+              <th class="motivo">Motivo</th>
+            </tr>
+          </thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>
+
+        <div class="declaration">
+          El/La abajo firmante declara haber realizado el pago correspondiente a los libros marcados de
+          la relaci&oacute;n anterior y autoriza al IES Julio Verne a retener este documento como justificante.
+        </div>
+
+        <div class="firma-area">
+          <div class="firma-col">
+            <div class="firma-label">Firma de quien realiza el pago:</div>
+            <div class="firma-linea"></div>
+          </div>
+          <div class="firma-col">
+            <div class="firma-label">Sello y firma del centro:</div>
+            <div class="firma-linea"></div>
+          </div>
+        </div>
+      </div>`;
+
+    const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Carta de Pago &mdash; ${selected.alumno_nombre}</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    @page{size:A4 portrait;margin:8mm 14mm}
+    body{font-family:Calibri,Arial,sans-serif;font-size:10pt;color:#000;background:#fff}
+    .copy{min-height:126mm;padding-bottom:5mm;display:flex;flex-direction:column;gap:5px}
+    .copy-label{align-self:flex-end;font-size:7.5pt;font-weight:bold;color:#555;letter-spacing:.8px;text-transform:uppercase;border:1px dashed #aaa;padding:1px 7px;margin-bottom:2px}
+    .separator{border:none;border-top:2px dashed #bbb;margin:4mm 0}
+    .doc-header{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #1f4e79;padding-bottom:4px;margin-bottom:6px}
+    .center-name{font-size:13pt;font-weight:bold;color:#1f4e79}
+    .center-sub{font-size:8pt;color:#666;margin-top:1px}
+    .title-block{text-align:right}
+    .doc-title{font-size:14pt;font-weight:bold;color:#1f4e79}
+    .doc-subtitle{font-size:8pt;color:#888}
+    .info-table{width:100%;border-collapse:collapse;margin-bottom:5px}
+    .info-table td{border:1px solid #bfbfbf;padding:3px 7px;font-size:9.5pt}
+    .info-table td.lbl{background:#f2f2f2;font-weight:bold;width:25%;white-space:nowrap}
+    .info-table td.val{width:25%}
+    .info-table td.strong{font-weight:bold}
+    .info-table td.write{background:#fffde7}
+    .section-title{font-size:9pt;font-weight:bold;color:#1f4e79;border-bottom:1px solid #bfbfbf;padding-bottom:2px;margin-bottom:4px}
+    .books-table{width:100%;border-collapse:collapse;margin-bottom:6px}
+    .books-table th{background:#1f4e79;color:#fff;border:1px solid #888;padding:3px 5px;font-size:8.5pt;text-align:left}
+    .books-table td{border:1px solid #bfbfbf;padding:2px 5px;font-size:9pt;height:18px}
+    .books-table .check-col{width:22px;text-align:center}
+    .books-table .num{width:24px;text-align:center}
+    .books-table .motivo{width:36%;font-size:8.5pt}
+    .books-table tbody tr:nth-child(even){background:#f8f8f8}
+    .checkbox{display:inline-block;width:13px;height:13px;border:1.5px solid #555;vertical-align:middle}
+    .declaration{font-size:8pt;color:#555;border:1px solid #ddd;background:#fafafa;padding:5px 8px;margin-bottom:6px;line-height:1.5}
+    .firma-area{display:flex;gap:10mm;margin-top:2mm}
+    .firma-col{flex:1}
+    .firma-label{font-size:8.5pt;color:#555;margin-bottom:12mm}
+    .firma-linea{border-top:1px solid #000}
+  </style>
+</head>
+<body>
+  ${copyHtml("COPIA PARA EL CENTRO")}
+  <hr class="separator">
+  ${copyHtml("COPIA PARA EL INTERESADO")}
+  <script>window.onload=function(){window.print()}<\/script>
+</body>
+</html>`;
+
+    const blob = new Blob([html], { type: "text/html" });
+    const url = URL.createObjectURL(blob);
+    const win = window.open(url, "_blank");
+    if (win) setTimeout(() => URL.revokeObjectURL(url), 30000);
   }
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -708,6 +853,16 @@ export function TabIncidencias({ libros, alumnos, cursoEscolar, myProfesorId, ca
                   >
                     {savingCambio ? "Guardando..." : "Guardar cambio"}
                   </button>
+                  {(cambioEstado === "resuelta" || selected.estado === "resuelta") &&
+                    (selected.tipo === "deterioro" || selected.tipo === "perdida") && (
+                    <button
+                      onClick={handleCartaPago}
+                      className="w-full flex items-center justify-center gap-1.5 border border-gray-300 text-gray-700 hover:bg-gray-50 text-sm font-medium py-2.5 rounded-lg transition-colors"
+                    >
+                      <Printer size={14} />
+                      Carta de pago
+                    </button>
+                  )}
                 </div>
               )}
             </div>
