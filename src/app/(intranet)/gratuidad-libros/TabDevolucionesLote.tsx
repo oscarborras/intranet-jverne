@@ -587,20 +587,34 @@ export function TabDevolucionesLote({ prestamosActivos, onPrestamosChange, curso
 
   // ── Print: ficha de control ──────────────────────────────────────────────────
 
-  function handleImprimirFicha() {
+  async function handleImprimirFicha() {
     const selectedBooks = librosDelGrupoAsig.filter(l => selectedLibroIdsAsig.has(l.libro_id));
     const now = new Date();
     const fechaStr = `${String(now.getDate()).padStart(2, "0")} / ${String(now.getMonth() + 1).padStart(2, "0")} / ${now.getFullYear()}`;
     const grupoLabel = selectedUnidad === NO_ACTIVOS ? "Alumnos no activos" : selectedUnidad;
 
+    // Fetch ALL loans for this group (including already returned) for the selected books
+    const libroIdsList = selectedBooks.map(l => l.libro_id);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let allLoansQuery: any = supabase
+      .from("prestamos_libros")
+      .select("id, alumno_id, alumno_nombre, alumno_grupo, libro_id")
+      .eq("curso_escolar", cursoEscolar)
+      .in("libro_id", libroIdsList)
+      .order("alumno_nombre");
+    if (selectedUnidad === NO_ACTIVOS) {
+      const ids = [...inactiveAlumnoIds];
+      if (ids.length === 0) return;
+      allLoansQuery = allLoansQuery.in("alumno_id", ids);
+    } else {
+      allLoansQuery = allLoansQuery.eq("alumno_grupo", selectedUnidad);
+    }
+    const { data: allLoansData } = await allLoansQuery;
+    const allLoans: { alumno_id: string | null; alumno_nombre: string; libro_id: string }[] = allLoansData ?? [];
+
     const pages = selectedBooks.map(libro => {
-      const alumnos = prestamosActivos
-        .filter(p => {
-          const matchesGroup = selectedUnidad === NO_ACTIVOS
-            ? Boolean(p.alumno_id && inactiveAlumnoIds.has(p.alumno_id))
-            : p.alumno_grupo === selectedUnidad;
-          return matchesGroup && p.libro_id === libro.libro_id;
-        })
+      const alumnos = allLoans
+        .filter(p => p.libro_id === libro.libro_id)
         .sort((a, b) => a.alumno_nombre.localeCompare(b.alumno_nombre));
 
       const rowsHtml = alumnos.map((p, i) => `
