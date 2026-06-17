@@ -425,14 +425,7 @@ export function TabDevolucionesLote({ prestamosActivos, onPrestamosChange, curso
 
   function selectAlumno(key: string) {
     setSelectedAlumnoKey(key);
-    // Pre-fill estado from estado_revision for already-reviewed books
-    const prefill: Record<string, EstadoDevolucion | null> = {};
-    for (const p of prestamosActivos) {
-      const pKey = p.alumno_id ?? p.alumno_nombre;
-      if (pKey !== key) continue;
-      if (p.en_revision && p.estado_revision) prefill[p.libro_id] = p.estado_revision;
-    }
-    setBookStates(prefill);
+    setBookStates({});
     setObservaciones("");
     setSuccessMsg(null);
   }
@@ -766,19 +759,8 @@ export function TabDevolucionesLote({ prestamosActivos, onPrestamosChange, curso
 
   // ── Actions: por asignatura ─────────────────────────────────────────────────
 
-  function prefillEstadosAsig(libroIds: Set<string>): Record<string, EstadoDevolucion | null> {
-    const prefill: Record<string, EstadoDevolucion | null> = {};
-    for (const p of prestamosActivos) {
-      if (!p.en_revision || !p.estado_revision) continue;
-      if (!libroIds.has(p.libro_id)) continue;
-      const matchesGroup = selectedUnidad === NO_ACTIVOS
-        ? Boolean(p.alumno_id && inactiveAlumnoIds.has(p.alumno_id))
-        : p.alumno_grupo === selectedUnidad;
-      if (!matchesGroup) continue;
-      const key = p.alumno_id ?? p.alumno_nombre;
-      prefill[key] = p.estado_revision;
-    }
-    return prefill;
+  function prefillEstadosAsig(_libroIds: Set<string>): Record<string, EstadoDevolucion | null> {
+    return {};
   }
 
   function toggleLibroAsig(libroId: string) {
