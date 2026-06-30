@@ -827,7 +827,6 @@ export function TabIncidencias({ libros, alumnos, cursoEscolar, myProfesorId, ca
                       className="w-full appearance-none border border-gray-300 rounded-lg pl-3 pr-8 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                       {(["abierta", "en_gestion", "resuelta", "archivada"] as EstadoIncidencia[])
-                        .filter((e) => e !== selected.estado)
                         .map((e) => (
                           <option key={e} value={e}>{ESTADO_CONFIG[e].label}</option>
                         ))}
