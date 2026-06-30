@@ -13,34 +13,34 @@ import type {
 // ─── Config ───────────────────────────────────────────────────────────────────
 
 const TIPO_CONFIG: Record<TipoIncidencia, { label: string; className: string }> = {
-  deterioro:   { label: "Deterioro",   className: "text-amber-700 bg-amber-50 border-amber-200" },
-  perdida:     { label: "Pérdida",     className: "text-red-700 bg-red-50 border-red-200" },
+  deterioro: { label: "Deterioro", className: "text-amber-700 bg-amber-50 border-amber-200" },
+  perdida: { label: "Pérdida", className: "text-red-700 bg-red-50 border-red-200" },
   reclamacion: { label: "Reclamación", className: "text-blue-700 bg-blue-50 border-blue-200" },
-  robo:        { label: "Robo",        className: "text-purple-700 bg-purple-50 border-purple-200" },
-  otro:        { label: "Otro",        className: "text-gray-600 bg-gray-50 border-gray-200" },
+  robo: { label: "Robo", className: "text-purple-700 bg-purple-50 border-purple-200" },
+  otro: { label: "Otro", className: "text-gray-600 bg-gray-50 border-gray-200" },
 };
 
 const ESTADO_CONFIG: Record<EstadoIncidencia, { label: string; rowClass: string; badgeClass: string; dot: string }> = {
-  abierta:    { label: "Abierta",    rowClass: "",              badgeClass: "text-red-700 bg-red-50",     dot: "bg-red-500" },
-  en_gestion: { label: "En gestión", rowClass: "",              badgeClass: "text-amber-700 bg-amber-50", dot: "bg-amber-500" },
-  resuelta:   { label: "Resuelta",   rowClass: "",              badgeClass: "text-green-700 bg-green-50", dot: "bg-green-500" },
-  archivada:  { label: "Archivada",  rowClass: "opacity-50",   badgeClass: "text-gray-500 bg-gray-100",  dot: "bg-gray-400" },
+  abierta: { label: "Abierta", rowClass: "", badgeClass: "text-red-700 bg-red-50", dot: "bg-red-500" },
+  en_gestion: { label: "En gestión", rowClass: "", badgeClass: "text-amber-700 bg-amber-50", dot: "bg-amber-500" },
+  resuelta: { label: "Resuelta", rowClass: "", badgeClass: "text-green-700 bg-green-50", dot: "bg-green-500" },
+  archivada: { label: "Archivada", rowClass: "opacity-50", badgeClass: "text-gray-500 bg-gray-100", dot: "bg-gray-400" },
 };
 
 type FiltroEstado = EstadoIncidencia | "todas";
 
 const ESTADO_LIBRO_CONFIG: Record<EstadoDevolucion, { label: string; active: string; hover: string }> = {
-  bueno:       { label: "Reutilizable",    active: "bg-green-100 text-green-700 border-green-300",  hover: "hover:bg-green-50 hover:border-green-200" },
-  deteriorado: { label: "No reutilizable", active: "bg-amber-100 text-amber-700 border-amber-300",  hover: "hover:bg-amber-50 hover:border-amber-200" },
-  perdido:     { label: "Perdido",         active: "bg-red-100 text-red-700 border-red-300",         hover: "hover:bg-red-50 hover:border-red-200" },
+  bueno: { label: "Reutilizable", active: "bg-green-100 text-green-700 border-green-300", hover: "hover:bg-green-50 hover:border-green-200" },
+  deteriorado: { label: "No reutilizable", active: "bg-amber-100 text-amber-700 border-amber-300", hover: "hover:bg-amber-50 hover:border-amber-200" },
+  perdido: { label: "Perdido", active: "bg-red-100 text-red-700 border-red-300", hover: "hover:bg-red-50 hover:border-red-200" },
 };
 
 const FILTROS: { key: FiltroEstado; label: string }[] = [
-  { key: "abierta",    label: "Abiertas" },
+  { key: "abierta", label: "Abiertas" },
   { key: "en_gestion", label: "En gestión" },
-  { key: "resuelta",   label: "Resueltas" },
-  { key: "archivada",  label: "Archivadas" },
-  { key: "todas",      label: "Todas" },
+  { key: "resuelta", label: "Resueltas" },
+  { key: "archivada", label: "Archivadas" },
+  { key: "todas", label: "Todas" },
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -234,11 +234,11 @@ export function TabIncidencias({ libros, alumnos, cursoEscolar, myProfesorId, ca
     const newEntry: IncidenciaHistorial = histEntry
       ? { ...(histEntry as unknown as IncidenciaHistorial), incidencia_id: selected.id, profesor_id: myProfesorId }
       : {
-          id: crypto.randomUUID(), incidencia_id: selected.id,
-          estado: cambioEstado, nota: cambioNota.trim() || null,
-          profesor_id: efectivoProfesorId, created_at: new Date().toISOString(),
-          profesor: myProfesorNombre ? { profesor: myProfesorNombre } : undefined,
-        };
+        id: crypto.randomUUID(), incidencia_id: selected.id,
+        estado: cambioEstado, nota: cambioNota.trim() || null,
+        profesor_id: efectivoProfesorId, created_at: new Date().toISOString(),
+        profesor: myProfesorNombre ? { profesor: myProfesorNombre } : undefined,
+      };
 
     const updater = (i: Incidencia): Incidencia =>
       i.id === selected.id
@@ -582,11 +582,10 @@ export function TabIncidencias({ libros, alumnos, cursoEscolar, myProfesorId, ca
               <button
                 key={key}
                 onClick={() => setFiltro(key)}
-                className={`flex-shrink-0 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-                  filtro === key
+                className={`flex-shrink-0 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${filtro === key
                     ? "border-gray-900 text-gray-900"
                     : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                }`}
+                  }`}
               >
                 {label}{count > 0 ? ` (${count})` : ""}
               </button>
@@ -628,8 +627,8 @@ export function TabIncidencias({ libros, alumnos, cursoEscolar, myProfesorId, ca
             {busqueda.trim()
               ? `Sin resultados para "${busqueda.trim()}"`
               : filtro === "todas"
-              ? "No hay incidencias registradas en este curso"
-              : `No hay incidencias ${FILTROS.find((f) => f.key === filtro)?.label.toLowerCase() ?? ""}`}
+                ? "No hay incidencias registradas en este curso"
+                : `No hay incidencias ${FILTROS.find((f) => f.key === filtro)?.label.toLowerCase() ?? ""}`}
           </p>
         </div>
       ) : (
@@ -865,11 +864,10 @@ export function TabIncidencias({ libros, alumnos, cursoEscolar, myProfesorId, ca
                       <button
                         key={e}
                         onClick={() => setCambioEstadoLibro(e)}
-                        className={`flex-1 text-sm font-medium px-3 py-2 rounded-lg border transition-colors ${
-                          cambioEstadoLibro === e
+                        className={`flex-1 text-sm font-medium px-3 py-2 rounded-lg border transition-colors ${cambioEstadoLibro === e
                             ? ESTADO_LIBRO_CONFIG[e].active
                             : `border-gray-200 text-gray-500 bg-white ${ESTADO_LIBRO_CONFIG[e].hover}`
-                        }`}
+                          }`}
                       >
                         {ESTADO_LIBRO_CONFIG[e].label}
                       </button>
@@ -888,7 +886,7 @@ export function TabIncidencias({ libros, alumnos, cursoEscolar, myProfesorId, ca
               {/* Cambiar estado (canManage + no archivada) */}
               {canManage && selected.estado !== "archivada" && (
                 <div className="border border-gray-200 rounded-xl p-4 space-y-3">
-                  <p className="text-xs font-medium text-gray-400 uppercase tracking-wider">Cambiar estado</p>
+                  <p className="text-xs font-medium text-gray-400 uppercase tracking-wider">Cambiar estado de la incidencia</p>
                   <div className="relative">
                     <select
                       value={cambioEstado}
@@ -923,14 +921,14 @@ export function TabIncidencias({ libros, alumnos, cursoEscolar, myProfesorId, ca
                   </button>
                   {(cambioEstado === "resuelta" || selected.estado === "resuelta") &&
                     (selected.tipo === "deterioro" || selected.tipo === "perdida") && (
-                    <button
-                      onClick={handleCartaPago}
-                      className="w-full flex items-center justify-center gap-1.5 border border-gray-300 text-gray-700 hover:bg-gray-50 text-sm font-medium py-2.5 rounded-lg transition-colors"
-                    >
-                      <Printer size={14} />
-                      Carta de pago
-                    </button>
-                  )}
+                      <button
+                        onClick={handleCartaPago}
+                        className="w-full flex items-center justify-center gap-1.5 border border-gray-300 text-gray-700 hover:bg-gray-50 text-sm font-medium py-2.5 rounded-lg transition-colors"
+                      >
+                        <Printer size={14} />
+                        Carta de pago
+                      </button>
+                    )}
                 </div>
               )}
             </div>
