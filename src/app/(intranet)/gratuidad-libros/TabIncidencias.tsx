@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import type {
   LibroCatalogo, Alumno,
-  TipoIncidencia, EstadoIncidencia, Incidencia, IncidenciaHistorial,
+  TipoIncidencia, EstadoIncidencia, EstadoDevolucion, Incidencia, IncidenciaHistorial,
 } from "@/lib/types";
 
 // ─── Config ───────────────────────────────────────────────────────────────────
@@ -28,6 +28,12 @@ const ESTADO_CONFIG: Record<EstadoIncidencia, { label: string; rowClass: string;
 };
 
 type FiltroEstado = EstadoIncidencia | "todas";
+
+const ESTADO_LIBRO_CONFIG: Record<EstadoDevolucion, { label: string; active: string; hover: string }> = {
+  bueno:       { label: "Reutilizable",    active: "bg-green-100 text-green-700 border-green-300",  hover: "hover:bg-green-50 hover:border-green-200" },
+  deteriorado: { label: "No reutilizable", active: "bg-amber-100 text-amber-700 border-amber-300",  hover: "hover:bg-amber-50 hover:border-amber-200" },
+  perdido:     { label: "Perdido",         active: "bg-red-100 text-red-700 border-red-300",         hover: "hover:bg-red-50 hover:border-red-200" },
+};
 
 const FILTROS: { key: FiltroEstado; label: string }[] = [
   { key: "abierta",    label: "Abiertas" },
@@ -87,6 +93,10 @@ export function TabIncidencias({ libros, alumnos, cursoEscolar, myProfesorId, ca
   const [savingCambio, setSavingCambio] = useState(false);
   const [cambioError, setCambioError] = useState<string | null>(null);
 
+  // ── State: cambio de estado del libro ────────────────────────────────────
+  const [cambioEstadoLibro, setCambioEstadoLibro] = useState<EstadoDevolucion | null>(null);
+  const [savingEstadoLibro, setSavingEstadoLibro] = useState(false);
+
   // ── State: búsqueda ──────────────────────────────────────────────────────
   const [busqueda, setBusqueda] = useState("");
 
@@ -119,7 +129,7 @@ export function TabIncidencias({ libros, alumnos, cursoEscolar, myProfesorId, ca
       .select(`
         *,
         libro:libros_catalogo(titulo, isbn, editorial),
-        prestamo:prestamos_libros(fecha_devolucion),
+        prestamo:prestamos_libros(fecha_devolucion, estado_devolucion, estado_revision, en_revision),
         historial:gratuidad_incidencias_historial(
           id, estado, nota, created_at,
           profesor:profesores(profesor)
@@ -185,6 +195,10 @@ export function TabIncidencias({ libros, alumnos, cursoEscolar, myProfesorId, ca
     setCambioEstado(next[inc.estado]);
     setCambioNota("");
     setCambioError(null);
+    const estadoLibroActual = (inc.origen === "devolucion"
+      ? inc.prestamo?.estado_devolucion
+      : inc.prestamo?.estado_revision) ?? null;
+    setCambioEstadoLibro(estadoLibroActual as EstadoDevolucion | null);
   }
 
   async function handleCambioEstado() {
@@ -344,6 +358,32 @@ export function TabIncidencias({ libros, alumnos, cursoEscolar, myProfesorId, ca
     setBulkTarget(null);
     setBulkNota("");
     setSavingBulk(false);
+  }
+
+  // ── Handler: cambio de estado del libro ─────────────────────────────────────
+  async function handleGuardarEstadoLibro() {
+    if (!selected?.prestamo_id || !cambioEstadoLibro) return;
+    setSavingEstadoLibro(true);
+    const field = selected.origen === "devolucion" ? "estado_devolucion" : "estado_revision";
+    const { error } = await supabase
+      .from("prestamos_libros")
+      .update({ [field]: cambioEstadoLibro })
+      .eq("id", selected.prestamo_id);
+    setSavingEstadoLibro(false);
+    if (!error) {
+      setIncidencias((prev) =>
+        prev.map((i) =>
+          i.id === selected.id && i.prestamo
+            ? { ...i, prestamo: { ...i.prestamo, [field]: cambioEstadoLibro } }
+            : i
+        )
+      );
+      setSelected((prev) =>
+        prev && prev.prestamo
+          ? { ...prev, prestamo: { ...prev.prestamo, [field]: cambioEstadoLibro } }
+          : prev
+      );
+    }
   }
 
   // ── Print: carta de pago ────────────────────────────────────────────────────
@@ -815,6 +855,35 @@ export function TabIncidencias({ libros, alumnos, cursoEscolar, myProfesorId, ca
                   </div>
                 )}
               </div>
+
+              {/* Estado del libro (solo si hay préstamo vinculado) */}
+              {canManage && selected.prestamo_id && (
+                <div className="border border-gray-200 rounded-xl p-4 space-y-3">
+                  <p className="text-xs font-medium text-gray-400 uppercase tracking-wider">Estado del libro</p>
+                  <div className="flex gap-2 flex-wrap">
+                    {(Object.keys(ESTADO_LIBRO_CONFIG) as EstadoDevolucion[]).map((e) => (
+                      <button
+                        key={e}
+                        onClick={() => setCambioEstadoLibro(e)}
+                        className={`flex-1 text-sm font-medium px-3 py-2 rounded-lg border transition-colors ${
+                          cambioEstadoLibro === e
+                            ? ESTADO_LIBRO_CONFIG[e].active
+                            : `border-gray-200 text-gray-500 bg-white ${ESTADO_LIBRO_CONFIG[e].hover}`
+                        }`}
+                      >
+                        {ESTADO_LIBRO_CONFIG[e].label}
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    onClick={handleGuardarEstadoLibro}
+                    disabled={savingEstadoLibro || !cambioEstadoLibro}
+                    className="w-full bg-gray-700 hover:bg-gray-800 disabled:opacity-40 text-white text-sm font-medium py-2.5 rounded-lg transition-colors"
+                  >
+                    {savingEstadoLibro ? "Guardando..." : "Guardar estado del libro"}
+                  </button>
+                </div>
+              )}
 
               {/* Cambiar estado (canManage + no archivada) */}
               {canManage && selected.estado !== "archivada" && (

@@ -379,7 +379,7 @@ export interface Incidencia {
   created_at: string;
   updated_at: string;
   libro?: { titulo: string; isbn: string | null; editorial: string | null };
-  prestamo?: { fecha_devolucion: string | null } | null;
+  prestamo?: { fecha_devolucion: string | null; estado_devolucion: string | null; estado_revision: string | null; en_revision: boolean } | null;
   historial?: IncidenciaHistorial[];
 }
 
