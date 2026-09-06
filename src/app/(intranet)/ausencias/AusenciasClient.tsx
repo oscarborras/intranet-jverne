@@ -4,7 +4,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import {
   UserX, Plus, X, ChevronDown, ChevronUp,
   Calendar, Clock, BookOpen, MapPin, AlertCircle,
-  Loader2, ShieldCheck, Users, CheckCircle2, Paperclip, Download,
+  Loader2, ShieldCheck, Users, CheckCircle2, Paperclip, Download, Edit2,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -378,6 +378,8 @@ export function AusenciasClient({
   const [cancellingId, setCancellingId] = useState<number | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [guardiaRefreshKey, setGuardiaRefreshKey] = useState(0);
+  const [editing, setEditing] = useState<AusenciaProfesorado | null>(null);
+  const [removeAdjunto, setRemoveAdjunto] = useState(false);
 
   const today = localDateISO();
 
@@ -386,14 +388,33 @@ export function AusenciasClient({
     setAdjunto(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
     setFormError(null);
+    setEditing(null);
+    setRemoveAdjunto(false);
   }
 
-  async function handleCreate() {
+  function openEdit(a: AusenciaProfesorado) {
+    setEditing(a);
+    setForm({
+      fecha: a.fecha,
+      tramo_id: String(a.tramo_id),
+      curso_id: a.curso_id ? String(a.curso_id) : "",
+      profesor_id: a.profesor_id,
+      aula: a.aula ?? "",
+      tareas: a.tareas ?? "",
+      observaciones: a.observaciones ?? "",
+    });
+    setAdjunto(null);
+    setRemoveAdjunto(false);
+    setFormError(null);
+    setShowForm(true);
+  }
+
+  async function handleSave() {
     if (!form.fecha || !form.tramo_id || !form.curso_id) {
       setFormError("Fecha, tramo y curso / grupo son obligatorios.");
       return;
     }
-    if (canManageAll && !form.profesor_id) {
+    if (!editing && canManageAll && !form.profesor_id) {
       setFormError("Selecciona el profesor/a al que corresponde la ausencia.");
       return;
     }
@@ -402,8 +423,8 @@ export function AusenciasClient({
 
     const targetProfesorId = canManageAll && form.profesor_id ? form.profesor_id : (myProfesorId ?? userId);
 
-    let adjunto_path: string | null = null;
-    let adjunto_nombre: string | null = null;
+    let adjunto_path: string | null = editing ? (removeAdjunto ? null : editing.adjunto_path) : null;
+    let adjunto_nombre: string | null = editing ? (removeAdjunto ? null : editing.adjunto_nombre) : null;
 
     if (adjunto) {
       const supabase = createClient();
@@ -419,6 +440,55 @@ export function AusenciasClient({
       }
       adjunto_path = storagePath;
       adjunto_nombre = adjunto.name;
+    }
+
+    if (editing) {
+      const res = await fetch("/api/ausencias/modificar", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: editing.id,
+          fecha: form.fecha,
+          tramo_id: Number(form.tramo_id),
+          curso_id: Number(form.curso_id),
+          aula: form.aula || null,
+          tareas: form.tareas || null,
+          observaciones: form.observaciones || null,
+          adjunto_path,
+          adjunto_nombre,
+        }),
+      });
+
+      const json = await res.json() as { success?: boolean; error?: string };
+
+      if (!res.ok || !json.success) {
+        setFormError(json.error ?? "Error al modificar la ausencia.");
+        setSaving(false);
+        return;
+      }
+
+      const tramo = tramos.find((t) => t.id === Number(form.tramo_id));
+      const curso = cursos.find((c) => c.id === Number(form.curso_id)) ?? null;
+      const editingId = editing.id;
+      setMisAusencias((prev) => prev.map((a) => a.id === editingId ? {
+        ...a,
+        fecha: form.fecha,
+        tramo_id: Number(form.tramo_id),
+        curso_id: Number(form.curso_id),
+        aula: form.aula || null,
+        tareas: form.tareas || null,
+        observaciones: form.observaciones || null,
+        adjunto_path,
+        adjunto_nombre,
+        tramos_horarios: tramo,
+        cursos: curso,
+        updated_at: new Date().toISOString(),
+      } : a));
+
+      resetForm();
+      setShowForm(false);
+      setSaving(false);
+      return;
     }
 
     const res = await fetch("/api/ausencias/crear", {
@@ -509,7 +579,7 @@ export function AusenciasClient({
           </div>
         </div>
         <button
-          onClick={() => { setShowForm(true); setActiveTab("mis"); }}
+          onClick={() => { resetForm(); setShowForm(true); setActiveTab("mis"); }}
           className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-sm font-semibold transition-colors"
         >
           <Plus size={15} /> Registrar ausencia
@@ -558,8 +628,10 @@ export function AusenciasClient({
             <div className="bg-white rounded-xl border border-amber-200 shadow-sm overflow-hidden">
               <div className="bg-amber-500 px-5 py-4 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Plus size={16} className="text-white" />
-                  <h2 className="text-white font-semibold text-sm">Registrar nueva ausencia</h2>
+                  {editing ? <Edit2 size={16} className="text-white" /> : <Plus size={16} className="text-white" />}
+                  <h2 className="text-white font-semibold text-sm">
+                    {editing ? "Modificar ausencia" : "Registrar nueva ausencia"}
+                  </h2>
                 </div>
                 <button onClick={() => { setShowForm(false); resetForm(); }}>
                   <X size={18} className="text-white/80 hover:text-white" />
@@ -573,8 +645,8 @@ export function AusenciasClient({
                   </div>
                 )}
 
-                {/* Profesor selector — only for Directiva/Admin */}
-                {canManageAll && (
+                {/* Profesor selector — only for Directiva/Admin, and only when creating */}
+                {canManageAll && !editing && (
                   <div>
                     <label className="block text-xs font-semibold text-gray-600 mb-1">
                       Profesor/a <span className="text-red-500">*</span>
@@ -686,28 +758,45 @@ export function AusenciasClient({
                   <label className="block text-xs font-semibold text-gray-600 mb-1">
                     Fichero con las tareas <span className="text-gray-400 font-normal">(opcional, máx. 10 MB)</span>
                   </label>
-                  <div className="flex items-center gap-3">
-                    <label className="flex items-center gap-2 cursor-pointer px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors">
-                      <Paperclip size={14} className="text-gray-400" />
-                      {adjunto ? adjunto.name : "Seleccionar fichero"}
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        className="hidden"
-                        accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.jpg,.jpeg,.png"
-                        onChange={(e) => setAdjunto(e.target.files?.[0] ?? null)}
-                      />
-                    </label>
-                    {adjunto && (
+                  {editing && editing.adjunto_path && editing.adjunto_nombre && !removeAdjunto && !adjunto ? (
+                    <div className="flex items-center gap-3">
+                      <span className="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 bg-gray-50">
+                        <Paperclip size={14} className="text-gray-400" />
+                        {editing.adjunto_nombre}
+                      </span>
                       <button
                         type="button"
-                        onClick={() => { setAdjunto(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
+                        onClick={() => setRemoveAdjunto(true)}
                         className="text-gray-400 hover:text-red-500 transition-colors"
+                        title="Eliminar adjunto"
                       >
                         <X size={14} />
                       </button>
-                    )}
-                  </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-3">
+                      <label className="flex items-center gap-2 cursor-pointer px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors">
+                        <Paperclip size={14} className="text-gray-400" />
+                        {adjunto ? adjunto.name : "Seleccionar fichero"}
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          className="hidden"
+                          accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.jpg,.jpeg,.png"
+                          onChange={(e) => { setAdjunto(e.target.files?.[0] ?? null); setRemoveAdjunto(false); }}
+                        />
+                      </label>
+                      {adjunto && (
+                        <button
+                          type="button"
+                          onClick={() => { setAdjunto(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
+                          className="text-gray-400 hover:text-red-500 transition-colors"
+                        >
+                          <X size={14} />
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex justify-end gap-2 pt-1">
@@ -718,12 +807,12 @@ export function AusenciasClient({
                     Cancelar
                   </button>
                   <button
-                    onClick={handleCreate}
+                    onClick={handleSave}
                     disabled={saving}
                     className="flex items-center gap-2 px-5 py-2 text-sm bg-amber-500 hover:bg-amber-600 disabled:bg-amber-300 text-white rounded-lg font-semibold transition-colors"
                   >
                     {saving && <Loader2 size={14} className="animate-spin" />}
-                    Registrar ausencia
+                    {editing ? "Guardar cambios" : "Registrar ausencia"}
                   </button>
                 </div>
               </div>
@@ -776,17 +865,26 @@ export function AusenciasClient({
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0">
                         {a.estado === "activa" && (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); handleCancel(a.id); }}
-                            disabled={cancellingId === a.id}
-                            className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                            title="Cancelar ausencia"
-                          >
-                            {cancellingId === a.id
-                              ? <Loader2 size={14} className="animate-spin" />
-                              : <X size={14} />
-                            }
-                          </button>
+                          <>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); openEdit(a); }}
+                              className="p-1.5 text-gray-300 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
+                              title="Modificar ausencia"
+                            >
+                              <Edit2 size={14} />
+                            </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleCancel(a.id); }}
+                              disabled={cancellingId === a.id}
+                              className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                              title="Cancelar ausencia"
+                            >
+                              {cancellingId === a.id
+                                ? <Loader2 size={14} className="animate-spin" />
+                                : <X size={14} />
+                              }
+                            </button>
+                          </>
                         )}
                         {isExpanded
                           ? <ChevronUp size={15} className="text-gray-400" />
