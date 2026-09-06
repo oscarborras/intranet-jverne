@@ -553,120 +553,125 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      {/* Ausencias */}
-      {showAusencias && (
-        <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-          <div className="bg-amber-500 px-5 py-3 flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <UserX size={16} className="text-white" />
-              <h3 className="text-white font-semibold text-sm">Mis Ausencias Próximas</h3>
-            </div>
-            {canSeeGuardiaView && ausenciasHoyCount > 0 && (
-              <span className="bg-white/25 text-white text-xs font-bold px-2.5 py-0.5 rounded-full">
-                {ausenciasHoyCount} {ausenciasHoyCount === 1 ? "ausencia hoy" : "ausencias hoy"}
-              </span>
-            )}
-          </div>
-          <div className="divide-y divide-gray-50">
-            {misAusenciasProximas.length === 0 ? (
-              <p className="text-center text-gray-400 text-sm py-8">No tienes ausencias próximas registradas</p>
-            ) : (
-              misAusenciasProximas.map((a) => {
-                const [y, m, d] = a.fecha.split("-").map(Number);
-                const fechaLabel = new Date(y, m - 1, d).toLocaleDateString("es-ES", {
-                  weekday: "short", day: "numeric", month: "short",
-                });
-                return (
-                  <div key={a.id} className="px-5 py-3 flex items-center gap-3">
-                    <div className="flex-shrink-0 bg-amber-50 text-amber-700 rounded-lg px-2.5 py-1.5 text-xs font-medium capitalize min-w-[84px] text-center">
-                      {fechaLabel}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">
-                        {a.tramos_horarios?.nombre ?? `Tramo ${a.tramos_horarios}`}
-                      </p>
-                      {a.cursos?.nombre && (
-                        <p className="text-xs text-gray-500 truncate">{a.cursos.nombre}</p>
-                      )}
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-          <div className="px-5 py-3 border-t border-gray-100 flex items-center justify-between">
-            <Link href="/ausencias" className="text-sm text-amber-600 hover:underline cursor-pointer">
-              Ver todas →
-            </Link>
-            {canSeeGuardiaView && (
-              <Link href="/ausencias" className="text-sm text-amber-600 hover:underline cursor-pointer">
-                Vista guardia →
-              </Link>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* TIC petitions */}
-      {showTIC && (
-        <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-          <div className="bg-yellow-500 px-5 py-3 flex items-center gap-2">
-            <Monitor size={16} className="text-white" />
-            <h3 className="text-white font-semibold text-sm">Mis Peticiones TIC Abiertas</h3>
-          </div>
-          <div className="divide-y divide-gray-50">
-            {peticionesTIC.length === 0 ? (
-              <p className="text-center text-gray-400 text-sm py-8">No tienes peticiones TIC abiertas</p>
-            ) : (
-              peticionesTIC.map((p) => (
-                <div key={p.id} className="px-5 py-3 flex items-center gap-3">
-                  <span className="text-xs font-mono text-gray-400 flex-shrink-0 bg-gray-100 px-1.5 py-0.5 rounded">
-                    {p.codigo}
-                  </span>
-                  <p className="text-sm text-gray-800 flex-1 truncate">{p.titulo}</p>
-                  <span className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 font-medium ${ticStatusClass[p.estado]}`}>
-                    {ticStatusLabel[p.estado] ?? p.estado}
-                  </span>
+      {/* Ausencias + TIC petitions — side by side on desktop */}
+      {(showAusencias || showTIC) && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {showAusencias && (
+            <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+              <div className="bg-amber-500 px-5 py-3 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <UserX size={16} className="text-white" />
+                  <h3 className="text-white font-semibold text-sm">Mis Ausencias Próximas</h3>
                 </div>
-              ))
-            )}
-          </div>
-          <div className="px-5 py-3 border-t border-gray-100">
-            <Link href="/peticiones-tic" className="text-sm text-yellow-600 hover:underline cursor-pointer">
-              Ver todas →
-            </Link>
-          </div>
+                {canSeeGuardiaView && ausenciasHoyCount > 0 && (
+                  <span className="bg-white/25 text-white text-xs font-bold px-2.5 py-0.5 rounded-full">
+                    {ausenciasHoyCount} {ausenciasHoyCount === 1 ? "ausencia hoy" : "ausencias hoy"}
+                  </span>
+                )}
+              </div>
+              <div className="divide-y divide-gray-50">
+                {misAusenciasProximas.length === 0 ? (
+                  <p className="text-center text-gray-400 text-sm py-8">No tienes ausencias próximas registradas</p>
+                ) : (
+                  misAusenciasProximas.map((a) => {
+                    const [y, m, d] = a.fecha.split("-").map(Number);
+                    const fechaLabel = new Date(y, m - 1, d).toLocaleDateString("es-ES", {
+                      weekday: "short", day: "numeric", month: "short",
+                    });
+                    return (
+                      <div key={a.id} className="px-5 py-3 flex items-center gap-3">
+                        <div className="flex-shrink-0 bg-amber-50 text-amber-700 rounded-lg px-2.5 py-1.5 text-xs font-medium capitalize min-w-[84px] text-center">
+                          {fechaLabel}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate">
+                            {a.tramos_horarios?.nombre ?? `Tramo ${a.tramos_horarios}`}
+                          </p>
+                          {a.cursos?.nombre && (
+                            <p className="text-xs text-gray-500 truncate">{a.cursos.nombre}</p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+              <div className="px-5 py-3 border-t border-gray-100 flex items-center justify-between">
+                <Link href="/ausencias" className="text-sm text-amber-600 hover:underline cursor-pointer">
+                  Ver todas →
+                </Link>
+                {canSeeGuardiaView && (
+                  <Link href="/ausencias" className="text-sm text-amber-600 hover:underline cursor-pointer">
+                    Vista guardia →
+                  </Link>
+                )}
+              </div>
+            </div>
+          )}
+
+          {showTIC && (
+            <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+              <div className="bg-yellow-500 px-5 py-3 flex items-center gap-2">
+                <Monitor size={16} className="text-white" />
+                <h3 className="text-white font-semibold text-sm">Mis Peticiones TIC Abiertas</h3>
+              </div>
+              <div className="divide-y divide-gray-50">
+                {peticionesTIC.length === 0 ? (
+                  <p className="text-center text-gray-400 text-sm py-8">No tienes peticiones TIC abiertas</p>
+                ) : (
+                  peticionesTIC.map((p) => (
+                    <div key={p.id} className="px-5 py-3 flex items-center gap-3">
+                      <span className="text-xs font-mono text-gray-400 flex-shrink-0 bg-gray-100 px-1.5 py-0.5 rounded">
+                        {p.codigo}
+                      </span>
+                      <p className="text-sm text-gray-800 flex-1 truncate">{p.titulo}</p>
+                      <span className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 font-medium ${ticStatusClass[p.estado]}`}>
+                        {ticStatusLabel[p.estado] ?? p.estado}
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
+              <div className="px-5 py-3 border-t border-gray-100">
+                <Link href="/peticiones-tic" className="text-sm text-yellow-600 hover:underline cursor-pointer">
+                  Ver todas →
+                </Link>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
       {/* Maintenance petitions */}
       {showMantenimiento && (
-        <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-          <div className="bg-red-500 px-5 py-3 flex items-center gap-2">
-            <Wrench size={16} className="text-white" />
-            <h3 className="text-white font-semibold text-sm">Mis Peticiones de Mantenimiento Abiertas</h3>
-          </div>
-          <div className="divide-y divide-gray-50">
-            {peticionesMantenimiento.length === 0 ? (
-              <p className="text-center text-gray-400 text-sm py-8">No tienes peticiones de mantenimiento abiertas</p>
-            ) : (
-              peticionesMantenimiento.map((p) => (
-                <div key={p.id} className="px-5 py-3 flex items-center gap-3">
-                  <span className="text-xs font-mono text-gray-400 flex-shrink-0 bg-gray-100 px-1.5 py-0.5 rounded">
-                    {p.codigo}
-                  </span>
-                  <p className="text-sm text-gray-800 flex-1 truncate">{p.titulo}</p>
-                  <span className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 font-medium ${mntStatusClass[p.estado] ?? "bg-gray-100 text-gray-600"}`}>
-                    {mntStatusLabel[p.estado] ?? p.estado}
-                  </span>
-                </div>
-              ))
-            )}
-          </div>
-          <div className="px-5 py-3 border-t border-gray-100">
-            <Link href="/peticiones-mantenimiento" className="text-sm text-red-600 hover:underline cursor-pointer">
-              Ver todas →
-            </Link>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+            <div className="bg-red-500 px-5 py-3 flex items-center gap-2">
+              <Wrench size={16} className="text-white" />
+              <h3 className="text-white font-semibold text-sm">Mis Peticiones de Mantenimiento Abiertas</h3>
+            </div>
+            <div className="divide-y divide-gray-50">
+              {peticionesMantenimiento.length === 0 ? (
+                <p className="text-center text-gray-400 text-sm py-8">No tienes peticiones de mantenimiento abiertas</p>
+              ) : (
+                peticionesMantenimiento.map((p) => (
+                  <div key={p.id} className="px-5 py-3 flex items-center gap-3">
+                    <span className="text-xs font-mono text-gray-400 flex-shrink-0 bg-gray-100 px-1.5 py-0.5 rounded">
+                      {p.codigo}
+                    </span>
+                    <p className="text-sm text-gray-800 flex-1 truncate">{p.titulo}</p>
+                    <span className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 font-medium ${mntStatusClass[p.estado] ?? "bg-gray-100 text-gray-600"}`}>
+                      {mntStatusLabel[p.estado] ?? p.estado}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="px-5 py-3 border-t border-gray-100">
+              <Link href="/peticiones-mantenimiento" className="text-sm text-red-600 hover:underline cursor-pointer">
+                Ver todas →
+              </Link>
+            </div>
           </div>
         </div>
       )}
