@@ -280,6 +280,19 @@ export interface Curso {
   email_tutor: string | null;
 }
 
+// ─── Teaching staff ──────────────────────────────────────────────────────────
+
+export interface Profesor {
+  id: string;
+  profesor: string;          // "Apellido1 Apellido2, Nombre"
+  puesto: string;
+  dni: string | null;
+  email: string | null;
+  fecha_alta: string | null;
+  fecha_cese: string | null;
+  created_at: string;
+}
+
 // ─── Absences ────────────────────────────────────────────────────────────────
 
 export type AusenciaEstado = "activa" | "cancelada";

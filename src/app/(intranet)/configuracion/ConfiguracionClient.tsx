@@ -37,6 +37,9 @@ const SELECT_OPTIONS: Record<string, { value: string; label: string; description
   ],
 };
 
+// Claves written by the app itself, never edited by hand
+const HIDDEN_CLAVES = new Set(["ultima_importacion_profesores"]);
+
 // Claves grouped under the "Gratuidad Libros" tab
 const GRATUIDAD_CLAVES = new Set(["modo_gratuidad_libros", "curso_escolar_activo"]);
 
@@ -110,7 +113,9 @@ export function ConfiguracionClient({ config }: Props) {
     ["max_profes_asuntos_propios", "fecha_inicio_asuntos_propios", "fecha_fin_asuntos_propios"].includes(r.clave)
   );
   const gratuidadRows = config.filter((r) => GRATUIDAD_CLAVES.has(r.clave));
-  const otherRows = config.filter((r) => !asuntosRows.includes(r) && !gratuidadRows.includes(r));
+  const otherRows = config.filter(
+    (r) => !asuntosRows.includes(r) && !gratuidadRows.includes(r) && !HIDDEN_CLAVES.has(r.clave)
+  );
 
   function renderField(row: ConfigIntranet) {
     const label = LABELS[row.clave] ?? row.clave;

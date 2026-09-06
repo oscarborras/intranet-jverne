@@ -24,6 +24,7 @@ import {
   CalendarClock,
   UserX,
   BookMarked,
+  Upload,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -89,6 +90,7 @@ const navGroups: NavGroup[] = [
       { label: "Gestión de Usuarios", href: "/admin/usuarios", icon: <Users size={18} />, roles: ["Admin"] },
       { label: "Departamentos", href: "/admin/departamentos", icon: <Building size={18} />, roles: ["Admin"] },
       { label: "Módulos", href: "/admin/modulos", icon: <Building size={18} />, roles: ["Admin"] },
+      { label: "Importar Datos", href: "/admin/importar", icon: <Upload size={18} />, roles: ["Admin"] },
       { label: "Configuración", href: "/configuracion", icon: <Settings size={18} />, roles: ["Admin", "Directiva"] },
     ],
   },
