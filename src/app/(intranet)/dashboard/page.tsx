@@ -410,11 +410,16 @@ export default async function DashboardPage() {
         </div>
       </section>
 
-      {/* Widgets row: anuncios + reservas */}
-      {(showAnuncios || showReservas) && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {showAnuncios && (
-            <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+      {/*
+        Widgets: a single grid holding every visible module in priority order,
+        so a disabled module never leaves a gap — the next one just fills its place.
+      */}
+      {(() => {
+        const widgets: React.ReactNode[] = [];
+
+        if (showAnuncios) {
+          widgets.push(
+            <div key="anuncios" className="bg-white rounded-xl border border-gray-100 overflow-hidden">
               <div className="bg-blue-600 px-5 py-3 flex items-center gap-2">
                 <Megaphone size={16} className="text-white" />
                 <h3 className="text-white font-semibold text-sm">Últimos Anuncios</h3>
@@ -439,17 +444,16 @@ export default async function DashboardPage() {
                 </Link>
               </div>
             </div>
-          )}
+          );
+        }
 
-          {showReservas && <ProximasReservas reservas={proximasReservas} />}
-        </div>
-      )}
+        if (showReservas) {
+          widgets.push(<ProximasReservas key="reservas" reservas={proximasReservas} />);
+        }
 
-      {/* Citas con Familias + Actividades Extraescolares — side by side on desktop */}
-      {(showCitasFamilias || showCalendario) && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {showCitasFamilias && (
-            <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+        if (showCitasFamilias) {
+          widgets.push(
+            <div key="citas" className="bg-white rounded-xl border border-gray-100 overflow-hidden">
               <div className="bg-red-600 px-5 py-3 flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <CalendarClock size={16} className="text-white" />
@@ -501,10 +505,12 @@ export default async function DashboardPage() {
                 </Link>
               </div>
             </div>
-          )}
+          );
+        }
 
-          {showCalendario && (
-            <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+        if (showCalendario) {
+          widgets.push(
+            <div key="extraescolares" className="bg-white rounded-xl border border-gray-100 overflow-hidden">
               <div className="bg-orange-500 px-5 py-3 flex items-center gap-2">
                 <GraduationCap size={16} className="text-white" />
                 <h3 className="text-white font-semibold text-sm">
@@ -549,15 +555,12 @@ export default async function DashboardPage() {
                 </Link>
               </div>
             </div>
-          )}
-        </div>
-      )}
+          );
+        }
 
-      {/* Ausencias + TIC petitions — side by side on desktop */}
-      {(showAusencias || showTIC) && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {showAusencias && (
-            <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+        if (showAusencias) {
+          widgets.push(
+            <div key="ausencias" className="bg-white rounded-xl border border-gray-100 overflow-hidden">
               <div className="bg-amber-500 px-5 py-3 flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <UserX size={16} className="text-white" />
@@ -607,10 +610,12 @@ export default async function DashboardPage() {
                 )}
               </div>
             </div>
-          )}
+          );
+        }
 
-          {showTIC && (
-            <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+        if (showTIC) {
+          widgets.push(
+            <div key="tic" className="bg-white rounded-xl border border-gray-100 overflow-hidden">
               <div className="bg-yellow-500 px-5 py-3 flex items-center gap-2">
                 <Monitor size={16} className="text-white" />
                 <h3 className="text-white font-semibold text-sm">Mis Peticiones TIC Abiertas</h3>
@@ -638,43 +643,45 @@ export default async function DashboardPage() {
                 </Link>
               </div>
             </div>
-          )}
-        </div>
-      )}
+          );
+        }
 
-      {/* Maintenance petitions */}
-      {showMantenimiento && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-            <div className="bg-red-500 px-5 py-3 flex items-center gap-2">
-              <Wrench size={16} className="text-white" />
-              <h3 className="text-white font-semibold text-sm">Mis Peticiones de Mantenimiento Abiertas</h3>
+        if (showMantenimiento) {
+          widgets.push(
+            <div key="mantenimiento" className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+              <div className="bg-red-500 px-5 py-3 flex items-center gap-2">
+                <Wrench size={16} className="text-white" />
+                <h3 className="text-white font-semibold text-sm">Mis Peticiones de Mantenimiento Abiertas</h3>
+              </div>
+              <div className="divide-y divide-gray-50">
+                {peticionesMantenimiento.length === 0 ? (
+                  <p className="text-center text-gray-400 text-sm py-8">No tienes peticiones de mantenimiento abiertas</p>
+                ) : (
+                  peticionesMantenimiento.map((p) => (
+                    <div key={p.id} className="px-5 py-3 flex items-center gap-3">
+                      <span className="text-xs font-mono text-gray-400 flex-shrink-0 bg-gray-100 px-1.5 py-0.5 rounded">
+                        {p.codigo}
+                      </span>
+                      <p className="text-sm text-gray-800 flex-1 truncate">{p.titulo}</p>
+                      <span className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 font-medium ${mntStatusClass[p.estado] ?? "bg-gray-100 text-gray-600"}`}>
+                        {mntStatusLabel[p.estado] ?? p.estado}
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
+              <div className="px-5 py-3 border-t border-gray-100">
+                <Link href="/peticiones-mantenimiento" className="text-sm text-red-600 hover:underline cursor-pointer">
+                  Ver todas →
+                </Link>
+              </div>
             </div>
-            <div className="divide-y divide-gray-50">
-              {peticionesMantenimiento.length === 0 ? (
-                <p className="text-center text-gray-400 text-sm py-8">No tienes peticiones de mantenimiento abiertas</p>
-              ) : (
-                peticionesMantenimiento.map((p) => (
-                  <div key={p.id} className="px-5 py-3 flex items-center gap-3">
-                    <span className="text-xs font-mono text-gray-400 flex-shrink-0 bg-gray-100 px-1.5 py-0.5 rounded">
-                      {p.codigo}
-                    </span>
-                    <p className="text-sm text-gray-800 flex-1 truncate">{p.titulo}</p>
-                    <span className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 font-medium ${mntStatusClass[p.estado] ?? "bg-gray-100 text-gray-600"}`}>
-                      {mntStatusLabel[p.estado] ?? p.estado}
-                    </span>
-                  </div>
-                ))
-              )}
-            </div>
-            <div className="px-5 py-3 border-t border-gray-100">
-              <Link href="/peticiones-mantenimiento" className="text-sm text-red-600 hover:underline cursor-pointer">
-                Ver todas →
-              </Link>
-            </div>
-          </div>
-        </div>
-      )}
+          );
+        }
+
+        if (widgets.length === 0) return null;
+        return <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">{widgets}</div>;
+      })()}
     </div>
   );
 }
