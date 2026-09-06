@@ -20,8 +20,15 @@ export default async function SeguimientoPage() {
   if (!canManage) redirect("/gratuidad-libros");
 
   const now = new Date();
-  const year = now.getMonth() >= 8 ? now.getFullYear() : now.getFullYear() - 1;
-  const cursoEscolarActual = `${year}-${year + 1}`;
+  const fallbackYear = now.getMonth() >= 8 ? now.getFullYear() : now.getFullYear() - 1;
+  const fallbackCurso = `${fallbackYear}-${fallbackYear + 1}`;
+
+  const { data: cursoConfigData } = await supabase
+    .from("config_intranet")
+    .select("valor")
+    .eq("clave", "curso_escolar_activo")
+    .single();
+  const cursoEscolarActual = (cursoConfigData as { valor?: string } | null)?.valor ?? fallbackCurso;
 
   // All loans for current year
   const { data: rawPrestamos } = await supabase

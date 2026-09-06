@@ -20,8 +20,17 @@ export default async function GratuidadLibrosPage() {
   const canManageInventario = roleNames.some((r) => ["Admin", "Directiva"].includes(r));
 
   const now = new Date();
-  const year = now.getMonth() >= 8 ? now.getFullYear() : now.getFullYear() - 1;
-  const cursoEscolarActual = `${year}-${year + 1}`;
+  const fallbackYear = now.getMonth() >= 8 ? now.getFullYear() : now.getFullYear() - 1;
+  const fallbackCurso = `${fallbackYear}-${fallbackYear + 1}`;
+
+  const { data: gratuidadConfigRows } = await supabase
+    .from("config_intranet")
+    .select("clave, valor")
+    .in("clave", ["modo_gratuidad_libros", "curso_escolar_activo"]);
+  const cursoEscolarActual =
+    gratuidadConfigRows?.find((r) => r.clave === "curso_escolar_activo")?.valor ?? fallbackCurso;
+  const modoGratuidad = (gratuidadConfigRows?.find((r) => r.clave === "modo_gratuidad_libros")?.valor ??
+    "completo") as "prestamo" | "devolucion" | "completo" | "revision" | "revision_devolucion";
 
   const [
     { data: myProfesor },
@@ -33,7 +42,6 @@ export default async function GratuidadLibrosPage() {
     { data: alumnosInactivosData },
     { data: cursosGratuidadData },
     { data: completadosData },
-    { data: modoGratuidadData },
   ] = await Promise.all([
     supabase.from("profesores").select("id, profesor").ilike("email", user.email!).single(),
 
@@ -99,19 +107,11 @@ export default async function GratuidadLibrosPage() {
       .from("gratuidad_lote_completado")
       .select("alumno_id")
       .eq("curso_escolar", cursoEscolarActual),
-
-    // Modo de funcionamiento del módulo de gratuidad
-    supabase
-      .from("config_intranet")
-      .select("valor")
-      .eq("clave", "modo_gratuidad_libros")
-      .single(),
   ]);
 
   const myProfesorId: string | null = myProfesor?.id ?? null;
   const unidadesGratuidad = (cursosGratuidadData ?? []).map((c) => c.nombre as string);
   const completadosIniciales = (completadosData ?? []).map((c) => c.alumno_id as string);
-  const modoGratuidad = ((modoGratuidadData as { valor?: string } | null)?.valor ?? "completo") as "prestamo" | "devolucion" | "completo";
 
   // Resolve professor names
   const allProfesorIds = [

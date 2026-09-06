@@ -17,6 +17,7 @@ const LABELS: Record<string, string> = {
   mostrar_grid_dashboard:        "Mostrar grid de módulos en el dashboard",
   mostrar_grid_dashboard_movil:  "Mostrar grid de módulos en móvil",
   modo_gratuidad_libros:         "Modo de funcionamiento",
+  curso_escolar_activo:          "Curso escolar activo",
 };
 
 // Claves that store dates as dd/MM/yyyy
@@ -37,7 +38,18 @@ const SELECT_OPTIONS: Record<string, { value: string; label: string; description
 };
 
 // Claves grouped under the "Gratuidad Libros" tab
-const GRATUIDAD_CLAVES = new Set(["modo_gratuidad_libros"]);
+const GRATUIDAD_CLAVES = new Set(["modo_gratuidad_libros", "curso_escolar_activo"]);
+
+// Genera los cursos escolares disponibles para el selector: 4 anteriores + el siguiente
+function cursosEscolaresOptions(): string[] {
+  const now = new Date();
+  const currentStartYear = now.getMonth() >= 8 ? now.getFullYear() : now.getFullYear() - 1;
+  const years: string[] = [];
+  for (let y = currentStartYear + 1; y >= currentStartYear - 4; y--) {
+    years.push(`${y}-${y + 1}`);
+  }
+  return years;
+}
 
 function ddmmyyyyToInput(val: string): string {
   const [d, m, y] = val.split("/");
@@ -107,6 +119,28 @@ export function ConfiguracionClient({ config }: Props) {
     const isNumber = row.clave === "max_profes_asuntos_propios";
     const boolVal = values[row.clave] === "true";
     const selectOpts = SELECT_OPTIONS[row.clave];
+
+    if (row.clave === "curso_escolar_activo") {
+      const opts = cursosEscolaresOptions();
+      return (
+        <div key={row.clave}>
+          <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+          <p className="text-xs text-gray-400 mb-1.5">{row.descripcion}</p>
+          <div className="relative w-full sm:w-56">
+            <select
+              value={values[row.clave] ?? opts[1]}
+              onChange={(e) => setValues((v) => ({ ...v, [row.clave]: e.target.value }))}
+              className="w-full appearance-none border border-gray-300 rounded-lg pl-3 pr-8 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+            >
+              {opts.map((y) => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+            <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+          </div>
+        </div>
+      );
+    }
 
     if (selectOpts) {
       const selected = selectOpts.find((o) => o.value === values[row.clave]) ?? selectOpts[0];
