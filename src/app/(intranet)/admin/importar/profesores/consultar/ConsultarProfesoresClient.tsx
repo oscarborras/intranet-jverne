@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Search, X, Upload } from "lucide-react";
+import { ArrowLeft, Search, X, Upload, MailX } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ProfesorDbRow } from "@/lib/import/profesores";
 
@@ -25,25 +25,27 @@ function formatFecha(iso: string | null): string {
 
 export function ConsultarProfesoresClient({ profesores }: Props) {
   const [filtro, setFiltro] = useState<Filtro>("activos");
+  const [soloSinEmail, setSoloSinEmail] = useState(false);
   const [busqueda, setBusqueda] = useState("");
 
   const hoy = localDateISO();
   const esActivo = (p: ProfesorDbRow) => p.fecha_cese === null || p.fecha_cese > hoy;
 
   const listado = useMemo(() => {
-    const q = busqueda.trim().toLowerCase();
+    const terminos = busqueda.trim().toLowerCase().split(/\s+/).filter(Boolean);
     return profesores
       .filter((p) => (filtro === "todos" ? true : filtro === "activos" ? esActivo(p) : !esActivo(p)))
-      .filter((p) =>
-        !q ||
-        p.profesor.toLowerCase().includes(q) ||
-        p.puesto.toLowerCase().includes(q) ||
-        (p.email ?? "").toLowerCase().includes(q)
-      );
+      .filter((p) => !soloSinEmail || !p.email)
+      .filter((p) => {
+        if (terminos.length === 0) return true;
+        const texto = `${p.profesor} ${p.puesto} ${p.email ?? ""}`.toLowerCase();
+        return terminos.every((t) => texto.includes(t));
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profesores, filtro, busqueda]);
+  }, [profesores, filtro, soloSinEmail, busqueda]);
 
   const activos = profesores.filter(esActivo).length;
+  const sinEmail = profesores.filter((p) => !p.email).length;
 
   return (
     <div className="max-w-5xl mx-auto space-y-4">
@@ -87,6 +89,25 @@ export function ConsultarProfesoresClient({ profesores }: Props) {
             </button>
           ))}
         </div>
+
+        <button
+          onClick={() => setSoloSinEmail((v) => !v)}
+          className={cn(
+            "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors",
+            soloSinEmail
+              ? "bg-amber-100 border-amber-200 text-amber-700"
+              : "bg-white border-gray-200 text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+          )}
+          title="Mostrar solo los profesores sin email"
+        >
+          <MailX size={14} /> Sin email
+          <span className={cn(
+            "text-[11px] font-semibold px-1.5 py-0.5 rounded-full",
+            soloSinEmail ? "bg-amber-200 text-amber-800" : "bg-gray-100 text-gray-500"
+          )}>
+            {sinEmail}
+          </span>
+        </button>
 
         <div className="relative flex-1 min-w-[200px]">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
