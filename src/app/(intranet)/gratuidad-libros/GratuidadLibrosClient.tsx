@@ -165,7 +165,7 @@ export function GratuidadLibrosClient({
       {isHistorico && (
         <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
           <History size={16} />
-          Viendo datos de {cursoSeleccionado} · Solo lectura
+          Viendo datos de {cursoSeleccionado} · Solo lectura, excepto Incidencias
         </div>
       )}
 
@@ -257,7 +257,7 @@ export function GratuidadLibrosClient({
           alumnos={alumnos}
           cursoEscolar={cursoSeleccionado}
           myProfesorId={myProfesorId}
-          canManage={effectiveCanManage}
+          canManage={canManage}
           profesores={profesores}
         />
       )}
