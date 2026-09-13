@@ -38,7 +38,7 @@ const SELECT_OPTIONS: Record<string, { value: string; label: string; description
 };
 
 // Claves written by the app itself, never edited by hand
-const HIDDEN_CLAVES = new Set(["ultima_importacion_profesores"]);
+const HIDDEN_CLAVES = new Set(["ultima_importacion_profesores", "ultima_importacion_alumnos"]);
 
 // Claves grouped under the "Gratuidad Libros" tab
 const GRATUIDAD_CLAVES = new Set(["modo_gratuidad_libros", "curso_escolar_activo"]);

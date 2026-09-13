@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Upload, Database, Briefcase } from "lucide-react";
+import { Upload, Database, Briefcase, Users } from "lucide-react";
 
 interface Entidad {
   slug: string;
@@ -12,7 +12,7 @@ interface Entidad {
   colorBoton: string;
 }
 
-// Añadir aquí futuras entidades importables (alumnos, tutores, …)
+// Añadir aquí futuras entidades importables (tutores, …)
 const ENTIDADES: Entidad[] = [
   {
     slug: "profesores",
@@ -22,6 +22,15 @@ const ENTIDADES: Entidad[] = [
     icono: <Briefcase size={20} className="text-amber-600" />,
     colorIcono: "bg-amber-100",
     colorBoton: "bg-amber-500 hover:bg-amber-600",
+  },
+  {
+    slug: "alumnos",
+    nombre: "Alumnos",
+    descripcion:
+      "Actualiza el listado completo de alumnos. El sistema procesará el archivo para crear o actualizar sus registros.",
+    icono: <Users size={20} className="text-blue-600" />,
+    colorIcono: "bg-blue-100",
+    colorBoton: "bg-blue-600 hover:bg-blue-700",
   },
 ];
 
