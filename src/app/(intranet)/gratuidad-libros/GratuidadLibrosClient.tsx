@@ -239,6 +239,7 @@ export function GratuidadLibrosClient({
           cursoEscolarActual={cursoSeleccionado}
           alumnos={alumnos}
           onNavigateToTab={isHistorico ? () => {} : navigateToTab}
+          isHistorico={isHistorico}
         />
       )}
       {activeTab === "informes" && canManage && (
@@ -249,6 +250,7 @@ export function GratuidadLibrosClient({
           alumnos={alumnos}
           unidadesGratuidad={unidadesGratuidad}
           cursoEscolar={cursoSeleccionado}
+          isHistorico={isHistorico}
         />
       )}
       {activeTab === "incidencias" && canManage && (

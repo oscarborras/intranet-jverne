@@ -13,6 +13,10 @@ interface Props {
   cursoEscolarActual: string;
   alumnos?: Alumno[];
   onNavigateToTab?: (tab: "prestamos" | "devoluciones", grupo: string) => void;
+  // true cuando se consulta un curso escolar distinto del activo: el alumnado ya
+  // cambió de grupo, así que la vista "Por cursos" (que compara contra la
+  // matrícula actual) no se puede calcular de forma fiable y se oculta.
+  isHistorico?: boolean;
 }
 
 type Vista = "cursos" | "grupos" | "libros";
@@ -134,8 +138,8 @@ function GrupoCard({ grupo, tutor, entregados, devueltos, total, onPrestamos, on
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 
-export function SeguimientoClient({ prestamos, cursoEscolarActual, alumnos = [], onNavigateToTab }: Props) {
-  const [vista, setVista] = useState<Vista>("cursos");
+export function SeguimientoClient({ prestamos, cursoEscolarActual, alumnos = [], onNavigateToTab, isHistorico = false }: Props) {
+  const [vista, setVista] = useState<Vista>(isHistorico ? "grupos" : "cursos");
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set());
   const [filtroNivel, setFiltroNivel] = useState<string>("todos");
   const [gruposFiltro, setGruposFiltro] = useState<"pendientes" | "devueltos">("pendientes");
@@ -209,6 +213,11 @@ export function SeguimientoClient({ prestamos, cursoEscolarActual, alumnos = [],
     fetchData();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cursoEscolarActual]);
+
+  useEffect(() => {
+    if (isHistorico && vista === "cursos") setVista("grupos");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isHistorico]);
 
   async function handleAnularDevolucion(prestamoId: string) {
     setUndoingId(prestamoId);
@@ -409,9 +418,10 @@ export function SeguimientoClient({ prestamos, cursoEscolarActual, alumnos = [],
         ))}
       </div>
 
-      {/* Selector de vista */}
+      {/* Selector de vista — "Por cursos" no aplica a cursos anteriores porque
+          compara contra la matrícula actual, que ya ha cambiado de grupo */}
       <div className="flex bg-gray-100 rounded-lg p-1 w-fit">
-        {(["cursos", "grupos", "libros"] as Vista[]).map((v) => (
+        {(isHistorico ? (["grupos", "libros"] as Vista[]) : (["cursos", "grupos", "libros"] as Vista[])).map((v) => (
           <button
             key={v}
             onClick={() => setVista(v)}
@@ -425,7 +435,7 @@ export function SeguimientoClient({ prestamos, cursoEscolarActual, alumnos = [],
       </div>
 
       {/* ── Vista por cursos ──────────────────────────────────────────────── */}
-      {vista === "cursos" && (
+      {!isHistorico && vista === "cursos" && (
         <div className="space-y-6">
           {/* Filtro de nivel */}
           <div className="flex flex-wrap gap-2">

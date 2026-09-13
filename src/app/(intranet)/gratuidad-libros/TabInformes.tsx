@@ -12,6 +12,11 @@ interface Props {
   alumnos: Alumno[];
   unidadesGratuidad: string[];
   cursoEscolar: string;
+  // true cuando se está consultando un curso escolar distinto del activo:
+  // el alumnado ya ha cambiado de grupo, así que las métricas que dependen
+  // de la matrícula actual (alumnado en programa, entrega por curso/grupo)
+  // no se pueden calcular de forma fiable y se ocultan.
+  isHistorico?: boolean;
 }
 
 const ESO_LEVELS = [
@@ -59,6 +64,7 @@ export function TabInformes({
   alumnos,
   unidadesGratuidad,
   cursoEscolar,
+  isHistorico = false,
 }: Props) {
   const supabase = createClient();
   const [liveTodosPrestamos, setLiveTodosPrestamos] = useState<PrestamoLibro[]>(todosPrestamos);
@@ -269,7 +275,7 @@ export function TabInformes({
       </div>
 
       {/* Aviso alumnos sin lote — al principio para que sea visible de inmediato */}
-      {kpis.sinLote > 0 && (
+      {!isHistorico && kpis.sinLote > 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center gap-3">
           <AlertTriangle size={18} className="text-amber-500 flex-shrink-0" />
           <p className="text-sm text-amber-800">
@@ -279,27 +285,32 @@ export function TabInformes({
         </div>
       )}
 
-      {/* KPI cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="bg-white border border-gray-200 rounded-xl p-4">
-          <div className="flex items-center gap-1.5 mb-2">
-            <Users size={14} className="text-blue-500" />
-            <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">Alumnado</span>
-          </div>
-          <p className="text-3xl font-bold text-gray-900">{kpis.totalAlumnos}</p>
-          <p className="text-xs text-gray-400 mt-1">en el programa</p>
-        </div>
+      {/* KPI cards — Alumnado y Lotes entregados dependen de la matrícula actual,
+          así que no se muestran para cursos anteriores (el alumnado ya cambió de grupo) */}
+      <div className={`grid gap-3 ${isHistorico ? "grid-cols-2" : "grid-cols-2 lg:grid-cols-4"}`}>
+        {!isHistorico && (
+          <>
+            <div className="bg-white border border-gray-200 rounded-xl p-4">
+              <div className="flex items-center gap-1.5 mb-2">
+                <Users size={14} className="text-blue-500" />
+                <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">Alumnado</span>
+              </div>
+              <p className="text-3xl font-bold text-gray-900">{kpis.totalAlumnos}</p>
+              <p className="text-xs text-gray-400 mt-1">en el programa</p>
+            </div>
 
-        <div className="bg-white border border-gray-200 rounded-xl p-4">
-          <div className="flex items-center gap-1.5 mb-2">
-            <BookOpen size={14} className="text-indigo-500" />
-            <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">Lotes entregados</span>
-          </div>
-          <p className="text-3xl font-bold text-gray-900">
-            {pct(kpis.conLote, kpis.totalAlumnos)}%
-          </p>
-          <p className="text-xs text-gray-400 mt-1">{kpis.conLote} de {kpis.totalAlumnos}</p>
-        </div>
+            <div className="bg-white border border-gray-200 rounded-xl p-4">
+              <div className="flex items-center gap-1.5 mb-2">
+                <BookOpen size={14} className="text-indigo-500" />
+                <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">Lotes entregados</span>
+              </div>
+              <p className="text-3xl font-bold text-gray-900">
+                {pct(kpis.conLote, kpis.totalAlumnos)}%
+              </p>
+              <p className="text-xs text-gray-400 mt-1">{kpis.conLote} de {kpis.totalAlumnos}</p>
+            </div>
+          </>
+        )}
 
         <div className="bg-white border border-gray-200 rounded-xl p-4">
           <div className="flex items-center gap-1.5 mb-2">
@@ -324,27 +335,30 @@ export function TabInformes({
         </div>
       </div>
 
-      {/* Fila: Entrega por curso | Tasa de devolución por curso */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-white border border-gray-200 rounded-xl p-5">
-          <h3 className="font-semibold text-gray-800 mb-4 text-sm">Entrega por curso</h3>
-          {entregaPorCurso.length === 0 ? (
-            <p className="text-sm text-gray-400">Sin datos</p>
-          ) : (
-            <div className="space-y-4">
-              {entregaPorCurso.map((row) => (
-                <BarRow
-                  key={row.label}
-                  label={row.label}
-                  value={`${row.pct}%`}
-                  barPct={row.pct}
-                  sub={`${row.conLote} de ${row.total} alumnos`}
-                  color="bg-blue-500"
-                />
-              ))}
-            </div>
-          )}
-        </div>
+      {/* Fila: Entrega por curso | Tasa de devolución por curso —
+          "Entrega por curso" depende de la matrícula actual, se oculta en histórico */}
+      <div className={`grid grid-cols-1 gap-4 ${isHistorico ? "" : "md:grid-cols-2"}`}>
+        {!isHistorico && (
+          <div className="bg-white border border-gray-200 rounded-xl p-5">
+            <h3 className="font-semibold text-gray-800 mb-4 text-sm">Entrega por curso</h3>
+            {entregaPorCurso.length === 0 ? (
+              <p className="text-sm text-gray-400">Sin datos</p>
+            ) : (
+              <div className="space-y-4">
+                {entregaPorCurso.map((row) => (
+                  <BarRow
+                    key={row.label}
+                    label={row.label}
+                    value={`${row.pct}%`}
+                    barPct={row.pct}
+                    sub={`${row.conLote} de ${row.total} alumnos`}
+                    color="bg-blue-500"
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="bg-white border border-gray-200 rounded-xl p-5">
           <h3 className="font-semibold text-gray-800 mb-4 text-sm">Devolución por curso</h3>
@@ -409,27 +423,30 @@ export function TabInformes({
         </div>
       </div>
 
-      {/* Grupos con entrega más baja — ancho completo */}
-      <div className="bg-white border border-gray-200 rounded-xl p-5">
-        <h3 className="font-semibold text-gray-800 mb-1 text-sm">Entrega por grupo</h3>
-        <p className="text-xs text-gray-400 mb-4">Ordenado de menor a mayor tasa de entrega</p>
-        {gruposPorEntrega.length === 0 ? (
-          <p className="text-sm text-gray-400">Sin datos</p>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3">
-            {gruposPorEntrega.map((row) => (
-              <BarRow
-                key={row.grupo}
-                label={row.grupo}
-                value={`${row.pct}%`}
-                barPct={row.pct}
-                sub={`${row.conLote} de ${row.total} alumnos`}
-                color={row.pct < 50 ? "bg-red-400" : row.pct < 80 ? "bg-amber-400" : "bg-blue-500"}
-              />
-            ))}
-          </div>
-        )}
-      </div>
+      {/* Grupos con entrega más baja — ancho completo. Depende de la matrícula
+          actual, así que no aplica a cursos anteriores */}
+      {!isHistorico && (
+        <div className="bg-white border border-gray-200 rounded-xl p-5">
+          <h3 className="font-semibold text-gray-800 mb-1 text-sm">Entrega por grupo</h3>
+          <p className="text-xs text-gray-400 mb-4">Ordenado de menor a mayor tasa de entrega</p>
+          {gruposPorEntrega.length === 0 ? (
+            <p className="text-sm text-gray-400">Sin datos</p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3">
+              {gruposPorEntrega.map((row) => (
+                <BarRow
+                  key={row.grupo}
+                  label={row.grupo}
+                  value={`${row.pct}%`}
+                  barPct={row.pct}
+                  sub={`${row.conLote} de ${row.total} alumnos`}
+                  color={row.pct < 50 ? "bg-red-400" : row.pct < 80 ? "bg-amber-400" : "bg-blue-500"}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Stock por editorial — ancho completo */}
       <div className="bg-white border border-gray-200 rounded-xl p-5">
