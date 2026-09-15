@@ -122,13 +122,16 @@ export function ImportarProfesoresClient({ profesores, ultimaImportacion }: Prop
   }
 
   // The Séneca account is not the intranet login, so every new professor needs one typed by hand.
+  // Los cesados/inactivos no necesitan acceso a la intranet, así que no se piden aquí.
+  const hoy = localDateISO();
+  const esActivo = (p: ProfesorDbRow) => p.fecha_cese === null || p.fecha_cese > hoy;
   const faltanEmail = diff
     ? [
         ...diff.nuevos
           .filter((n) => selNuevos.has(n.clave))
           .map((n) => ({ clave: `nuevo:${n.clave}`, profesor: n.profesor, puesto: n.puesto, nuevo: true })),
         ...profesores
-          .filter((p) => !p.email && !selBajas.has(p.id))
+          .filter((p) => !p.email && !selBajas.has(p.id) && esActivo(p))
           .map((p) => ({ clave: `id:${p.id}`, profesor: p.profesor, puesto: p.puesto, nuevo: false })),
       ]
     : [];
