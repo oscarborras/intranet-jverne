@@ -24,6 +24,14 @@ function localDateISO(): string {
   return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, "0"), String(d.getDate()).padStart(2, "0")].join("-");
 }
 
+// PostgREST recibe el filtro .in() en la URL: con muchos ids de golpe supera el
+// límite de tamaño de petición del proxy (414 Request-URI Too Large). Se trocea.
+function chunk<T>(arr: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
+
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -90,13 +98,13 @@ export async function POST(req: NextRequest) {
 
   // ── Bajas ──
   const idsBaja = bajas.filter((id) => typeof id === "string");
-  if (idsBaja.length > 0) {
+  for (const grupo of chunk(idsBaja, 100)) {
     const { error, count } = await admin
       .from("profesores")
       .update({ fecha_cese: localDateISO() }, { count: "exact" })
-      .in("id", idsBaja);
+      .in("id", grupo);
     if (error) errores.push(`Bajas: ${error.message}`);
-    else bajasAplicadas = count ?? idsBaja.length;
+    else bajasAplicadas += count ?? grupo.length;
   }
 
   await admin
