@@ -558,7 +558,6 @@ export function TabIncidencias({ libros, alumnos, cursoEscolar, myProfesorId, ca
           <tr>
             <td class="libro">${inc.libro?.titulo ?? "—"}</td>
             <td class="tipo">${TIPO_CONFIG[inc.tipo].label}</td>
-            <td class="estado">${ESTADO_CONFIG[inc.estado].label}</td>
             <td class="codigo">${inc.codigo}</td>
           </tr>`).join("");
       return `
@@ -569,7 +568,7 @@ export function TabIncidencias({ libros, alumnos, cursoEscolar, myProfesorId, ca
           </div>
           <table class="libros-table">
             <thead>
-              <tr><th>Libro</th><th>Tipo</th><th>Estado</th><th>C&oacute;digo</th></tr>
+              <tr><th>Libro</th><th>Tipo</th><th>C&oacute;digo</th></tr>
             </thead>
             <tbody>${librosHtml}</tbody>
           </table>
