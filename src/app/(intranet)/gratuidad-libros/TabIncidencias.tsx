@@ -176,6 +176,20 @@ export function TabIncidencias({ libros, alumnos, cursoEscolar, myProfesorId, ca
     return Array.from(map.values());
   }, [filtered, busqueda]);
 
+  // Alumnado con incidencias abiertas o en gestión, con independencia del filtro/búsqueda activos.
+  const pendientesPorAlumno = useMemo(() => {
+    const source = incidencias.filter((i) => i.estado === "abierta" || i.estado === "en_gestion");
+    const map = new Map<string, { alumno_nombre: string; alumno_grupo: string; incidencias: Incidencia[] }>();
+    for (const inc of source) {
+      const key = `${inc.alumno_id ?? inc.alumno_nombre}|||${inc.alumno_grupo}`;
+      if (!map.has(key)) map.set(key, { alumno_nombre: inc.alumno_nombre, alumno_grupo: inc.alumno_grupo, incidencias: [] });
+      map.get(key)!.incidencias.push(inc);
+    }
+    return Array.from(map.values()).sort((a, b) =>
+      a.alumno_grupo.localeCompare(b.alumno_grupo) || a.alumno_nombre.localeCompare(b.alumno_nombre)
+    );
+  }, [incidencias]);
+
   const alumnosSugeridos = useMemo(() => {
     if (!alumnoSearch.trim()) return [];
     const q = alumnoSearch.toLowerCase();
@@ -531,6 +545,87 @@ export function TabIncidencias({ libros, alumnos, cursoEscolar, myProfesorId, ca
     if (win) setTimeout(() => URL.revokeObjectURL(url), 30000);
   }
 
+  // ── Print: listado de alumnado con incidencias pendientes ──────────────────
+  function handleListadoPendientes() {
+    if (pendientesPorAlumno.length === 0) return;
+
+    const now = new Date();
+    const fechaStr = `${String(now.getDate()).padStart(2, "0")}/${String(now.getMonth() + 1).padStart(2, "0")}/${now.getFullYear()}`;
+    const totalIncidencias = pendientesPorAlumno.reduce((s, g) => s + g.incidencias.length, 0);
+
+    const bloquesHtml = pendientesPorAlumno.map((g) => {
+      const librosHtml = g.incidencias.map((inc) => `
+          <tr>
+            <td class="libro">${inc.libro?.titulo ?? "—"}</td>
+            <td class="tipo">${TIPO_CONFIG[inc.tipo].label}</td>
+            <td class="estado">${ESTADO_CONFIG[inc.estado].label}</td>
+            <td class="codigo">${inc.codigo}</td>
+          </tr>`).join("");
+      return `
+        <div class="alumno-block">
+          <div class="alumno-header">
+            <span class="alumno-nombre">${g.alumno_nombre}</span>
+            <span class="alumno-grupo">${g.alumno_grupo}</span>
+          </div>
+          <table class="libros-table">
+            <thead>
+              <tr><th>Libro</th><th>Tipo</th><th>Estado</th><th>C&oacute;digo</th></tr>
+            </thead>
+            <tbody>${librosHtml}</tbody>
+          </table>
+        </div>`;
+    }).join("");
+
+    const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Listado de alumnado con incidencias pendientes</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    @page{size:A4 portrait;margin:12mm 14mm}
+    body{font-family:Calibri,Arial,sans-serif;font-size:10pt;color:#000;background:#fff}
+    .doc-header{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #1f4e79;padding-bottom:4px;margin-bottom:6px}
+    .center-name{font-size:13pt;font-weight:bold;color:#1f4e79}
+    .center-sub{font-size:8pt;color:#666;margin-top:1px}
+    .title-block{text-align:right}
+    .doc-title{font-size:13pt;font-weight:bold;color:#1f4e79}
+    .doc-subtitle{font-size:8pt;color:#888}
+    .resumen{font-size:9pt;color:#555;margin-bottom:10px}
+    .alumno-block{margin-bottom:10px;break-inside:avoid;page-break-inside:avoid}
+    .alumno-header{display:flex;justify-content:space-between;align-items:baseline;background:#f2f2f2;border:1px solid #bfbfbf;padding:4px 8px}
+    .alumno-nombre{font-weight:bold;font-size:10.5pt}
+    .alumno-grupo{font-size:9pt;color:#555}
+    .libros-table{width:100%;border-collapse:collapse}
+    .libros-table th{background:#1f4e79;color:#fff;border:1px solid #888;padding:3px 6px;font-size:8.5pt;text-align:left}
+    .libros-table td{border:1px solid #bfbfbf;padding:3px 6px;font-size:9pt}
+    .libros-table td.codigo{font-family:monospace;color:#777;white-space:nowrap}
+    .libros-table tbody tr:nth-child(even){background:#fafafa}
+  </style>
+</head>
+<body>
+  <div class="doc-header">
+    <div>
+      <div class="center-name">IES JULIO VERNE</div>
+      <div class="center-sub">Programa de Gratuidad de Libros &middot; ${cursoEscolar}</div>
+    </div>
+    <div class="title-block">
+      <div class="doc-title">ALUMNADO CON INCIDENCIAS PENDIENTES</div>
+      <div class="doc-subtitle">Generado el ${fechaStr}</div>
+    </div>
+  </div>
+  <p class="resumen">${pendientesPorAlumno.length} alumnos &middot; ${totalIncidencias} incidencias abiertas o en gesti&oacute;n</p>
+  ${bloquesHtml}
+  <script>window.onload=function(){window.print()}<\/script>
+</body>
+</html>`;
+
+    const blob = new Blob([html], { type: "text/html" });
+    const url = URL.createObjectURL(blob);
+    const win = window.open(url, "_blank");
+    if (win) setTimeout(() => URL.revokeObjectURL(url), 30000);
+  }
+
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="space-y-5">
@@ -563,13 +658,24 @@ export function TabIncidencias({ libros, alumnos, cursoEscolar, myProfesorId, ca
           </p>
         </div>
         {canManage && (
-          <button
-            onClick={() => setShowNueva(true)}
-            className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2.5 rounded-lg transition-colors"
-          >
-            <Plus size={15} />
-            Nueva incidencia
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleListadoPendientes}
+              disabled={pendientesPorAlumno.length === 0}
+              title={pendientesPorAlumno.length === 0 ? "No hay incidencias abiertas o en gestión" : undefined}
+              className="flex items-center gap-1.5 border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed text-sm font-medium px-4 py-2.5 rounded-lg transition-colors"
+            >
+              <Printer size={15} />
+              Listado alumnado pendiente
+            </button>
+            <button
+              onClick={() => setShowNueva(true)}
+              className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2.5 rounded-lg transition-colors"
+            >
+              <Plus size={15} />
+              Nueva incidencia
+            </button>
+          </div>
         )}
       </div>
 
