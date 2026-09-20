@@ -14,6 +14,7 @@ export default async function PeticionesMantenimientoPage() {
     supabase
       .from("peticiones_mantenimiento")
       .select("*")
+      .neq("estado", "eliminada")
       .order("created_at", { ascending: false }),
     supabase
       .from("user_roles_intranet")

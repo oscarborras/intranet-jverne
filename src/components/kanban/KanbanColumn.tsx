@@ -9,9 +9,11 @@ interface Props {
   onItemClick?: (item: KanbanItem) => void;
   updating: number | null;
   showStatusChange?: boolean;
+  canDeleteItem?: (item: KanbanItem) => boolean;
+  onDeleteItem?: (item: KanbanItem) => void;
 }
 
-export function KanbanColumn({ config, items, allStatuses, onStatusChange, onItemClick, updating, showStatusChange = true }: Props) {
+export function KanbanColumn({ config, items, allStatuses, onStatusChange, onItemClick, updating, showStatusChange = true, canDeleteItem, onDeleteItem }: Props) {
   return (
     <div className="flex-shrink-0 w-72 flex flex-col rounded-xl overflow-hidden bg-gray-100">
       {/* Header */}
@@ -39,6 +41,8 @@ export function KanbanColumn({ config, items, allStatuses, onStatusChange, onIte
               onClick={() => onItemClick?.(item)}
               isUpdating={updating === item.id}
               showStatusChange={showStatusChange}
+              canDelete={canDeleteItem?.(item) ?? false}
+              onDelete={() => onDeleteItem?.(item)}
             />
           ))
         )}

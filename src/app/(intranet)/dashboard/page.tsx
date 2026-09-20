@@ -252,7 +252,7 @@ export default async function DashboardPage() {
       ? supabase.from("peticiones_tic").select("id, codigo, titulo, estado, prioridad, created_at").eq("autor_id", user.id).not("estado", "in", "(finalizada,eliminada)").order("created_at", { ascending: false }).limit(5)
       : Promise.resolve({ data: [] }),
     showMantenimiento
-      ? supabase.from("peticiones_mantenimiento").select("id, codigo, titulo, estado, prioridad, created_at").eq("autor_id", user.id).not("estado", "in", '("finalizada","rechazada")').order("created_at", { ascending: false }).limit(5)
+      ? supabase.from("peticiones_mantenimiento").select("id, codigo, titulo, estado, prioridad, created_at").eq("autor_id", user.id).not("estado", "in", '("finalizada","rechazada","eliminada")').order("created_at", { ascending: false }).limit(5)
       : Promise.resolve({ data: [] }),
     showCalendario
       ? supabase.from("calendar_eventos").select("id, titulo, descripcion, fecha_inicio, fecha_fin, todo_el_dia, hora_inicio, hora_fin").eq("tipo", "Activ. Extraescolar").gte("fecha_inicio", todayStr).lte("fecha_inicio", limitStr).order("fecha_inicio", { ascending: true })

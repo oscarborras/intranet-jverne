@@ -19,6 +19,8 @@ interface KanbanBoardProps<TStatus extends string> {
   onStatusChange: (id: number, newStatus: TStatus) => Promise<void>;
   onItemClick?: (item: KanbanItem) => void;
   showStatusChange?: boolean;
+  canDeleteItem?: (item: KanbanItem) => boolean;
+  onDeleteItem?: (item: KanbanItem) => void;
 }
 
 export function KanbanBoard<TStatus extends string>({
@@ -27,6 +29,8 @@ export function KanbanBoard<TStatus extends string>({
   onStatusChange,
   onItemClick,
   showStatusChange = true,
+  canDeleteItem,
+  onDeleteItem,
 }: KanbanBoardProps<TStatus>) {
   const [updating, setUpdating] = useState<number | null>(null);
 
@@ -50,6 +54,8 @@ export function KanbanBoard<TStatus extends string>({
             onItemClick={onItemClick}
             updating={updating}
             showStatusChange={showStatusChange}
+            canDeleteItem={canDeleteItem}
+            onDeleteItem={onDeleteItem}
           />
         );
       })}

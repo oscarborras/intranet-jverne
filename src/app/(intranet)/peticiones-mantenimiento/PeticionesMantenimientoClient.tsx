@@ -60,6 +60,16 @@ export function PeticionesMantenimientoClient({ initialPeticiones, canValidate, 
     );
   }
 
+  function canDeleteItem(item: KanbanItem): boolean {
+    return canValidate || item.autor_id === userId;
+  }
+
+  async function handleDelete(item: KanbanItem) {
+    const supabase = createClient();
+    await supabase.from("peticiones_mantenimiento").update({ estado: "eliminada" }).eq("id", item.id);
+    setPeticiones((prev) => prev.map((p) => (p.id === item.id ? { ...p, estado: "eliminada" } : p)));
+  }
+
   async function handleCreate() {
     if (!form.titulo.trim() || !form.ubicacion.trim()) return;
     setSaving(true);
@@ -108,6 +118,8 @@ export function PeticionesMantenimientoClient({ initialPeticiones, canValidate, 
         items={items}
         onStatusChange={handleStatusChange}
         showStatusChange={canValidate}
+        canDeleteItem={canDeleteItem}
+        onDeleteItem={handleDelete}
       />
 
       {/* New petición modal */}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, MapPin, User, Users, Clock } from "lucide-react";
+import { ChevronDown, MapPin, User, Users, Clock, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { KanbanItem } from "./KanbanBoard";
 
@@ -27,10 +27,13 @@ interface Props {
   onClick?: () => void;
   isUpdating: boolean;
   showStatusChange?: boolean;
+  canDelete?: boolean;
+  onDelete?: () => void;
 }
 
-export function KanbanCard({ item, allStatuses, currentStatus, onStatusChange, onClick, isUpdating, showStatusChange = true }: Props) {
+export function KanbanCard({ item, allStatuses, currentStatus, onStatusChange, onClick, isUpdating, showStatusChange = true, canDelete = false, onDelete }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const ubicacion = "ubicacion" in item ? item.ubicacion : undefined;
   const asignadoName = "asignado" in item && item.asignado ? item.asignado.full_name : undefined;
@@ -55,10 +58,43 @@ export function KanbanCard({ item, allStatuses, currentStatus, onStatusChange, o
         <span className="text-xs font-mono text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">
           {item.codigo}
         </span>
-        <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", PRIORITY_CLASSES[item.prioridad])}>
-          {PRIORITY_LABELS[item.prioridad]}
-        </span>
+        <div className="flex items-center gap-1.5">
+          <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", PRIORITY_CLASSES[item.prioridad])}>
+            {PRIORITY_LABELS[item.prioridad]}
+          </span>
+          {canDelete && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setConfirmDelete(true); }}
+              className="p-1 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+              title="Eliminar"
+            >
+              <Trash2 size={13} />
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Delete confirmation */}
+      {confirmDelete && (
+        <div
+          className="mb-2 flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-2.5 py-2"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <span className="text-xs text-red-700 flex-1">¿Eliminar esta petición?</span>
+          <button
+            onClick={() => onDelete?.()}
+            className="px-2 py-1 text-xs bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors"
+          >
+            Sí
+          </button>
+          <button
+            onClick={() => setConfirmDelete(false)}
+            className="px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 rounded-lg border border-gray-200 transition-colors"
+          >
+            No
+          </button>
+        </div>
+      )}
 
       {/* Visibility (TIC only) */}
       {"solo_usuario" in item && (

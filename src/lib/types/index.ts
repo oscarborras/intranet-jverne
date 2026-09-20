@@ -209,7 +209,8 @@ export type PeticionMantenimientoEstado =
   | "abierta"
   | "en_progreso"
   | "finalizada"
-  | "rechazada";
+  | "rechazada"
+  | "eliminada";
 
 export interface PeticionMantenimiento {
   id: number;
