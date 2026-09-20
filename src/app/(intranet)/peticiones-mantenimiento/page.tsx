@@ -37,11 +37,13 @@ export default async function PeticionesMantenimientoPage() {
     .filter(Boolean);
 
   const canValidate = roles.some((r) => ["Admin", "Directiva"].includes(r.nombre));
+  const isAdmin = roles.some((r) => r.nombre === "Admin");
 
   return (
     <PeticionesMantenimientoClient
       initialPeticiones={peticiones}
       canValidate={canValidate}
+      isAdmin={isAdmin}
       userId={user!.id}
       myDisplayName={myDisplayName}
     />

@@ -19,6 +19,7 @@ const COLUMNS: ColumnConfig<PeticionMantenimientoEstado>[] = [
 interface Props {
   initialPeticiones: PeticionMantenimiento[];
   canValidate: boolean;
+  isAdmin: boolean;
   userId: string;
   myDisplayName: string;
 }
@@ -30,23 +31,43 @@ interface FormState {
   prioridad: PeticionPrioridad;
 }
 
-export function PeticionesMantenimientoClient({ initialPeticiones, canValidate, userId, myDisplayName }: Props) {
+const EMPTY_FORM: FormState = { titulo: "", descripcion: "", ubicacion: "", prioridad: "normal" };
+
+export function PeticionesMantenimientoClient({ initialPeticiones, canValidate, isAdmin, userId, myDisplayName }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [peticiones, setPeticiones] = useState<PeticionMantenimiento[]>(initialPeticiones);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState<FormState>({ titulo: "", descripcion: "", ubicacion: "", prioridad: "normal" });
+  const [editing, setEditing] = useState<PeticionMantenimiento | null>(null);
+  const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (searchParams.get("nueva") === "1") {
-      setForm({ titulo: "", descripcion: "", ubicacion: "", prioridad: "normal" });
+      setEditing(null);
+      setForm(EMPTY_FORM);
       setShowForm(true);
       router.replace(pathname);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  function closeForm() {
+    setShowForm(false);
+    setEditing(null);
+    setForm(EMPTY_FORM);
+  }
+
+  function canEditItem(item: KanbanItem): boolean {
+    return isAdmin || item.autor_id === userId;
+  }
+
+  function openEdit(item: PeticionMantenimiento) {
+    setEditing(item);
+    setForm({ titulo: item.titulo, descripcion: item.descripcion, ubicacion: item.ubicacion, prioridad: item.prioridad });
+    setShowForm(true);
+  }
 
   const items: KanbanItem[] = peticiones.map((p) => ({ ...p, tipo: "MNT" as const }));
 
@@ -70,19 +91,32 @@ export function PeticionesMantenimientoClient({ initialPeticiones, canValidate, 
     setPeticiones((prev) => prev.map((p) => (p.id === item.id ? { ...p, estado: "eliminada" } : p)));
   }
 
-  async function handleCreate() {
+  async function handleSave() {
     if (!form.titulo.trim() || !form.ubicacion.trim()) return;
     setSaving(true);
     const supabase = createClient();
-    const { data } = await supabase
-      .from("peticiones_mantenimiento")
-      .insert({ ...form, autor_id: userId })
-      .select()
-      .single();
-    if (data) setPeticiones((prev) => [{ ...(data as PeticionMantenimiento), autor: { full_name: myDisplayName } }, ...prev]);
+
+    if (editing) {
+      const { data } = await supabase
+        .from("peticiones_mantenimiento")
+        .update(form)
+        .eq("id", editing.id)
+        .select()
+        .single();
+      if (data) {
+        setPeticiones((prev) => prev.map((p) => (p.id === editing.id ? { ...p, ...(data as PeticionMantenimiento) } : p)));
+      }
+    } else {
+      const { data } = await supabase
+        .from("peticiones_mantenimiento")
+        .insert({ ...form, autor_id: userId })
+        .select()
+        .single();
+      if (data) setPeticiones((prev) => [{ ...(data as PeticionMantenimiento), autor: { full_name: myDisplayName } }, ...prev]);
+    }
+
     setSaving(false);
-    setShowForm(false);
-    setForm({ titulo: "", descripcion: "", ubicacion: "", prioridad: "normal" });
+    closeForm();
   }
 
   return (
@@ -120,6 +154,7 @@ export function PeticionesMantenimientoClient({ initialPeticiones, canValidate, 
         showStatusChange={canValidate}
         canDeleteItem={canDeleteItem}
         onDeleteItem={handleDelete}
+        onItemClick={(item) => { if (canEditItem(item)) openEdit(item as PeticionMantenimiento); }}
       />
 
       {/* New petición modal */}
@@ -127,7 +162,9 @@ export function PeticionesMantenimientoClient({ initialPeticiones, canValidate, 
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
           <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl">
             <div className="px-6 py-4 border-b border-gray-100">
-              <h2 className="font-semibold text-gray-900">Nueva Petición de Mantenimiento</h2>
+              <h2 className="font-semibold text-gray-900">
+                {editing ? "Editar Petición de Mantenimiento" : "Nueva Petición de Mantenimiento"}
+              </h2>
             </div>
             <div className="px-6 py-4 space-y-4">
               <div>
@@ -173,13 +210,13 @@ export function PeticionesMantenimientoClient({ initialPeticiones, canValidate, 
               </div>
             </div>
             <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
-              <button onClick={() => setShowForm(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Cancelar</button>
+              <button onClick={closeForm} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Cancelar</button>
               <button
-                onClick={handleCreate}
+                onClick={handleSave}
                 disabled={saving}
                 className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg font-medium"
               >
-                {saving ? "Creando..." : "Crear Petición"}
+                {saving ? "Guardando..." : editing ? "Guardar Cambios" : "Crear Petición"}
               </button>
             </div>
           </div>
