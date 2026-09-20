@@ -444,7 +444,7 @@ export function CalendarioClient({
                         </div>
                       </div>
 
-                      {canManageEvents && (
+                      {(canManageEvents || e.autor_id === userId) && (
                         <div className="flex-shrink-0 flex items-center gap-1 pt-0.5">
                           {deletingId === e.id ? (
                             <>
