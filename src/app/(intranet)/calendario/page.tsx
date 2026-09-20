@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { CalendarioClient } from "./CalendarioClient";
+import { resolveAutorNames } from "@/lib/calendario/resolveAutorNames";
 import type { CalendarEvento, TipoEventoIntranet, AsuntoPropios } from "@/lib/types";
 
 export default async function CalendarioPage() {
@@ -36,6 +37,17 @@ export default async function CalendarioPage() {
 
   const canManageEvents = roleNames.some((r) => ["Admin", "Directiva", "TDE"].includes(r));
   const canManageAsuntos = roleNames.some((r) => ["Admin", "Directiva"].includes(r));
+  const canCreateExtraescolar = !canManageEvents && roleNames.includes("Profesor");
+
+  const autorNames = await resolveAutorNames(supabase, [
+    ...(eventos ?? []).map((e) => e.autor_id as string),
+    user!.id,
+  ]);
+  const eventosConAutor = (eventos ?? []).map((e) => ({
+    ...e,
+    autor: { full_name: autorNames[e.autor_id as string] ?? "—" },
+  }));
+  const myDisplayName = autorNames[user!.id] ?? "—";
 
   const maxAsuntosPropios = parseInt(
     configRows?.find((r) => r.clave === "max_profes_asuntos_propios")?.valor ?? "3"
@@ -53,10 +65,12 @@ export default async function CalendarioPage() {
 
   return (
     <CalendarioClient
-      initialEventos={(eventos ?? []) as CalendarEvento[]}
+      initialEventos={eventosConAutor as CalendarEvento[]}
       tiposEvento={(tiposEvento ?? []) as TipoEventoIntranet[]}
       userId={user!.id}
+      myDisplayName={myDisplayName}
       canManageEvents={canManageEvents}
+      canCreateExtraescolar={canCreateExtraescolar}
       initialAsuntos={(asuntos ?? []) as AsuntoPropios[]}
       maxAsuntosPropios={maxAsuntosPropios}
       profesores={profesores}

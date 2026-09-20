@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { ChevronLeft, ChevronRight, Plus, X, Pencil, Calendar } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
+import { resolveAutorNames } from "@/lib/calendario/resolveAutorNames";
 import type { CalendarEvento, TipoEventoIntranet, AsuntoPropios } from "@/lib/types";
 
 const DAYS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
@@ -11,6 +12,8 @@ const MONTHS = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
   "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
 ];
+
+const EXTRAESCOLAR_TIPO = "Activ. Extraescolar";
 
 const COLOR_CLASSES: Record<string, string> = {
   blue: "bg-blue-100 text-blue-700",
@@ -31,7 +34,9 @@ interface Props {
   initialEventos: CalendarEvento[];
   tiposEvento: TipoEventoIntranet[];
   userId: string;
+  myDisplayName: string;
   canManageEvents: boolean;
+  canCreateExtraescolar: boolean;
   initialAsuntos: AsuntoPropios[];
   maxAsuntosPropios: number;
   profesores: { id: string; profesor: string }[];
@@ -68,9 +73,10 @@ function toDateStr(year: number, month: number, day: number) {
 }
 
 export function CalendarioClient({
-  initialEventos, tiposEvento, userId, canManageEvents,
+  initialEventos, tiposEvento, userId, myDisplayName, canManageEvents, canCreateExtraescolar,
   initialAsuntos, maxAsuntosPropios, profesores, canManageAsuntos,
 }: Props) {
+  const canCreateEvents = canManageEvents || canCreateExtraescolar;
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth() + 1);
@@ -114,7 +120,9 @@ export function CalendarioClient({
       supabase.from("calendar_eventos").select("*").lte("fecha_inicio", last).gte("fecha_fin", first),
       supabase.from("asuntos_propios").select("*").gte("fecha", first).lte("fecha", last),
     ]);
-    setEventos((ev ?? []) as CalendarEvento[]);
+    const autorNames = await resolveAutorNames(supabase, (ev ?? []).map((e) => e.autor_id as string));
+    const evConAutor = (ev ?? []).map((e) => ({ ...e, autor: { full_name: autorNames[e.autor_id as string] ?? "—" } }));
+    setEventos(evConAutor as CalendarEvento[]);
     setAsuntos((ap ?? []) as AsuntoPropios[]);
   }, []);
 
@@ -146,7 +154,8 @@ export function CalendarioClient({
   function openNew(dateStr: string) {
     setNewEventDate(dateStr);
     setForm({
-      titulo: "", descripcion: "", fecha_inicio: dateStr, fecha_fin: dateStr, tipo: defaultTipo,
+      titulo: "", descripcion: "", fecha_inicio: dateStr, fecha_fin: dateStr,
+      tipo: canManageEvents ? defaultTipo : EXTRAESCOLAR_TIPO,
       todo_el_dia: true, hora_inicio: "", hora_fin: "",
     });
     setModalEvento("new");
@@ -189,7 +198,7 @@ export function CalendarioClient({
         .insert({ titulo: form.titulo, descripcion: form.descripcion, fecha_inicio: form.fecha_inicio, fecha_fin: form.fecha_fin, tipo: form.tipo, autor_id: userId, ...timePayload })
         .select()
         .single();
-      if (data) setEventos((prev) => [...prev, data as CalendarEvento]);
+      if (data) setEventos((prev) => [...prev, { ...(data as CalendarEvento), autor: { full_name: myDisplayName } }]);
     } else if (modalEvento) {
       const { data } = await supabase
         .from("calendar_eventos")
@@ -197,7 +206,7 @@ export function CalendarioClient({
         .eq("id", modalEvento.id)
         .select()
         .single();
-      if (data) setEventos((prev) => prev.map((e) => e.id === modalEvento.id ? data as CalendarEvento : e));
+      if (data) setEventos((prev) => prev.map((e) => e.id === modalEvento.id ? { ...(data as CalendarEvento), autor: modalEvento.autor } : e));
     }
 
     setSaving(false);
@@ -263,7 +272,7 @@ export function CalendarioClient({
         </div>
       </div>
 
-      {canManageEvents && (
+      {canCreateEvents && (
         <div className="bg-cyan-50 border border-cyan-200 rounded-xl px-4 py-2.5 flex items-center gap-2 text-sm text-cyan-700">
           <Plus size={14} />
           <span>Haz <strong>doble clic</strong> en un día para añadir un evento</span>
@@ -317,7 +326,7 @@ export function CalendarioClient({
                   setAddingAsunto(false);
                   setSelectedProfesorId("");
                 }}
-                onDoubleClick={() => canManageEvents && openNew(dateStr)}
+                onDoubleClick={() => canCreateEvents && openNew(dateStr)}
               >
                 <div className="flex items-center gap-1 mb-1 min-w-0">
                   <div className={cn(
@@ -401,7 +410,7 @@ export function CalendarioClient({
                     </span>
                   )}
                 </div>
-                {canManageEvents && (
+                {canCreateEvents && (
                   <button
                     onClick={() => openNew(selectedDay)}
                     className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium cursor-pointer"
@@ -427,9 +436,12 @@ export function CalendarioClient({
                           </p>
                         )}
                         {e.descripcion && <p className="text-xs text-gray-500 mt-0.5">{e.descripcion}</p>}
-                        <span className={cn("inline-block text-xs px-2 py-0.5 rounded-full mt-1.5", tipoClasses(e.tipo, tipoMap))}>
-                          {e.tipo}
-                        </span>
+                        <div className="flex items-center gap-2 mt-1.5">
+                          <span className={cn("inline-block text-xs px-2 py-0.5 rounded-full", tipoClasses(e.tipo, tipoMap))}>
+                            {e.tipo}
+                          </span>
+                          <span className="text-xs text-gray-400">Creado por {e.autor?.full_name ?? "—"}</span>
+                        </div>
                       </div>
 
                       {canManageEvents && (
@@ -631,15 +643,21 @@ export function CalendarioClient({
 
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Tipo de evento</label>
-                <select
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  value={form.tipo}
-                  onChange={(e) => setForm((f) => ({ ...f, tipo: e.target.value }))}
-                >
-                  {tiposEvento.map(t => (
-                    <option key={t.id} value={t.nombre}>{t.nombre}</option>
-                  ))}
-                </select>
+                {canManageEvents ? (
+                  <select
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    value={form.tipo}
+                    onChange={(e) => setForm((f) => ({ ...f, tipo: e.target.value }))}
+                  >
+                    {tiposEvento.map(t => (
+                      <option key={t.id} value={t.nombre}>{t.nombre}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <div className={cn("w-full border border-gray-200 rounded-lg px-3 py-2 text-sm", tipoClasses(EXTRAESCOLAR_TIPO, tipoMap))}>
+                    {EXTRAESCOLAR_TIPO}
+                  </div>
+                )}
               </div>
             </div>
             <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
