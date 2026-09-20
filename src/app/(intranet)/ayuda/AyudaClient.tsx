@@ -63,8 +63,8 @@ const ITEMS: ItemMeta[] = [
     category: "tutorial",
     icon: <BookMarked size={22} className="text-white" />,
     title: "Registrar préstamos de libros",
-    description: "Entrega el lote de libros a un grupo completo o a alumnos individuales.",
-    badge: "6 pasos · 2 min",
+    description: "Elige un libro y marca qué alumnos lo reciben; cada marca se guarda al instante.",
+    badge: "6 pasos · 1 min",
     headerBg: "bg-emerald-600",
     headerText: "text-emerald-600",
   },
@@ -463,8 +463,8 @@ function TutorialPrestamos() {
           <StepNum n={3} accent="blue" /><StepConnector />
         </div>
         <div className="flex-1 pb-1">
-          <p className="font-medium text-gray-900 text-sm mb-1">Elige el grupo en el selector</p>
-          <p className="text-sm text-gray-500 mb-3">Despliega el selector y elige la clase. Aparecerá un contador con el número de alumnos.</p>
+          <p className="font-medium text-gray-900 text-sm mb-1">Elige tu grupo en el selector</p>
+          <p className="text-sm text-gray-500 mb-3">Despliega el selector y elige tu clase. Aparecerá un contador con el número de alumnos.</p>
           <div className="flex items-center gap-2 flex-wrap">
             <div className="border border-blue-400 rounded-lg px-3 py-1.5 text-[11px] font-medium bg-blue-50/40 text-gray-700 flex items-center gap-1.5">
               2º ESO A <span className="text-gray-400">▼</span>
@@ -481,15 +481,15 @@ function TutorialPrestamos() {
           <StepNum n={4} accent="blue" /><StepConnector />
         </div>
         <div className="flex-1 pb-1">
-          <p className="font-medium text-gray-900 text-sm mb-1">Paso 1 — Marca los libros a entregar</p>
-          <p className="text-sm text-gray-500 mb-3">El panel izquierdo muestra el lote del nivel. Marca los libros que repartirás hoy. El número <strong className="text-gray-700">disponibles/total</strong> aparece junto a cada título.</p>
+          <p className="font-medium text-gray-900 text-sm mb-1">Paso 1 — Elige el libro que vas a entregar</p>
+          <p className="text-sm text-gray-500 mb-3">Solo puedes marcar <strong className="text-gray-700">un libro a la vez</strong>, para que el proceso sea lo más sencillo posible. El número <strong className="text-gray-700">disponibles/total</strong> aparece junto a cada título.</p>
           <div className="bg-white border border-gray-200 rounded-xl overflow-hidden max-w-[240px]">
             <div className="px-3 py-2 border-b border-gray-100 flex items-center justify-between">
               <span className="text-[10px] font-semibold text-gray-700">Lote del curso · 2º ESO</span>
               <span className="text-[9px] text-green-700 bg-green-50 border border-green-200 px-1.5 py-0.5 rounded-full">3 libros</span>
             </div>
             {[
-              { titulo: "Lengua Castellana", stock: "24/25", checked: true, sinStock: false },
+              { titulo: "Lengua Castellana", stock: "24/25", checked: false, sinStock: false },
               { titulo: "Matemáticas", stock: "22/25", checked: true, sinStock: false },
               { titulo: "Historia de España", stock: "0/25", checked: false, sinStock: true },
             ].map(l => (
@@ -502,7 +502,7 @@ function TutorialPrestamos() {
               </div>
             ))}
             <div className="px-3 py-2 bg-gray-50 border-t border-gray-100">
-              <p className="text-[9px] text-gray-400">Disponibles / Total. Sin stock no se asignan.</p>
+              <p className="text-[9px] text-gray-400">Disponibles / Total. Sin stock no se puede marcar.</p>
             </div>
           </div>
         </div>
@@ -513,24 +513,25 @@ function TutorialPrestamos() {
           <StepNum n={5} accent="blue" /><StepConnector />
         </div>
         <div className="flex-1 pb-1">
-          <p className="font-medium text-gray-900 text-sm mb-1">Paso 2 — Selecciona los alumnos receptores</p>
-          <p className="text-sm text-gray-500 mb-3">En el panel derecho, marca los alumnos. Usa <strong className="text-gray-700">Seleccionar todo</strong> para marcar toda la clase de golpe. Los que ya tienen el lote completo aparecen como <span className="text-green-700 font-medium">Entregado</span>.</p>
+          <p className="font-medium text-gray-900 text-sm mb-1">Paso 2 — Marca quién recibe el libro</p>
+          <p className="text-sm text-gray-500 mb-3">En el panel derecho, marca la casilla de cada alumno: <strong className="text-gray-700">la entrega se registra al instante</strong>, no hace falta ningún botón adicional. Quien ya lo tuviera aparece premarcado como <span className="text-green-700 font-medium">Entregado</span>.</p>
           <div className="bg-white border border-gray-200 rounded-xl overflow-hidden max-w-[270px]">
-            <div className="px-3 py-2 border-b border-gray-100 flex justify-between">
+            <div className="px-3 py-2 border-b border-gray-100">
               <span className="text-[10px] font-semibold text-gray-700">Alumnado del grupo</span>
-              <span className="text-[9px] text-gray-400 font-semibold uppercase">3/24 entregados</span>
             </div>
             {[
-              { nombre: "García Pérez, Ana", estado: "Entregado", estColor: "text-green-700 bg-green-100", checked: false },
-              { nombre: "Martínez López, Luis", estado: "1/3", estColor: "text-amber-700 bg-amber-100", checked: true },
-              { nombre: "Sánchez Ruiz, Carmen", estado: "0/3", estColor: "text-gray-400", checked: true },
+              { nombre: "García Pérez, Ana", entregado: true },
+              { nombre: "Martínez López, Luis", entregado: false },
+              { nombre: "Sánchez Ruiz, Carmen", entregado: false },
             ].map(a => (
-              <div key={a.nombre} className={`flex items-center gap-2 px-3 py-2 border-b border-gray-50 last:border-0 ${a.checked ? "bg-blue-50" : ""}`}>
-                <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border-2 ${a.checked ? "bg-blue-600 border-blue-600" : "border-gray-300"}`}>
-                  {a.checked && <span className="text-white text-[8px] font-bold leading-none">✓</span>}
+              <div key={a.nombre} className={`flex items-center gap-2 px-3 py-2 border-b border-gray-50 last:border-0 ${a.entregado ? "bg-green-50/40" : ""}`}>
+                <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border-2 ${a.entregado ? "bg-green-600 border-green-600" : "border-gray-300"}`}>
+                  {a.entregado && <span className="text-white text-[8px] font-bold leading-none">✓</span>}
                 </div>
                 <span className="text-[10px] text-gray-800 flex-1 min-w-0 truncate">{a.nombre}</span>
-                <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded-full flex-shrink-0 ${a.estColor}`}>{a.estado}</span>
+                {a.entregado && (
+                  <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-full flex-shrink-0 text-green-700 bg-green-100">Entregado</span>
+                )}
               </div>
             ))}
           </div>
@@ -544,16 +545,20 @@ function TutorialPrestamos() {
           </div>
         </div>
         <div className="flex-1">
-          <p className="font-medium text-gray-900 text-sm mb-1">Pulsa «Entregar lote» y listo</p>
-          <p className="text-sm text-gray-500 mb-3">El botón indica cuántos registros nuevos se crearán (alumnos × libros pendientes). Pulsa para confirmar; los alumnos pasarán a <span className="text-green-700 font-medium">Entregado</span>.</p>
-          <div className="flex items-center gap-3 flex-wrap">
-            <span className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 text-white text-[11px] font-semibold">
-              <CheckCircle2 size={12} /> Entregar lote (46)
-            </span>
-            <span className="text-xs text-gray-400">→ se crean 46 préstamos</span>
-          </div>
-          <div className="mt-3 bg-green-50 border border-green-200 rounded-lg px-4 py-3 text-xs text-green-800">
-            ✓ 46 préstamos registrados correctamente.
+          <p className="font-medium text-gray-900 text-sm mb-1">¿Te has equivocado? Desmárcalo</p>
+          <p className="text-sm text-gray-500 mb-3">No hay botón «Entregar»: cada marca ya ha quedado registrada. Si te confundes de alumno, vuelve a pulsar su casilla — antes de anular la entrega, te pedirá confirmarlo.</p>
+          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden max-w-[260px] shadow-sm">
+            <div className="px-3 py-2 border-b border-gray-100 flex items-center gap-1.5">
+              <X size={11} className="text-red-500" />
+              <span className="text-[10px] font-semibold text-gray-700">Anular entrega</span>
+            </div>
+            <p className="px-3 py-2 text-[10px] text-gray-600">
+              ¿Seguro que quieres anular la entrega de <strong>Matemáticas</strong> a <strong>García Pérez, Ana</strong>?
+            </p>
+            <div className="flex gap-2 px-3 pb-2.5">
+              <span className="flex-1 text-center border border-gray-300 text-gray-600 text-[9px] font-medium py-1 rounded-md">Cancelar</span>
+              <span className="flex-1 text-center bg-red-600 text-white text-[9px] font-medium py-1 rounded-md">Anular</span>
+            </div>
           </div>
         </div>
       </li>
@@ -1022,7 +1027,7 @@ const ITEM_CONTENT: Record<ItemId, React.ReactNode> = {
 const ITEM_TIPS: Record<ItemId, React.ReactNode> = {
   prestamos: (
     <p className="text-xs text-amber-800">
-      <strong>¿Entrega parcial?</strong> Si un alumno recibió solo algunos libros del lote, su contador aparece como <strong>2/3</strong>. Usa el botón <strong>Completar</strong> junto a su nombre para marcarlo manualmente como lote completo cuando reciba el resto.
+      <strong>¿Varios libros para el mismo grupo?</strong> Repite el paso 1 con cada libro: elige uno, marca a quien lo recibe, y pasa al siguiente. Junto a cada alumno tienes un icono de lista para ver todos los libros que ya le has entregado.
     </p>
   ),
   devoluciones: (

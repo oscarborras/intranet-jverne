@@ -1,37 +1,12 @@
 "use client";
 
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
   CheckCircle, AlertTriangle, X, Users, BookOpen, CalendarDays, ChevronDown, SquareCheck, Trash2, List,
 } from "lucide-react";
 import type { Alumno, LibroCatalogo, PrestamoLibro } from "@/lib/types";
-
-const NO_ACTIVOS = "__no_activos__";
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function nivelFromUnidad(unidad: string): string | null {
-  if (unidad.startsWith("1º ESO")) return "1º ESO";
-  if (unidad.startsWith("2º ESO")) return "2º ESO";
-  if (unidad.startsWith("3º ESO")) return "3º ESO";
-  if (unidad.startsWith("4º ESO")) return "4º ESO";
-  if (unidad.startsWith("1º BACH")) return "1º Bach";
-  if (unidad.startsWith("2º BACH")) return "2º Bach";
-  if (/CFGB|FPBS/i.test(unidad)) return "FP Básica";
-  return null;
-}
-
-function initials(alumno: Alumno): string {
-  const p = alumno.primer_apellido?.[0] ?? "";
-  const n = alumno.nombre?.[0] ?? "";
-  return (p + n).toUpperCase() || alumno.alumno.slice(0, 2).toUpperCase();
-}
-
-function todayString(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
+import { usePrestamosLoteData, NO_ACTIVOS, initials, todayString, type Profesor } from "./usePrestamosLoteData";
 
 // ─── Modal: alerta de stock ───────────────────────────────────────────────────
 
@@ -73,7 +48,7 @@ function ModalStockAlert({ alertas, onCancel, onForce, saving }: {
   );
 }
 
-// ─── Modal: confirmar anulación en lote (opción B) ────────────────────────────
+// ─── Modal: confirmar anulación en lote ───────────────────────────────────────
 
 function ModalAnularConfirm({ prestamos, libroTituloMap, deleting, onCancel, onConfirm }: {
   prestamos: PrestamoLibro[];
@@ -127,8 +102,6 @@ function ModalAnularConfirm({ prestamos, libroTituloMap, deleting, onCancel, onC
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
-interface Profesor { id: string; nombre: string; }
-
 interface Props {
   alumnos: Alumno[];
   alumnosInactivos: Alumno[];
@@ -137,20 +110,35 @@ interface Props {
   onPrestamosChange: React.Dispatch<React.SetStateAction<PrestamoLibro[]>>;
   cursoEscolar: string;
   myProfesorId: string | null;
-  canManage: boolean;
   profesores: Profesor[];
   unidadesGratuidad: string[];
   completadosIniciales: string[];
   initialGrupo?: string;
 }
 
-// ─── Componente principal ─────────────────────────────────────────────────────
-
-export function TabPrestamosLote({ alumnos, alumnosInactivos, libros, prestamos, onPrestamosChange, cursoEscolar, myProfesorId, canManage, profesores, unidadesGratuidad, completadosIniciales, initialGrupo }: Props) {
+// Modo avanzado (Admin / Directiva / Coord_Gratuidad): varios libros y varios
+// alumnos a la vez, entrega en lote con revisión de stock, anulación en lote
+// y marcado manual de lote completo.
+export function TabPrestamoAvanzado({
+  alumnos, alumnosInactivos, libros, prestamos, onPrestamosChange,
+  cursoEscolar, myProfesorId, profesores, unidadesGratuidad, completadosIniciales, initialGrupo,
+}: Props) {
   const supabase = createClient();
 
-  // ── State ──────────────────────────────────────────────────────────────────
-  const [selectedUnidad, setSelectedUnidad] = useState<string>(initialGrupo ?? "");
+  const {
+    selectedUnidad, setSelectedUnidad,
+    unidades, isNoActivos, nivel,
+    alumnosDelGrupo, allPrestamosMap,
+    loteLibros, disponibles,
+    alumnoLibrosMap, libroTituloMap,
+    overrideProfesorId, setOverrideProfesorId, efectivoProfesorId,
+    insertarPrestamos, eliminarPrestamos,
+  } = usePrestamosLoteData({
+    alumnos, alumnosInactivos, libros, prestamos, onPrestamosChange,
+    cursoEscolar, myProfesorId, profesores, unidadesGratuidad, initialGrupo,
+    incluirNoActivos: true,
+  });
+
   const [selectedAlumnoIds, setSelectedAlumnoIds] = useState<Set<string>>(new Set());
   const [selectedLibroIds, setSelectedLibroIds] = useState<Set<string>>(new Set());
   const [fechaEntrega, setFechaEntrega] = useState<string>(todayString());
@@ -161,102 +149,11 @@ export function TabPrestamosLote({ alumnos, alumnosInactivos, libros, prestamos,
   const [detalleAlumno, setDetalleAlumno] = useState<Alumno | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [overrideProfesorId, setOverrideProfesorId] = useState<string>(myProfesorId ?? "");
   const [localCompletados, setLocalCompletados] = useState<Set<string>>(new Set(completadosIniciales));
   const [markingId, setMarkingId] = useState<string | null>(null);
   const [markingAll, setMarkingAll] = useState(false);
 
-  const efectivoProfesorId = myProfesorId ?? (overrideProfesorId || null);
-
-  // ── Refresh activos desde BD al montar ────────────────────────────────────
-  useEffect(() => {
-    async function refreshActivos() {
-      const { data } = await supabase
-        .from("prestamos_libros")
-        .select("id, libro_id, alumno_id, alumno_nombre, alumno_grupo, num_ejemplar, fecha_prestamo, entregado_por, devuelto_por, curso_escolar, fecha_devolucion, estado_devolucion, observaciones, created_at, libro:libros_catalogo(titulo, asignatura, nivel, diversificacion)")
-        .eq("curso_escolar", cursoEscolar)
-        .is("fecha_devolucion", null)
-        .order("alumno_grupo")
-        .order("alumno_nombre");
-
-      if (!data) return;
-
-      const profIds = [...new Set(data.map((p) => p.entregado_por).filter(Boolean) as string[])];
-      let nameMap: Record<string, string> = {};
-      if (profIds.length > 0) {
-        const { data: profData } = await supabase.from("profesores").select("id, profesor").in("id", profIds);
-        nameMap = Object.fromEntries((profData ?? []).map((p) => [p.id as string, p.profesor as string]));
-      }
-
-      const updated = data.map((p) => ({
-        ...p,
-        libro: (p.libro as unknown as { titulo: string; asignatura: string; nivel: string; diversificacion?: boolean } | null) ?? undefined,
-        entregado_por_nombre: { profesor: nameMap[p.entregado_por as string] ?? "—" },
-      })) as PrestamoLibro[];
-
-      onPrestamosChange(updated);
-    }
-    refreshActivos();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cursoEscolar]);
-
-  // ── Derived ────────────────────────────────────────────────────────────────
-
-  const unidades = useMemo(() => {
-    const gratuidadSet = new Set(unidadesGratuidad);
-    const groups = [...new Set(alumnos.map((a) => a.unidad))]
-      .filter((u) => gratuidadSet.has(u))
-      .sort();
-    if (alumnosInactivos.length > 0) groups.push(NO_ACTIVOS);
-    return groups;
-  }, [alumnos, unidadesGratuidad, alumnosInactivos]);
-
-  const isNoActivos = selectedUnidad === NO_ACTIVOS;
-  const nivel = selectedUnidad && !isNoActivos ? nivelFromUnidad(selectedUnidad) : null;
-
-  const alumnosDelGrupo = useMemo(
-    () => isNoActivos ? alumnosInactivos : alumnos.filter((a) => a.unidad === selectedUnidad),
-    [alumnos, alumnosInactivos, selectedUnidad, isNoActivos]
-  );
-
-  const loteLibros = useMemo(
-    () => (nivel ? libros.filter((l) => l.nivel === nivel && l.activo) : []),
-    [libros, nivel]
-  );
-
-  const loanCountsPerLibro = useMemo(() =>
-    prestamos.reduce<Record<string, number>>((acc, p) => {
-      acc[p.libro_id] = (acc[p.libro_id] ?? 0) + 1;
-      return acc;
-    }, {}),
-    [prestamos]);
-
-  const disponibles = useCallback(
-    (libroId: string) => {
-      const libro = libros.find((l) => l.id === libroId);
-      return Math.max(0, (libro?.stock_total ?? 0) - (loanCountsPerLibro[libroId] ?? 0));
-    },
-    [libros, loanCountsPerLibro]
-  );
-
-  const alumnoLibrosMap = useMemo(() => {
-    const loteIds = new Set(loteLibros.map((l) => l.id));
-    const map: Record<string, Set<string>> = {};
-    for (const p of prestamos) {
-      if (p.alumno_id && loteIds.has(p.libro_id)) {
-        if (!map[p.alumno_id]) map[p.alumno_id] = new Set();
-        map[p.alumno_id].add(p.libro_id);
-      }
-    }
-    return map;
-  }, [prestamos, loteLibros]);
-
-  const totalConLoteCompleto = useMemo(() => {
-    if (loteLibros.length === 0) return 0;
-    return alumnosDelGrupo.filter(
-      (a) => (alumnoLibrosMap[a.id]?.size ?? 0) >= loteLibros.length || localCompletados.has(a.id)
-    ).length;
-  }, [alumnosDelGrupo, alumnoLibrosMap, loteLibros, localCompletados]);
+  // ── Derived propio de este modo ───────────────────────────────────────────
 
   const newRecordsCount = useMemo(() => {
     let count = 0;
@@ -269,11 +166,13 @@ export function TabPrestamosLote({ alumnos, alumnosInactivos, libros, prestamos,
     return count;
   }, [selectedAlumnoIds, selectedLibroIds, alumnoLibrosMap]);
 
-  const libroTituloMap = useMemo(() =>
-    Object.fromEntries(loteLibros.map((l) => [l.id, l.titulo])),
-    [loteLibros]);
+  const totalConLoteCompleto = useMemo(() => {
+    if (loteLibros.length === 0) return 0;
+    return alumnosDelGrupo.filter(
+      (a) => (alumnoLibrosMap[a.id]?.size ?? 0) >= loteLibros.length || localCompletados.has(a.id)
+    ).length;
+  }, [alumnosDelGrupo, alumnoLibrosMap, loteLibros, localCompletados]);
 
-  // Alumnos con algún préstamo del lote pero sin lote completo y sin marca manual
   const alumnosPendientesDeCompletar = useMemo(() =>
     alumnosDelGrupo.filter((a) => {
       const count = alumnoLibrosMap[a.id]?.size ?? 0;
@@ -281,7 +180,6 @@ export function TabPrestamosLote({ alumnos, alumnosInactivos, libros, prestamos,
     }),
   [alumnosDelGrupo, alumnoLibrosMap, loteLibros, localCompletados]);
 
-  // Opción B: préstamos del lote que serían anulados para los alumnos seleccionados
   const prestamosToAnular = useMemo(() => {
     const loteIds = new Set(loteLibros.map((l) => l.id));
     return prestamos.filter(
@@ -289,19 +187,6 @@ export function TabPrestamosLote({ alumnos, alumnosInactivos, libros, prestamos,
     );
   }, [prestamos, selectedAlumnoIds, loteLibros]);
 
-  // Map: alumno_id → all active loans (used for No activos mode)
-  const allPrestamosMap = useMemo(() => {
-    if (!isNoActivos) return {} as Record<string, PrestamoLibro[]>;
-    const map: Record<string, PrestamoLibro[]> = {};
-    for (const p of prestamos) {
-      if (!p.alumno_id) continue;
-      if (!map[p.alumno_id]) map[p.alumno_id] = [];
-      map[p.alumno_id].push(p);
-    }
-    return map;
-  }, [prestamos, isNoActivos]);
-
-  // Opción C: préstamos del alumno en detalle (todos los libros en modo No activos)
   const librosDelDetalle = useMemo(() => {
     if (!detalleAlumno) return [];
     if (isNoActivos) return prestamos.filter((p) => p.alumno_id === detalleAlumno.id);
@@ -324,11 +209,7 @@ export function TabPrestamosLote({ alumnos, alumnosInactivos, libros, prestamos,
   function handleSelectAllLibros() {
     const librosConStock = loteLibros.filter((l) => disponibles(l.id) > 0);
     const todosSeleccionados = librosConStock.every((l) => selectedLibroIds.has(l.id));
-    if (todosSeleccionados) {
-      setSelectedLibroIds(new Set());
-    } else {
-      setSelectedLibroIds(new Set(librosConStock.map((l) => l.id)));
-    }
+    setSelectedLibroIds(todosSeleccionados ? new Set() : new Set(librosConStock.map((l) => l.id)));
   }
 
   function toggleAlumno(id: string) {
@@ -350,93 +231,55 @@ export function TabPrestamosLote({ alumnos, alumnosInactivos, libros, prestamos,
   }
 
   function handleSelectAll() {
-    if (selectedAlumnoIds.size === alumnosDelGrupo.length) {
-      setSelectedAlumnoIds(new Set());
-    } else {
-      setSelectedAlumnoIds(new Set(alumnosDelGrupo.map((a) => a.id)));
-    }
+    setSelectedAlumnoIds(
+      selectedAlumnoIds.size === alumnosDelGrupo.length ? new Set() : new Set(alumnosDelGrupo.map((a) => a.id))
+    );
   }
 
   async function doEntregar(libroIdsToUse: Set<string>) {
-    if (!efectivoProfesorId) {
-      setErrorMsg("Selecciona el profesor que registra la entrega antes de continuar.");
-      return;
-    }
     setSaving(true);
     setErrorMsg(null);
 
-    const inserts: Record<string, unknown>[] = [];
+    const pares: { alumnoId: string; libroId: string }[] = [];
     for (const alumnoId of selectedAlumnoIds) {
-      const alumno = alumnos.find((a) => a.id === alumnoId)!;
       const existing = alumnoLibrosMap[alumnoId] ?? new Set();
       for (const libroId of libroIdsToUse) {
-        if (!existing.has(libroId)) {
-          inserts.push({
-            libro_id: libroId,
-            alumno_id: alumnoId,
-            alumno_nombre: alumno.alumno,
-            alumno_grupo: alumno.unidad,
-            curso_escolar: cursoEscolar,
-            fecha_prestamo: fechaEntrega,
-            entregado_por: efectivoProfesorId,
-          });
-        }
+        if (!existing.has(libroId)) pares.push({ alumnoId, libroId });
       }
     }
 
-    if (inserts.length === 0) {
+    if (pares.length === 0) {
       setStockAlertas([]);
       setSaving(false);
       setSuccessMsg("Todos los alumnos seleccionados ya tienen estos libros.");
       return;
     }
 
-    const { data, error } = await supabase
-      .from("prestamos_libros")
-      .insert(inserts)
-      .select("id, libro_id, alumno_id, alumno_nombre, alumno_grupo, num_ejemplar, fecha_prestamo, entregado_por, devuelto_por, curso_escolar, fecha_devolucion, estado_devolucion, observaciones, en_revision, estado_revision, fecha_revision, created_at, libro:libros_catalogo(titulo, asignatura, nivel)");
-
+    const { insertados, error } = await insertarPrestamos(pares, fechaEntrega);
     setSaving(false);
     setStockAlertas([]);
 
-    if (error || !data) {
-      setErrorMsg(`Error al guardar: ${error?.message ?? "respuesta inesperada del servidor"}`);
-      return;
-    }
+    if (error) { setErrorMsg(`Error al guardar: ${error}`); return; }
 
-    const newPrestamos: PrestamoLibro[] = data.map((p) => ({
-      ...p,
-      libro: (p.libro as unknown as { titulo: string; asignatura: string; nivel: string }[] | null)?.[0] ?? undefined,
-      en_revision: false,
-      estado_revision: null,
-      fecha_revision: null,
-      revisado_por: null,
-      devolucion_registrada_at: null,
-    }));
-    onPrestamosChange((prev) => [...prev, ...newPrestamos]);
     setSelectedAlumnoIds(new Set());
-    setSuccessMsg(`${inserts.length} préstamo${inserts.length !== 1 ? "s" : ""} registrado${inserts.length !== 1 ? "s" : ""} correctamente.`);
+    setSuccessMsg(`${insertados} préstamo${insertados !== 1 ? "s" : ""} registrado${insertados !== 1 ? "s" : ""} correctamente.`);
   }
 
-  // Opción B: anular en lote
   async function handleAnularLote() {
     if (prestamosToAnular.length === 0) return;
     setDeleting(true);
     const ids = prestamosToAnular.map((p) => p.id);
-    const { error } = await supabase.from("prestamos_libros").delete().in("id", ids);
+    const { error } = await eliminarPrestamos(ids);
     setDeleting(false);
-    if (error) { setErrorMsg(`Error al anular: ${error.message}`); return; }
-    onPrestamosChange((prev) => prev.filter((p) => !ids.includes(p.id)));
+    if (error) { setErrorMsg(`Error al anular: ${error}`); return; }
     setSelectedAlumnoIds(new Set());
     setAnularModalOpen(false);
     setSuccessMsg(`${ids.length} préstamo${ids.length !== 1 ? "s" : ""} anulado${ids.length !== 1 ? "s" : ""}.`);
   }
 
-  // Opción C: eliminar préstamo individual
   async function handleEliminarPrestamo(prestamoId: string) {
-    const { error } = await supabase.from("prestamos_libros").delete().eq("id", prestamoId);
-    if (error) { setErrorMsg(`Error al eliminar: ${error.message}`); return; }
-    onPrestamosChange((prev) => prev.filter((p) => p.id !== prestamoId));
+    const { error } = await eliminarPrestamos([prestamoId]);
+    if (error) setErrorMsg(`Error al eliminar: ${error}`);
   }
 
   async function handleMarcarTodosCompletos() {
@@ -516,7 +359,7 @@ export function TabPrestamosLote({ alumnos, alumnosInactivos, libros, prestamos,
     <div className="space-y-5">
 
       {/* Selector de profesor */}
-      {canManage && !myProfesorId && (
+      {!myProfesorId && (
         <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5">
           <AlertTriangle size={14} className="text-amber-500 flex-shrink-0" />
           <span className="text-sm text-amber-800 font-medium whitespace-nowrap">Registrar como:</span>
@@ -579,7 +422,6 @@ export function TabPrestamosLote({ alumnos, alumnosInactivos, libros, prestamos,
             >
               {selectedAlumnoIds.size === alumnosDelGrupo.length ? "Deseleccionar todo" : "Seleccionar todo"}
             </button>
-            {/* Opción B: anular entregas en lote */}
             {prestamosToAnular.length > 0 && (
               <button
                 onClick={() => setAnularModalOpen(true)}
@@ -775,7 +617,7 @@ export function TabPrestamosLote({ alumnos, alumnosInactivos, libros, prestamos,
               <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
                 <span className="text-sm font-semibold text-gray-700">Alumnado del grupo</span>
                 <div className="flex items-center gap-2">
-                  {canManage && alumnosPendientesDeCompletar.length > 0 && (
+                  {alumnosPendientesDeCompletar.length > 0 && (
                     <button
                       onClick={handleMarcarTodosCompletos}
                       disabled={markingAll}
@@ -819,7 +661,6 @@ export function TabPrestamosLote({ alumnos, alumnosInactivos, libros, prestamos,
                       </div>
                       <span className="text-sm text-gray-800 flex-1 min-w-0 truncate">{alumno.alumno}</span>
 
-                      {/* Estado + botón detalle (opción C) */}
                       <div className="flex items-center gap-1 flex-shrink-0">
                         {completoPorLibros ? (
                           <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-100 px-2 py-1 rounded-full">
@@ -830,23 +671,21 @@ export function TabPrestamosLote({ alumnos, alumnosInactivos, libros, prestamos,
                           <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-100 px-2 py-1 rounded-full">
                             <SquareCheck size={11} />
                             Completado · {countLibros}/{totalLote}
-                            {canManage && (
-                              <button
-                                onClick={() => handleDesmarcarCompleto(alumno.id)}
-                                disabled={isMarking}
-                                title="Desmarcar"
-                                className="ml-0.5 text-green-400 hover:text-green-700 disabled:opacity-40"
-                              >
-                                <X size={10} />
-                              </button>
-                            )}
+                            <button
+                              onClick={() => handleDesmarcarCompleto(alumno.id)}
+                              disabled={isMarking}
+                              title="Desmarcar"
+                              className="ml-0.5 text-green-400 hover:text-green-700 disabled:opacity-40"
+                            >
+                              <X size={10} />
+                            </button>
                           </span>
                         ) : (
                           <div className="flex items-center gap-1.5">
                             <span className={`text-xs font-medium px-2 py-1 rounded-full ${countLibros > 0 ? "text-amber-700 bg-amber-100" : "text-gray-400"}`}>
                               {countLibros}/{totalLote}
                             </span>
-                            {canManage && countLibros > 0 && (
+                            {countLibros > 0 && (
                               <button
                                 onClick={() => handleMarcarCompleto(alumno.id)}
                                 disabled={isMarking}
@@ -863,7 +702,6 @@ export function TabPrestamosLote({ alumnos, alumnosInactivos, libros, prestamos,
                           </div>
                         )}
 
-                        {/* Opción C: ver/eliminar libros individuales */}
                         {countLibros > 0 && (
                           <button
                             onClick={() => setDetalleAlumno(alumno)}
@@ -894,7 +732,7 @@ export function TabPrestamosLote({ alumnos, alumnosInactivos, libros, prestamos,
         />
       )}
 
-      {/* Modal: confirmar anulación en lote (opción B) */}
+      {/* Modal: confirmar anulación en lote */}
       {anularModalOpen && (
         <ModalAnularConfirm
           prestamos={prestamosToAnular}
@@ -905,7 +743,7 @@ export function TabPrestamosLote({ alumnos, alumnosInactivos, libros, prestamos,
         />
       )}
 
-      {/* Modal: detalle de libros por alumno (opción C) */}
+      {/* Modal: detalle de libros por alumno */}
       {detalleAlumno && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm">

@@ -6,7 +6,8 @@ import { createClient } from "@/lib/supabase/client";
 import type { LibroCatalogo, PrestamoLibro, Alumno } from "@/lib/types";
 import { CatalogoLibrosClient } from "./catalogo/CatalogoLibrosClient";
 import { SeguimientoClient } from "./seguimiento/SeguimientoClient";
-import { TabPrestamosLote } from "./TabPrestamosLote";
+import { TabPrestamoSimple } from "./TabPrestamoSimple";
+import { TabPrestamoAvanzado } from "./TabPrestamoAvanzado";
 import { TabDevolucionesLote } from "./TabDevolucionesLote";
 import { TabRevisionesLote } from "./TabRevisionesLote";
 import { TabInformes } from "./TabInformes";
@@ -191,20 +192,34 @@ export function GratuidadLibrosClient({
 
       {/* Contenido */}
       {activeTab === "prestamos" && !isHistorico && (
-        <TabPrestamosLote
-          alumnos={alumnos}
-          alumnosInactivos={alumnosInactivos}
-          libros={libros.filter((l) => l.activo)}
-          prestamos={livePrestamosList}
-          onPrestamosChange={setLivePrestamos}
-          cursoEscolar={cursoSeleccionado}
-          myProfesorId={myProfesorId}
-          canManage={effectiveCanManage}
-          profesores={profesores}
-          unidadesGratuidad={unidadesGratuidad}
-          completadosIniciales={completadosIniciales}
-          initialGrupo={pendingGrupo ?? undefined}
-        />
+        effectiveCanManage ? (
+          <TabPrestamoAvanzado
+            alumnos={alumnos}
+            alumnosInactivos={alumnosInactivos}
+            libros={libros.filter((l) => l.activo)}
+            prestamos={livePrestamosList}
+            onPrestamosChange={setLivePrestamos}
+            cursoEscolar={cursoSeleccionado}
+            myProfesorId={myProfesorId}
+            profesores={profesores}
+            unidadesGratuidad={unidadesGratuidad}
+            completadosIniciales={completadosIniciales}
+            initialGrupo={pendingGrupo ?? undefined}
+          />
+        ) : (
+          <TabPrestamoSimple
+            alumnos={alumnos}
+            alumnosInactivos={alumnosInactivos}
+            libros={libros.filter((l) => l.activo)}
+            prestamos={livePrestamosList}
+            onPrestamosChange={setLivePrestamos}
+            cursoEscolar={cursoSeleccionado}
+            myProfesorId={myProfesorId}
+            profesores={profesores}
+            unidadesGratuidad={unidadesGratuidad}
+            initialGrupo={pendingGrupo ?? undefined}
+          />
+        )
       )}
       {activeTab === "devoluciones" && !isHistorico && (
         <TabDevolucionesLote
