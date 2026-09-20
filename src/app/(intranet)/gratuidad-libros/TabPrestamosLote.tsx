@@ -775,7 +775,7 @@ export function TabPrestamosLote({ alumnos, alumnosInactivos, libros, prestamos,
               <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
                 <span className="text-sm font-semibold text-gray-700">Alumnado del grupo</span>
                 <div className="flex items-center gap-2">
-                  {alumnosPendientesDeCompletar.length > 0 && (
+                  {canManage && alumnosPendientesDeCompletar.length > 0 && (
                     <button
                       onClick={handleMarcarTodosCompletos}
                       disabled={markingAll}
@@ -830,21 +830,23 @@ export function TabPrestamosLote({ alumnos, alumnosInactivos, libros, prestamos,
                           <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-100 px-2 py-1 rounded-full">
                             <SquareCheck size={11} />
                             Completado · {countLibros}/{totalLote}
-                            <button
-                              onClick={() => handleDesmarcarCompleto(alumno.id)}
-                              disabled={isMarking}
-                              title="Desmarcar"
-                              className="ml-0.5 text-green-400 hover:text-green-700 disabled:opacity-40"
-                            >
-                              <X size={10} />
-                            </button>
+                            {canManage && (
+                              <button
+                                onClick={() => handleDesmarcarCompleto(alumno.id)}
+                                disabled={isMarking}
+                                title="Desmarcar"
+                                className="ml-0.5 text-green-400 hover:text-green-700 disabled:opacity-40"
+                              >
+                                <X size={10} />
+                              </button>
+                            )}
                           </span>
                         ) : (
                           <div className="flex items-center gap-1.5">
                             <span className={`text-xs font-medium px-2 py-1 rounded-full ${countLibros > 0 ? "text-amber-700 bg-amber-100" : "text-gray-400"}`}>
                               {countLibros}/{totalLote}
                             </span>
-                            {countLibros > 0 && (
+                            {canManage && countLibros > 0 && (
                               <button
                                 onClick={() => handleMarcarCompleto(alumno.id)}
                                 disabled={isMarking}
