@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import {
-  UserX, Plus, X, ChevronDown, ChevronUp,
+  UserX, Plus, X, ChevronDown, ChevronUp, ChevronLeft, ChevronRight,
   Calendar, Clock, BookOpen, MapPin, AlertCircle,
   Loader2, ShieldCheck, Users, CheckCircle2, Paperclip, Download, Edit2,
 } from "lucide-react";
@@ -13,6 +13,13 @@ import type { AusenciaProfesorado, TramoHorario, Curso } from "@/lib/types";
 interface Profesor {
   id: string;
   full_name: string;
+}
+
+interface TramoSeleccion {
+  curso_id: string;
+  aula: string;
+  tareas: string;
+  adjunto: File | null;
 }
 
 interface Props {
@@ -371,6 +378,7 @@ export function AusenciasClient({
   const [misAusencias, setMisAusencias] = useState(initialAusencias);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
+  const [tramosSeleccionados, setTramosSeleccionados] = useState<Record<number, TramoSeleccion>>({});
   const [adjunto, setAdjunto] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [saving, setSaving] = useState(false);
@@ -380,16 +388,38 @@ export function AusenciasClient({
   const [guardiaRefreshKey, setGuardiaRefreshKey] = useState(0);
   const [editing, setEditing] = useState<AusenciaProfesorado | null>(null);
   const [removeAdjunto, setRemoveAdjunto] = useState(false);
+  const [filtroTiempo, setFiltroTiempo] = useState<"futuras" | "pasadas">("futuras");
+  const [pageSize, setPageSize] = useState(10);
+  const [page, setPage] = useState(1);
 
   const today = localDateISO();
 
   function resetForm() {
     setForm(EMPTY_FORM);
+    setTramosSeleccionados({});
     setAdjunto(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
     setFormError(null);
     setEditing(null);
     setRemoveAdjunto(false);
+  }
+
+  function toggleTramoSeleccionado(tramoId: number) {
+    setTramosSeleccionados((prev) => {
+      if (prev[tramoId]) {
+        const next = { ...prev };
+        delete next[tramoId];
+        return next;
+      }
+      return { ...prev, [tramoId]: { curso_id: "", aula: "", tareas: "", adjunto: null } };
+    });
+  }
+
+  function updateTramoSeleccionado(tramoId: number, patch: Partial<TramoSeleccion>) {
+    setTramosSeleccionados((prev) => ({
+      ...prev,
+      [tramoId]: { ...prev[tramoId], ...patch },
+    }));
   }
 
   function openEdit(a: AusenciaProfesorado) {
@@ -410,21 +440,24 @@ export function AusenciasClient({
   }
 
   async function handleSave() {
+    if (editing) {
+      await handleSaveEdit();
+    } else {
+      await handleSaveCreate();
+    }
+  }
+
+  async function handleSaveEdit() {
+    if (!editing) return;
     if (!form.fecha || !form.tramo_id || !form.curso_id) {
       setFormError("Fecha, tramo y curso / grupo son obligatorios.");
-      return;
-    }
-    if (!editing && canManageAll && !form.profesor_id) {
-      setFormError("Selecciona el profesor/a al que corresponde la ausencia.");
       return;
     }
     setSaving(true);
     setFormError(null);
 
-    const targetProfesorId = canManageAll && form.profesor_id ? form.profesor_id : (myProfesorId ?? userId);
-
-    let adjunto_path: string | null = editing ? (removeAdjunto ? null : editing.adjunto_path) : null;
-    let adjunto_nombre: string | null = editing ? (removeAdjunto ? null : editing.adjunto_nombre) : null;
+    let adjunto_path: string | null = removeAdjunto ? null : editing.adjunto_path;
+    let adjunto_nombre: string | null = removeAdjunto ? null : editing.adjunto_nombre;
 
     if (adjunto) {
       const supabase = createClient();
@@ -442,59 +475,11 @@ export function AusenciasClient({
       adjunto_nombre = adjunto.name;
     }
 
-    if (editing) {
-      const res = await fetch("/api/ausencias/modificar", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: editing.id,
-          fecha: form.fecha,
-          tramo_id: Number(form.tramo_id),
-          curso_id: Number(form.curso_id),
-          aula: form.aula || null,
-          tareas: form.tareas || null,
-          observaciones: form.observaciones || null,
-          adjunto_path,
-          adjunto_nombre,
-        }),
-      });
-
-      const json = await res.json() as { success?: boolean; error?: string };
-
-      if (!res.ok || !json.success) {
-        setFormError(json.error ?? "Error al modificar la ausencia.");
-        setSaving(false);
-        return;
-      }
-
-      const tramo = tramos.find((t) => t.id === Number(form.tramo_id));
-      const curso = cursos.find((c) => c.id === Number(form.curso_id)) ?? null;
-      const editingId = editing.id;
-      setMisAusencias((prev) => prev.map((a) => a.id === editingId ? {
-        ...a,
-        fecha: form.fecha,
-        tramo_id: Number(form.tramo_id),
-        curso_id: Number(form.curso_id),
-        aula: form.aula || null,
-        tareas: form.tareas || null,
-        observaciones: form.observaciones || null,
-        adjunto_path,
-        adjunto_nombre,
-        tramos_horarios: tramo,
-        cursos: curso,
-        updated_at: new Date().toISOString(),
-      } : a));
-
-      resetForm();
-      setShowForm(false);
-      setSaving(false);
-      return;
-    }
-
-    const res = await fetch("/api/ausencias/crear", {
-      method: "POST",
+    const res = await fetch("/api/ausencias/modificar", {
+      method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        id: editing.id,
         fecha: form.fecha,
         tramo_id: Number(form.tramo_id),
         curso_id: Number(form.curso_id),
@@ -503,31 +488,124 @@ export function AusenciasClient({
         observaciones: form.observaciones || null,
         adjunto_path,
         adjunto_nombre,
-        profesor_id: targetProfesorId,
       }),
     });
 
-    const json = await res.json() as { success?: boolean; id?: number; codigo?: string; profesor_id?: string; error?: string };
+    const json = await res.json() as { success?: boolean; error?: string };
 
     if (!res.ok || !json.success) {
-      setFormError(json.error ?? "Error al registrar la ausencia.");
+      setFormError(json.error ?? "Error al modificar la ausencia.");
       setSaving(false);
       return;
     }
 
-    // Only add to "mis ausencias" if it's the current user's own absence
-    if (targetProfesorId === myProfesorId) {
-      const tramo = tramos.find((t) => t.id === Number(form.tramo_id));
-      const curso = cursos.find((c) => c.id === Number(form.curso_id)) ?? null;
-      const newAusencia: AusenciaProfesorado = {
+    const tramo = tramos.find((t) => t.id === Number(form.tramo_id));
+    const curso = cursos.find((c) => c.id === Number(form.curso_id)) ?? null;
+    const editingId = editing.id;
+    setMisAusencias((prev) => prev.map((a) => a.id === editingId ? {
+      ...a,
+      fecha: form.fecha,
+      tramo_id: Number(form.tramo_id),
+      curso_id: Number(form.curso_id),
+      aula: form.aula || null,
+      tareas: form.tareas || null,
+      observaciones: form.observaciones || null,
+      adjunto_path,
+      adjunto_nombre,
+      tramos_horarios: tramo,
+      cursos: curso,
+      updated_at: new Date().toISOString(),
+    } : a));
+
+    resetForm();
+    setShowForm(false);
+    setSaving(false);
+  }
+
+  async function handleSaveCreate() {
+    const tramoIds = Object.keys(tramosSeleccionados).map(Number);
+
+    if (!form.fecha) {
+      setFormError("La fecha es obligatoria.");
+      return;
+    }
+    if (tramoIds.length === 0) {
+      setFormError("Selecciona al menos un tramo horario.");
+      return;
+    }
+    const sinCurso = tramoIds.some((id) => !tramosSeleccionados[id].curso_id);
+    if (sinCurso) {
+      setFormError("Indica el curso / grupo afectado en cada tramo marcado.");
+      return;
+    }
+    if (canManageAll && !form.profesor_id) {
+      setFormError("Selecciona el profesor/a al que corresponde la ausencia.");
+      return;
+    }
+
+    setSaving(true);
+    setFormError(null);
+
+    const targetProfesorId = canManageAll && form.profesor_id ? form.profesor_id : (myProfesorId ?? userId);
+    const supabase = createClient();
+    const creadas: AusenciaProfesorado[] = [];
+
+    for (const tramoId of tramoIds) {
+      const sel = tramosSeleccionados[tramoId];
+      const tramoNombre = tramos.find((t) => t.id === tramoId)?.nombre ?? `tramo ${tramoId}`;
+
+      let adjunto_path: string | null = null;
+      let adjunto_nombre: string | null = null;
+      if (sel.adjunto) {
+        const safeName = sel.adjunto.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+        const storagePath = `${userId}/${Date.now()}-${tramoId}-${safeName}`;
+        const { error: uploadError } = await supabase.storage.from("ausencias").upload(storagePath, sel.adjunto);
+        if (uploadError) {
+          setFormError(`Error al subir el fichero de "${tramoNombre}". Inténtalo de nuevo.`);
+          setSaving(false);
+          if (creadas.length > 0) applyCreadas(creadas, targetProfesorId);
+          return;
+        }
+        adjunto_path = storagePath;
+        adjunto_nombre = sel.adjunto.name;
+      }
+
+      const res = await fetch("/api/ausencias/crear", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fecha: form.fecha,
+          tramo_id: tramoId,
+          curso_id: Number(sel.curso_id),
+          aula: sel.aula || null,
+          tareas: sel.tareas || null,
+          observaciones: form.observaciones || null,
+          adjunto_path,
+          adjunto_nombre,
+          profesor_id: targetProfesorId,
+        }),
+      });
+
+      const json = await res.json() as { success?: boolean; id?: number; codigo?: string; error?: string };
+
+      if (!res.ok || !json.success) {
+        setFormError(`Error al registrar "${tramoNombre}": ${json.error ?? "error desconocido"}.`);
+        setSaving(false);
+        if (creadas.length > 0) applyCreadas(creadas, targetProfesorId);
+        return;
+      }
+
+      const tramo = tramos.find((t) => t.id === tramoId);
+      const curso = cursos.find((c) => c.id === Number(sel.curso_id)) ?? null;
+      creadas.push({
         id: json.id!,
         codigo: json.codigo ?? null,
-        profesor_id: myProfesorId!,
+        profesor_id: targetProfesorId,
         fecha: form.fecha,
-        tramo_id: Number(form.tramo_id),
-        curso_id: Number(form.curso_id),
-        aula: form.aula || null,
-        tareas: form.tareas || null,
+        tramo_id: tramoId,
+        curso_id: Number(sel.curso_id),
+        aula: sel.aula || null,
+        tareas: sel.tareas || null,
         observaciones: form.observaciones || null,
         adjunto_path,
         adjunto_nombre,
@@ -536,18 +614,23 @@ export function AusenciasClient({
         updated_at: new Date().toISOString(),
         tramos_horarios: tramo,
         cursos: curso,
-      };
-      setMisAusencias((prev) => [newAusencia, ...prev]);
-      setActiveTab("mis");
-    } else {
-      // Created for another professor: refresh guardia view and switch to it
-      setGuardiaRefreshKey((k) => k + 1);
-      setActiveTab("guardia");
+      });
     }
 
+    applyCreadas(creadas, targetProfesorId);
     resetForm();
     setShowForm(false);
     setSaving(false);
+  }
+
+  function applyCreadas(creadas: AusenciaProfesorado[], targetProfesorId: string) {
+    if (targetProfesorId === myProfesorId) {
+      setMisAusencias((prev) => [...creadas, ...prev]);
+      setActiveTab("mis");
+    } else {
+      setGuardiaRefreshKey((k) => k + 1);
+      setActiveTab("guardia");
+    }
   }
 
   async function handleCancel(id: number) {
@@ -566,6 +649,23 @@ export function AusenciasClient({
   }
 
   const tramosOrdenados = [...tramos].sort((a, b) => a.orden - b.orden);
+
+  const futuras = misAusencias.filter((a) => a.fecha >= today).sort((a, b) => a.fecha.localeCompare(b.fecha));
+  const pasadas = misAusencias.filter((a) => a.fecha < today).sort((a, b) => b.fecha.localeCompare(a.fecha));
+  const listaActiva = filtroTiempo === "futuras" ? futuras : pasadas;
+  const totalPages = Math.max(1, Math.ceil(listaActiva.length / pageSize));
+  const pageClamped = Math.min(page, totalPages);
+  const misAusenciasPaginadas = listaActiva.slice((pageClamped - 1) * pageSize, pageClamped * pageSize);
+
+  function cambiarFiltroTiempo(f: "futuras" | "pasadas") {
+    setFiltroTiempo(f);
+    setPage(1);
+  }
+
+  function cambiarPageSize(n: number) {
+    setPageSize(n);
+    setPage(1);
+  }
 
   return (
     <div className="max-w-4xl mx-auto space-y-4">
@@ -664,140 +764,274 @@ export function AusenciasClient({
                   </div>
                 )}
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* Fecha */}
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-1">
-                      Fecha <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="date"
-                      value={form.fecha}
-                      onChange={(e) => setForm((f) => ({ ...f, fecha: e.target.value }))}
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
-                    />
-                  </div>
-
-                  {/* Tramo */}
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-1">
-                      Tramo horario <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      value={form.tramo_id}
-                      onChange={(e) => setForm((f) => ({ ...f, tramo_id: e.target.value }))}
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white"
-                    >
-                      <option value="">Selecciona un tramo</option>
-                      {tramosOrdenados.map((t) => (
-                        <option key={t.id} value={t.id}>
-                          {t.nombre} ({getTramoPositionLabel(t, tramos)})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Curso */}
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-1">
-                      Curso / Grupo <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      value={form.curso_id}
-                      onChange={(e) => setForm((f) => ({ ...f, curso_id: e.target.value }))}
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white"
-                    >
-                      <option value="">Selecciona un grupo</option>
-                      {cursos.map((c) => (
-                        <option key={c.id} value={c.id}>{c.nombre}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Aula */}
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-1">Aula</label>
-                    <input
-                      type="text"
-                      value={form.aula}
-                      onChange={(e) => setForm((f) => ({ ...f, aula: e.target.value }))}
-                      placeholder="Ej: Aula B2"
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
-                    />
-                  </div>
-                </div>
-
-                {/* Tareas */}
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">
-                    Tareas para el alumnado
-                  </label>
-                  <textarea
-                    rows={3}
-                    value={form.tareas}
-                    onChange={(e) => setForm((f) => ({ ...f, tareas: e.target.value }))}
-                    placeholder="Describe las actividades que debe realizar el alumnado durante tu ausencia..."
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"
-                  />
-                </div>
-
-                {/* Observaciones */}
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">Observaciones</label>
-                  <textarea
-                    rows={2}
-                    value={form.observaciones}
-                    onChange={(e) => setForm((f) => ({ ...f, observaciones: e.target.value }))}
-                    placeholder="Información adicional para el profesorado de guardia..."
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"
-                  />
-                </div>
-
-                {/* Adjunto */}
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">
-                    Fichero con las tareas <span className="text-gray-400 font-normal">(opcional, máx. 10 MB)</span>
-                  </label>
-                  {editing && editing.adjunto_path && editing.adjunto_nombre && !removeAdjunto && !adjunto ? (
-                    <div className="flex items-center gap-3">
-                      <span className="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 bg-gray-50">
-                        <Paperclip size={14} className="text-gray-400" />
-                        {editing.adjunto_nombre}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setRemoveAdjunto(true)}
-                        className="text-gray-400 hover:text-red-500 transition-colors"
-                        title="Eliminar adjunto"
-                      >
-                        <X size={14} />
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-3">
-                      <label className="flex items-center gap-2 cursor-pointer px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors">
-                        <Paperclip size={14} className="text-gray-400" />
-                        {adjunto ? adjunto.name : "Seleccionar fichero"}
+                {editing ? (
+                  <>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Fecha */}
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-600 mb-1">
+                          Fecha <span className="text-red-500">*</span>
+                        </label>
                         <input
-                          ref={fileInputRef}
-                          type="file"
-                          className="hidden"
-                          accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.jpg,.jpeg,.png"
-                          onChange={(e) => { setAdjunto(e.target.files?.[0] ?? null); setRemoveAdjunto(false); }}
+                          type="date"
+                          value={form.fecha}
+                          onChange={(e) => setForm((f) => ({ ...f, fecha: e.target.value }))}
+                          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
                         />
-                      </label>
-                      {adjunto && (
-                        <button
-                          type="button"
-                          onClick={() => { setAdjunto(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
-                          className="text-gray-400 hover:text-red-500 transition-colors"
+                      </div>
+
+                      {/* Tramo */}
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-600 mb-1">
+                          Tramo horario <span className="text-red-500">*</span>
+                        </label>
+                        <select
+                          value={form.tramo_id}
+                          onChange={(e) => setForm((f) => ({ ...f, tramo_id: e.target.value }))}
+                          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white"
                         >
-                          <X size={14} />
-                        </button>
+                          <option value="">Selecciona un tramo</option>
+                          {tramosOrdenados.map((t) => (
+                            <option key={t.id} value={t.id}>
+                              {t.nombre} ({getTramoPositionLabel(t, tramos)})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Curso */}
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-600 mb-1">
+                          Curso / Grupo <span className="text-red-500">*</span>
+                        </label>
+                        <select
+                          value={form.curso_id}
+                          onChange={(e) => setForm((f) => ({ ...f, curso_id: e.target.value }))}
+                          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white"
+                        >
+                          <option value="">Selecciona un grupo</option>
+                          {cursos.map((c) => (
+                            <option key={c.id} value={c.id}>{c.nombre}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Aula */}
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-600 mb-1">Aula</label>
+                        <input
+                          type="text"
+                          value={form.aula}
+                          onChange={(e) => setForm((f) => ({ ...f, aula: e.target.value }))}
+                          placeholder="Ej: Aula B2"
+                          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Tareas */}
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1">
+                        Tareas para el alumnado
+                      </label>
+                      <textarea
+                        rows={3}
+                        value={form.tareas}
+                        onChange={(e) => setForm((f) => ({ ...f, tareas: e.target.value }))}
+                        placeholder="Describe las actividades que debe realizar el alumnado durante tu ausencia..."
+                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"
+                      />
+                    </div>
+
+                    {/* Observaciones */}
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1">Observaciones</label>
+                      <textarea
+                        rows={2}
+                        value={form.observaciones}
+                        onChange={(e) => setForm((f) => ({ ...f, observaciones: e.target.value }))}
+                        placeholder="Información adicional para el profesorado de guardia..."
+                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"
+                      />
+                    </div>
+
+                    {/* Adjunto */}
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1">
+                        Fichero con las tareas <span className="text-gray-400 font-normal">(opcional, máx. 10 MB)</span>
+                      </label>
+                      {editing.adjunto_path && editing.adjunto_nombre && !removeAdjunto && !adjunto ? (
+                        <div className="flex items-center gap-3">
+                          <span className="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 bg-gray-50">
+                            <Paperclip size={14} className="text-gray-400" />
+                            {editing.adjunto_nombre}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setRemoveAdjunto(true)}
+                            className="text-gray-400 hover:text-red-500 transition-colors"
+                            title="Eliminar adjunto"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-3">
+                          <label className="flex items-center gap-2 cursor-pointer px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors">
+                            <Paperclip size={14} className="text-gray-400" />
+                            {adjunto ? adjunto.name : "Seleccionar fichero"}
+                            <input
+                              ref={fileInputRef}
+                              type="file"
+                              className="hidden"
+                              accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.jpg,.jpeg,.png"
+                              onChange={(e) => { setAdjunto(e.target.files?.[0] ?? null); setRemoveAdjunto(false); }}
+                            />
+                          </label>
+                          {adjunto && (
+                            <button
+                              type="button"
+                              onClick={() => { setAdjunto(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
+                              className="text-gray-400 hover:text-red-500 transition-colors"
+                            >
+                              <X size={14} />
+                            </button>
+                          )}
+                        </div>
                       )}
                     </div>
-                  )}
-                </div>
+                  </>
+                ) : (
+                  <>
+                    {/* Fecha */}
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1">
+                        Fecha <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="date"
+                        value={form.fecha}
+                        onChange={(e) => setForm((f) => ({ ...f, fecha: e.target.value }))}
+                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                      />
+                    </div>
+
+                    {/* Tramos horarios: selección múltiple con datos propios por tramo */}
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-2">
+                        Tramos horarios <span className="text-red-500">*</span>
+                      </label>
+                      <div className="space-y-2">
+                        {tramosOrdenados.map((t) => {
+                          const sel = tramosSeleccionados[t.id];
+                          const checked = !!sel;
+                          return (
+                            <div
+                              key={t.id}
+                              className={cn(
+                                "border rounded-lg overflow-hidden transition-colors",
+                                checked ? "border-amber-300 bg-amber-50/40" : "border-gray-200"
+                              )}
+                            >
+                              <label className="flex items-center gap-2 px-3 py-2.5 cursor-pointer select-none">
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={() => toggleTramoSeleccionado(t.id)}
+                                  className="w-4 h-4 rounded accent-amber-500 cursor-pointer"
+                                />
+                                <span className="text-sm text-gray-700">
+                                  {t.nombre} <span className="text-gray-400">({getTramoPositionLabel(t, tramos)})</span>
+                                </span>
+                              </label>
+                              {checked && (
+                                <div className="px-3 pb-3 pt-1 space-y-2 border-t border-amber-100">
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    <div>
+                                      <label className="block text-[11px] font-semibold text-gray-500 mb-1">
+                                        Curso / Grupo <span className="text-red-500">*</span>
+                                      </label>
+                                      <select
+                                        value={sel.curso_id}
+                                        onChange={(e) => updateTramoSeleccionado(t.id, { curso_id: e.target.value })}
+                                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white"
+                                      >
+                                        <option value="">Selecciona un grupo</option>
+                                        {cursos.map((c) => (
+                                          <option key={c.id} value={c.id}>{c.nombre}</option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                    <div>
+                                      <label className="block text-[11px] font-semibold text-gray-500 mb-1">Aula</label>
+                                      <input
+                                        type="text"
+                                        value={sel.aula}
+                                        onChange={(e) => updateTramoSeleccionado(t.id, { aula: e.target.value })}
+                                        placeholder="Ej: Aula B2"
+                                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                                      />
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <label className="block text-[11px] font-semibold text-gray-500 mb-1">
+                                      Tareas para el alumnado
+                                    </label>
+                                    <textarea
+                                      rows={2}
+                                      value={sel.tareas}
+                                      onChange={(e) => updateTramoSeleccionado(t.id, { tareas: e.target.value })}
+                                      placeholder="Describe las actividades que debe realizar el alumnado..."
+                                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-[11px] font-semibold text-gray-500 mb-1">
+                                      Fichero <span className="text-gray-400 font-normal">(opcional, máx. 10 MB)</span>
+                                    </label>
+                                    <div className="flex items-center gap-3">
+                                      <label className="flex items-center gap-2 cursor-pointer px-3 py-1.5 border border-gray-200 rounded-lg text-xs text-gray-600 hover:bg-gray-50 transition-colors bg-white">
+                                        <Paperclip size={13} className="text-gray-400" />
+                                        {sel.adjunto ? sel.adjunto.name : "Seleccionar fichero"}
+                                        <input
+                                          type="file"
+                                          className="hidden"
+                                          accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.jpg,.jpeg,.png"
+                                          onChange={(e) => updateTramoSeleccionado(t.id, { adjunto: e.target.files?.[0] ?? null })}
+                                        />
+                                      </label>
+                                      {sel.adjunto && (
+                                        <button
+                                          type="button"
+                                          onClick={() => updateTramoSeleccionado(t.id, { adjunto: null })}
+                                          className="text-gray-400 hover:text-red-500 transition-colors"
+                                        >
+                                          <X size={13} />
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Observaciones (común a todos los tramos marcados) */}
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1">Observaciones</label>
+                      <textarea
+                        rows={2}
+                        value={form.observaciones}
+                        onChange={(e) => setForm((f) => ({ ...f, observaciones: e.target.value }))}
+                        placeholder="Información adicional para el profesorado de guardia, común a todos los tramos marcados..."
+                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"
+                      />
+                    </div>
+                  </>
+                )}
 
                 <div className="flex justify-end gap-2 pt-1">
                   <button
@@ -812,7 +1046,11 @@ export function AusenciasClient({
                     className="flex items-center gap-2 px-5 py-2 text-sm bg-amber-500 hover:bg-amber-600 disabled:bg-amber-300 text-white rounded-lg font-semibold transition-colors"
                   >
                     {saving && <Loader2 size={14} className="animate-spin" />}
-                    {editing ? "Guardar cambios" : "Registrar ausencia"}
+                    {editing
+                      ? "Guardar cambios"
+                      : Object.keys(tramosSeleccionados).length > 1
+                        ? `Registrar ${Object.keys(tramosSeleccionados).length} ausencias`
+                        : "Registrar ausencia"}
                   </button>
                 </div>
               </div>
@@ -832,8 +1070,38 @@ export function AusenciasClient({
               </button>
             </div>
           ) : (
-            <div className="space-y-2">
-              {misAusencias.map((a) => {
+            <div className="space-y-3">
+              {/* Futuras / Pasadas toggle */}
+              <div className="flex gap-0.5 bg-gray-100 p-0.5 rounded-lg w-fit">
+                <button
+                  onClick={() => cambiarFiltroTiempo("futuras")}
+                  className={cn(
+                    "px-4 py-1.5 rounded-md text-xs font-semibold transition-colors",
+                    filtroTiempo === "futuras" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                  )}
+                >
+                  Próximas ({futuras.length})
+                </button>
+                <button
+                  onClick={() => cambiarFiltroTiempo("pasadas")}
+                  className={cn(
+                    "px-4 py-1.5 rounded-md text-xs font-semibold transition-colors",
+                    filtroTiempo === "pasadas" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                  )}
+                >
+                  Pasadas ({pasadas.length})
+                </button>
+              </div>
+
+              {listaActiva.length === 0 ? (
+                <div className="bg-white rounded-xl border border-gray-100 py-10 text-center">
+                  <p className="text-sm text-gray-400">
+                    {filtroTiempo === "futuras" ? "No tienes ausencias próximas" : "No tienes ausencias pasadas"}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+              {misAusenciasPaginadas.map((a) => {
                 const isExpanded = expandedId === a.id;
                 return (
                   <div
@@ -857,7 +1125,9 @@ export function AusenciasClient({
                           {a.tramos_horarios?.nombre ?? `Tramo ${a.tramo_id}`}
                         </div>
                         <div className="flex items-center gap-2 flex-wrap">
-                          <BadgeEstado estado={a.estado} />
+                          {(filtroTiempo === "futuras" || a.estado === "cancelada") && (
+                            <BadgeEstado estado={a.estado} />
+                          )}
                           {a.cursos && (
                             <span className="text-xs text-gray-500">{a.cursos.nombre}</span>
                           )}
@@ -938,6 +1208,44 @@ export function AusenciasClient({
                   </div>
                 );
               })}
+                </div>
+              )}
+
+              {/* Pagination controls */}
+              {listaActiva.length > 0 && (
+                <div className="flex items-center justify-between gap-3 flex-wrap pt-1">
+                  <div className="flex items-center gap-2 text-xs text-gray-500">
+                    <span>Mostrar</span>
+                    <select
+                      value={pageSize}
+                      onChange={(e) => cambiarPageSize(Number(e.target.value))}
+                      className="border border-gray-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white"
+                    >
+                      {[10, 25, 50, 100].map((n) => (
+                        <option key={n} value={n}>{n}</option>
+                      ))}
+                    </select>
+                    <span>registros</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-gray-500">
+                    <span>Página {pageClamped} de {totalPages}</span>
+                    <button
+                      onClick={() => setPage(pageClamped - 1)}
+                      disabled={pageClamped <= 1}
+                      className="p-1.5 rounded-lg border border-gray-200 disabled:opacity-40 hover:bg-gray-50 transition-colors"
+                    >
+                      <ChevronLeft size={14} />
+                    </button>
+                    <button
+                      onClick={() => setPage(pageClamped + 1)}
+                      disabled={pageClamped >= totalPages}
+                      className="p-1.5 rounded-lg border border-gray-200 disabled:opacity-40 hover:bg-gray-50 transition-colors"
+                    >
+                      <ChevronRight size={14} />
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
