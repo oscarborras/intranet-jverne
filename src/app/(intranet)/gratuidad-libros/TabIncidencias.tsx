@@ -54,6 +54,13 @@ function formatDate(iso: string): string {
   return iso.slice(0, 10);
 }
 
+function normalize(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
 function initialsFromNombre(nombre: string): string {
   const [ap = "", nom = ""] = nombre.split(",").map((s) => s.trim());
   return ((ap[0] ?? "") + (nom[0] ?? "")).toUpperCase() || nombre.slice(0, 2).toUpperCase();
@@ -163,9 +170,12 @@ export function TabIncidencias({ libros, alumnos, cursoEscolar, myProfesorId, ca
   );
 
   const grouped = useMemo(() => {
-    const q = busqueda.trim().toLowerCase();
-    const source = q
-      ? filtered.filter((i) => i.alumno_nombre.toLowerCase().includes(q) || i.alumno_grupo.toLowerCase().includes(q))
+    const terminos = normalize(busqueda).split(/\s+/).filter(Boolean);
+    const source = terminos.length > 0
+      ? filtered.filter((i) => {
+          const texto = normalize(`${i.alumno_nombre} ${i.alumno_grupo}`);
+          return terminos.every((t) => texto.includes(t));
+        })
       : filtered;
     const map = new Map<string, { alumnoKey: string; alumno_nombre: string; alumno_grupo: string; incidencias: Incidencia[] }>();
     for (const inc of source) {
