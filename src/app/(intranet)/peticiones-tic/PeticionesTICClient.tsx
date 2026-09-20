@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import Link from "next/link";
 import { Monitor, Plus, Users, User } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { KanbanBoard } from "@/components/kanban/KanbanBoard";
@@ -19,6 +21,7 @@ interface Props {
   canManage: boolean;
   canDelete: boolean;
   userId: string;
+  myDisplayName: string;
 }
 
 interface FormState {
@@ -27,7 +30,10 @@ interface FormState {
   prioridad: PeticionPrioridad;
 }
 
-export function PeticionesTICClient({ initialPeticiones, canManage, canDelete, userId }: Props) {
+export function PeticionesTICClient({ initialPeticiones, canManage, canDelete, userId, myDisplayName }: Props) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [peticiones, setPeticiones] = useState<PeticionTIC[]>(initialPeticiones);
   const [showForm, setShowForm] = useState(false);
   const [formStep, setFormStep] = useState<1 | 2>(1);
@@ -35,6 +41,17 @@ export function PeticionesTICClient({ initialPeticiones, canManage, canDelete, u
   const [form, setForm] = useState<FormState>({ titulo: "", descripcion: "", prioridad: "normal" });
   const [saving, setSaving] = useState(false);
   const [selectedPeticion, setSelectedPeticion] = useState<PeticionTIC | null>(null);
+
+  useEffect(() => {
+    if (searchParams.get("nueva") === "1") {
+      setFormStep(1);
+      setSoloUsuario(null);
+      setForm({ titulo: "", descripcion: "", prioridad: "normal" });
+      setShowForm(true);
+      router.replace(pathname);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const items: KanbanItem[] = peticiones.map((p) => ({ ...p, tipo: "TIC" as const }));
 
@@ -62,7 +79,7 @@ export function PeticionesTICClient({ initialPeticiones, canManage, canDelete, u
         tipo: "creacion",
         contenido: "Petición creada",
       });
-      setPeticiones((prev) => [data as PeticionTIC, ...prev]);
+      setPeticiones((prev) => [{ ...(data as PeticionTIC), autor: { full_name: myDisplayName } }, ...prev]);
     }
     setSaving(false);
     setShowForm(false);
@@ -93,13 +110,13 @@ export function PeticionesTICClient({ initialPeticiones, canManage, canDelete, u
               Reportes
             </button>
           )}
-          <button
-            onClick={() => { setFormStep(1); setSoloUsuario(null); setForm({ titulo: "", descripcion: "", prioridad: "normal" }); setShowForm(true); }}
+          <Link
+            href="/nueva-incidencia"
             className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
           >
             <Plus size={16} />
             Nueva Petición
-          </button>
+          </Link>
         </div>
       </div>
 

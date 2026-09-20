@@ -8,6 +8,7 @@ import {
   Megaphone,
   Monitor,
   Wrench,
+  PlusCircle,
   Building2,
   BookOpen,
   Laptop,
@@ -53,6 +54,7 @@ const navGroups: NavGroup[] = [
   {
     title: "PETICIONES",
     items: [
+      { label: "Nueva incidencia", href: "/nueva-incidencia", icon: <PlusCircle size={18} /> },
       { label: "Peticiones TIC", href: "/peticiones-tic", icon: <Monitor size={18} />, slug: "peticiones-tic" },
       { label: "Peticiones Mantenimiento", href: "/peticiones-mantenimiento", icon: <Wrench size={18} />, slug: "peticiones-mantenimiento" },
     ],

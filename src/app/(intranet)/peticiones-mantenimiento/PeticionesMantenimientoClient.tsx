@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import Link from "next/link";
 import { Wrench, Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { KanbanBoard } from "@/components/kanban/KanbanBoard";
@@ -18,6 +20,7 @@ interface Props {
   initialPeticiones: PeticionMantenimiento[];
   canValidate: boolean;
   userId: string;
+  myDisplayName: string;
 }
 
 interface FormState {
@@ -27,11 +30,23 @@ interface FormState {
   prioridad: PeticionPrioridad;
 }
 
-export function PeticionesMantenimientoClient({ initialPeticiones, canValidate, userId }: Props) {
+export function PeticionesMantenimientoClient({ initialPeticiones, canValidate, userId, myDisplayName }: Props) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [peticiones, setPeticiones] = useState<PeticionMantenimiento[]>(initialPeticiones);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<FormState>({ titulo: "", descripcion: "", ubicacion: "", prioridad: "normal" });
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (searchParams.get("nueva") === "1") {
+      setForm({ titulo: "", descripcion: "", ubicacion: "", prioridad: "normal" });
+      setShowForm(true);
+      router.replace(pathname);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const items: KanbanItem[] = peticiones.map((p) => ({ ...p, tipo: "MNT" as const }));
 
@@ -54,7 +69,7 @@ export function PeticionesMantenimientoClient({ initialPeticiones, canValidate, 
       .insert({ ...form, autor_id: userId })
       .select()
       .single();
-    if (data) setPeticiones((prev) => [data as PeticionMantenimiento, ...prev]);
+    if (data) setPeticiones((prev) => [{ ...(data as PeticionMantenimiento), autor: { full_name: myDisplayName } }, ...prev]);
     setSaving(false);
     setShowForm(false);
     setForm({ titulo: "", descripcion: "", ubicacion: "", prioridad: "normal" });
@@ -77,13 +92,13 @@ export function PeticionesMantenimientoClient({ initialPeticiones, canValidate, 
               Reportes
             </button>
           )}
-          <button
-            onClick={() => setShowForm(true)}
+          <Link
+            href="/nueva-incidencia"
             className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
           >
             <Plus size={16} />
             Nueva Petición
-          </button>
+          </Link>
         </div>
       </div>
 
@@ -92,6 +107,7 @@ export function PeticionesMantenimientoClient({ initialPeticiones, canValidate, 
         columns={COLUMNS}
         items={items}
         onStatusChange={handleStatusChange}
+        showStatusChange={canValidate}
       />
 
       {/* New petición modal */}

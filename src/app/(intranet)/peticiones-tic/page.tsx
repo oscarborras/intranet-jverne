@@ -47,6 +47,7 @@ export default async function PeticionesTICPage() {
     ...new Set([
       ...(peticionesRaw ?? []).map((p) => p.autor_id as string),
       ...(peticionesRaw ?? []).filter((p) => p.asignado_id).map((p) => p.asignado_id as string),
+      user!.id,
     ]),
   ];
   const userNames = await resolveAutorNames(supabase, uniqueUserIds);
@@ -57,12 +58,15 @@ export default async function PeticionesTICPage() {
     asignado: p.asignado_id ? { full_name: userNames[p.asignado_id] ?? "—" } : undefined,
   })) as PeticionTIC[];
 
+  const myDisplayName = userNames[user!.id] ?? "—";
+
   return (
     <PeticionesTICClient
       initialPeticiones={peticiones}
       canManage={canManage}
       canDelete={canDelete}
       userId={user!.id}
+      myDisplayName={myDisplayName}
     />
   );
 }
