@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { CalendarioClient } from "./CalendarioClient";
-import { resolveAutorNames } from "@/lib/calendario/resolveAutorNames";
+import { resolveAutorNames } from "@/lib/resolveAutorNames";
 import type { CalendarEvento, TipoEventoIntranet, AsuntoPropios } from "@/lib/types";
 
 export default async function CalendarioPage() {

@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { ChevronLeft, ChevronRight, Plus, X, Pencil, Calendar } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
-import { resolveAutorNames } from "@/lib/calendario/resolveAutorNames";
+import { resolveAutorNames } from "@/lib/resolveAutorNames";
 import type { CalendarEvento, TipoEventoIntranet, AsuntoPropios } from "@/lib/types";
 
 const DAYS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];

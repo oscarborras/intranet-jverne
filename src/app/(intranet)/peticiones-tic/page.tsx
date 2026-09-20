@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { PeticionesTICClient } from "./PeticionesTICClient";
+import { resolveAutorNames } from "@/lib/resolveAutorNames";
 import type { PeticionTIC, Perfil } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -28,9 +29,12 @@ export default async function PeticionesTICPage() {
     ["Admin", "TDE", "Soporte_TIC"].includes(r.nombre)
   );
 
+  const canDelete = roles.some((r) => ["Admin", "TDE"].includes(r.nombre));
+
   let peticionesQuery = supabase
     .from("peticiones_tic")
     .select("*")
+    .neq("estado", "eliminada")
     .order("created_at", { ascending: false });
 
   if (!canViewAll) {
@@ -45,14 +49,7 @@ export default async function PeticionesTICPage() {
       ...(peticionesRaw ?? []).filter((p) => p.asignado_id).map((p) => p.asignado_id as string),
     ]),
   ];
-  let userNames: Record<string, string> = {};
-  if (uniqueUserIds.length > 0) {
-    const { data: profiles } = await supabase
-      .from("users_view")
-      .select("id, full_name")
-      .in("id", uniqueUserIds);
-    userNames = Object.fromEntries((profiles ?? []).map((p) => [p.id, p.full_name as string]));
-  }
+  const userNames = await resolveAutorNames(supabase, uniqueUserIds);
 
   const peticiones: PeticionTIC[] = (peticionesRaw ?? []).map((p) => ({
     ...p,
@@ -64,6 +61,7 @@ export default async function PeticionesTICPage() {
     <PeticionesTICClient
       initialPeticiones={peticiones}
       canManage={canManage}
+      canDelete={canDelete}
       userId={user!.id}
     />
   );

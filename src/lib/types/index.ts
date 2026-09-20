@@ -167,13 +167,14 @@ export interface ReservaRecurso {
 // ─── TIC Incidents ───────────────────────────────────────────────────────────
 
 export type PeticionPrioridad = "baja" | "normal" | "alta" | "urgente";
-export type PeticionTICEstado = "pendiente" | "en_progreso" | "finalizada";
+export type PeticionTICEstado = "pendiente" | "en_progreso" | "finalizada" | "eliminada";
 export type PeticionTICActividadTipo =
   | "creacion"
   | "observacion"
   | "cambio_estado"
   | "cambio_asignado"
-  | "cambio_descripcion";
+  | "cambio_descripcion"
+  | "eliminado";
 
 export interface PeticionTICActividad {
   id: number;

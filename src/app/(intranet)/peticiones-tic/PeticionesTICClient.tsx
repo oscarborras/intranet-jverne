@@ -17,6 +17,7 @@ const COLUMNS: ColumnConfig<PeticionTICEstado>[] = [
 interface Props {
   initialPeticiones: PeticionTIC[];
   canManage: boolean;
+  canDelete: boolean;
   userId: string;
 }
 
@@ -26,7 +27,7 @@ interface FormState {
   prioridad: PeticionPrioridad;
 }
 
-export function PeticionesTICClient({ initialPeticiones, canManage, userId }: Props) {
+export function PeticionesTICClient({ initialPeticiones, canManage, canDelete, userId }: Props) {
   const [peticiones, setPeticiones] = useState<PeticionTIC[]>(initialPeticiones);
   const [showForm, setShowForm] = useState(false);
   const [formStep, setFormStep] = useState<1 | 2>(1);
@@ -116,6 +117,7 @@ export function PeticionesTICClient({ initialPeticiones, canManage, userId }: Pr
         <PeticionTICModal
           peticion={selectedPeticion}
           canManage={canManage}
+          canDelete={canDelete}
           userId={userId}
           onClose={() => setSelectedPeticion(null)}
           onUpdate={handleUpdate}

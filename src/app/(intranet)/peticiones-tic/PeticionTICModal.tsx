@@ -4,10 +4,11 @@ import { useState, useEffect, useCallback } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   X, Monitor, ArrowLeftRight, UserCheck, FileEdit,
-  MessageCircle, Plus, Clock, User, Loader2, Send,
+  MessageCircle, Plus, Clock, User, Users, Loader2, Send, Trash2,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
+import { resolveAutorNames } from "@/lib/resolveAutorNames";
 import type { PeticionTIC, PeticionTICEstado, PeticionTICActividadTipo } from "@/lib/types";
 
 interface ActivityEntry {
@@ -41,6 +42,7 @@ const ESTADO_LABELS: Record<PeticionTICEstado, string> = {
   pendiente: "Pendiente",
   en_progreso: "En Progreso",
   finalizada: "Finalizada",
+  eliminada: "Eliminada",
 };
 
 const ACTIVITY_CONFIG: Record<PeticionTICActividadTipo, { icon: LucideIcon; color: string; bg: string }> = {
@@ -49,17 +51,19 @@ const ACTIVITY_CONFIG: Record<PeticionTICActividadTipo, { icon: LucideIcon; colo
   cambio_estado:      { icon: ArrowLeftRight,  color: "text-purple-600", bg: "bg-purple-100" },
   cambio_asignado:    { icon: UserCheck,       color: "text-green-600",  bg: "bg-green-100"  },
   cambio_descripcion: { icon: FileEdit,        color: "text-gray-500",   bg: "bg-gray-100"   },
+  eliminado:          { icon: Trash2,          color: "text-red-600",    bg: "bg-red-100"    },
 };
 
 interface Props {
   peticion: PeticionTIC;
   canManage: boolean;
+  canDelete: boolean;
   userId: string;
   onClose: () => void;
   onUpdate: (updated: PeticionTIC) => void;
 }
 
-export function PeticionTICModal({ peticion, canManage, userId, onClose, onUpdate }: Props) {
+export function PeticionTICModal({ peticion, canManage, canDelete, userId, onClose, onUpdate }: Props) {
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
   const [loadingActivity, setLoadingActivity] = useState(true);
   const [users, setUsers] = useState<UserOption[]>([]);
@@ -70,6 +74,8 @@ export function PeticionTICModal({ peticion, canManage, userId, onClose, onUpdat
   const [newObs, setNewObs] = useState("");
   const [saving, setSaving] = useState(false);
   const [addingObs, setAddingObs] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const isAuthor = peticion.autor_id === userId;
 
@@ -88,14 +94,7 @@ export function PeticionTICModal({ peticion, canManage, userId, onClose, onUpdat
     }
 
     const uniqueIds = [...new Set(acts.map((a) => a.user_id as string))];
-    const { data: profiles } = await supabase
-      .from("users_view")
-      .select("id, full_name")
-      .in("id", uniqueIds);
-
-    const nameMap: Record<string, string> = Object.fromEntries(
-      (profiles ?? []).map((p) => [p.id, p.full_name as string])
-    );
+    const nameMap = await resolveAutorNames(supabase, uniqueIds);
 
     setActivity(
       acts.map((a) => ({
@@ -120,12 +119,11 @@ export function PeticionTICModal({ peticion, canManage, userId, onClose, onUpdat
         .then(async ({ data: roleRows }) => {
           const ids = [...new Set((roleRows ?? []).map((r) => r.user_id as string))];
           if (ids.length === 0) return;
-          const { data } = await supabase
-            .from("users_view")
-            .select("id, full_name")
-            .in("id", ids)
-            .order("full_name");
-          setUsers((data ?? []) as UserOption[]);
+          const nameMap = await resolveAutorNames(supabase, ids);
+          const options: UserOption[] = ids
+            .map((id) => ({ id, full_name: nameMap[id] ?? "—" }))
+            .sort((a, b) => a.full_name.localeCompare(b.full_name));
+          setUsers(options);
         });
     }
   }, [canManage, loadActivity]);
@@ -222,6 +220,21 @@ export function PeticionTICModal({ peticion, canManage, userId, onClose, onUpdat
     });
 
     setSaving(false);
+    onClose();
+  }
+
+  async function handleDelete() {
+    setDeleting(true);
+    const supabase = createClient();
+    await supabase.from("peticiones_tic").update({ estado: "eliminada" }).eq("id", peticion.id);
+    await supabase.from("peticiones_tic_actividad").insert({
+      peticion_id: peticion.id,
+      user_id: userId,
+      tipo: "eliminado",
+      contenido: "Petición eliminada",
+    });
+    onUpdate({ ...peticion, estado: "eliminada" });
+    setDeleting(false);
     onClose();
   }
 
@@ -408,6 +421,20 @@ export function PeticionTICModal({ peticion, canManage, userId, onClose, onUpdat
               </span>
             </div>
 
+            {/* Visibilidad */}
+            <div className="space-y-1.5">
+              <p className="text-xs text-gray-500">Visibilidad</p>
+              <span
+                className={cn(
+                  "inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full font-semibold",
+                  peticion.solo_usuario ? "bg-gray-100 text-gray-600" : "bg-blue-100 text-blue-700"
+                )}
+              >
+                {peticion.solo_usuario ? <User size={11} /> : <Users size={11} />}
+                {peticion.solo_usuario ? "Solo el autor" : "Visible para todos"}
+              </span>
+            </div>
+
             {/* Estado */}
             <div className="space-y-1.5">
               <p className="text-xs text-gray-500">Estado</p>
@@ -452,23 +479,55 @@ export function PeticionTICModal({ peticion, canManage, userId, onClose, onUpdat
         </div>
 
         {/* ── Footer ── */}
-        <div className="flex-shrink-0 px-6 py-4 border-t border-gray-100 flex justify-end gap-3 bg-white">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-sm text-gray-600 bg-white border border-gray-300 hover:bg-gray-50 rounded-lg transition-colors font-medium"
-          >
-            Cerrar
-          </button>
-          {canManage && (
+        <div className="flex-shrink-0 px-6 py-4 border-t border-gray-100 flex items-center justify-between gap-3 bg-white">
+          <div>
+            {(canDelete || isAuthor) && (
+              confirmDelete ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-500">¿Eliminar esta petición?</span>
+                  <button
+                    onClick={handleDelete}
+                    disabled={deleting}
+                    className="px-3 py-1.5 text-xs bg-red-600 hover:bg-red-700 disabled:bg-red-300 text-white rounded-lg font-semibold transition-colors"
+                  >
+                    {deleting ? "Eliminando..." : "Sí, eliminar"}
+                  </button>
+                  <button
+                    onClick={() => setConfirmDelete(false)}
+                    className="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setConfirmDelete(true)}
+                  className="flex items-center gap-1.5 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg font-medium transition-colors"
+                >
+                  <Trash2 size={14} />
+                  Eliminar
+                </button>
+              )
+            )}
+          </div>
+          <div className="flex items-center gap-3">
             <button
-              onClick={handleSave}
-              disabled={saving}
-              className="flex items-center gap-2 px-5 py-2 text-sm bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg font-semibold transition-colors"
+              onClick={onClose}
+              className="px-4 py-2 text-sm text-gray-600 bg-white border border-gray-300 hover:bg-gray-50 rounded-lg transition-colors font-medium"
             >
-              {saving && <Loader2 size={14} className="animate-spin" />}
-              Guardar Cambios
+              Cerrar
             </button>
-          )}
+            {canManage && (
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="flex items-center gap-2 px-5 py-2 text-sm bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg font-semibold transition-colors"
+              >
+                {saving && <Loader2 size={14} className="animate-spin" />}
+                Guardar Cambios
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>

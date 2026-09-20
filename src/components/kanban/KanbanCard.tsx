@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, MapPin, User, Clock } from "lucide-react";
+import { ChevronDown, MapPin, User, Users, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { KanbanItem } from "./KanbanBoard";
 
@@ -59,6 +59,21 @@ export function KanbanCard({ item, allStatuses, currentStatus, onStatusChange, o
           {PRIORITY_LABELS[item.prioridad]}
         </span>
       </div>
+
+      {/* Visibility (TIC only) */}
+      {"solo_usuario" in item && (
+        <div className="mb-2">
+          <span
+            className={cn(
+              "inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-medium",
+              item.solo_usuario ? "bg-gray-100 text-gray-500" : "bg-blue-50 text-blue-600"
+            )}
+          >
+            {item.solo_usuario ? <User size={10} /> : <Users size={10} />}
+            {item.solo_usuario ? "Solo el autor" : "Visible para todos"}
+          </span>
+        </div>
+      )}
 
       {/* Title */}
       <p className="text-sm font-semibold text-gray-900 leading-tight mb-2">{item.titulo}</p>

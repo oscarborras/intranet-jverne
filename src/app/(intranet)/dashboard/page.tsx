@@ -249,7 +249,7 @@ export default async function DashboardPage() {
       ? supabase.from("reservas_recursos").select("id, fecha, aula, recurso_id, tramo_id, recursos(nombre), tramos_horarios(nombre, hora_inicio, hora_fin, orden)").eq("user_id", user.id).gte("fecha", todayStr).order("fecha", { ascending: true }).limit(5)
       : Promise.resolve({ data: [] }),
     showTIC
-      ? supabase.from("peticiones_tic").select("id, codigo, titulo, estado, prioridad, created_at").eq("autor_id", user.id).neq("estado", "finalizada").order("created_at", { ascending: false }).limit(5)
+      ? supabase.from("peticiones_tic").select("id, codigo, titulo, estado, prioridad, created_at").eq("autor_id", user.id).not("estado", "in", "(finalizada,eliminada)").order("created_at", { ascending: false }).limit(5)
       : Promise.resolve({ data: [] }),
     showMantenimiento
       ? supabase.from("peticiones_mantenimiento").select("id, codigo, titulo, estado, prioridad, created_at").eq("autor_id", user.id).not("estado", "in", '("finalizada","rechazada")').order("created_at", { ascending: false }).limit(5)
