@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import {
   CheckCircle, AlertTriangle, X, Users, BookOpen, CalendarDays, ChevronDown, SquareCheck, Trash2, List,
 } from "lucide-react";
-import type { Alumno, LibroCatalogo, PrestamoLibro } from "@/lib/types";
+import type { Alumno, LibroCatalogo, PrestamoLibro, EstadoEntrega } from "@/lib/types";
 import { usePrestamosLoteData, NO_ACTIVOS, initials, todayString, type Profesor } from "./usePrestamosLoteData";
 
 // ─── Modal: alerta de stock ───────────────────────────────────────────────────
@@ -130,7 +130,7 @@ export function TabPrestamoAvanzado({
     unidades, isNoActivos, nivel,
     alumnosDelGrupo, allPrestamosMap,
     loteLibros, disponibles,
-    alumnoLibrosMap, libroTituloMap,
+    alumnoLibrosMap, prestamoPorAlumnoYLibro, libroTituloMap,
     overrideProfesorId, setOverrideProfesorId, efectivoProfesorId,
     insertarPrestamos, eliminarPrestamos,
   } = usePrestamosLoteData({
@@ -152,6 +152,11 @@ export function TabPrestamoAvanzado({
   const [localCompletados, setLocalCompletados] = useState<Set<string>>(new Set(completadosIniciales));
   const [markingId, setMarkingId] = useState<string | null>(null);
   const [markingAll, setMarkingAll] = useState(false);
+  // Nuevo/Deteriorado solo tiene sentido cuando hay un único libro marcado en
+  // el paso 1 (con varios, no queda claro a cuál de ellos se refiere).
+  const [estadoEntregaPendiente, setEstadoEntregaPendiente] = useState<Record<string, EstadoEntrega>>({});
+  const [estadoUpdatingId, setEstadoUpdatingId] = useState<string | null>(null);
+  const singleLibroId = selectedLibroIds.size === 1 ? [...selectedLibroIds][0] : null;
 
   // ── Derived propio de este modo ───────────────────────────────────────────
 
@@ -202,6 +207,7 @@ export function TabPrestamoAvanzado({
     setSelectedUnidad(unidad);
     setSelectedAlumnoIds(new Set());
     setSelectedLibroIds(new Set());
+    setEstadoEntregaPendiente({});
     setSuccessMsg(null);
     setDetalleAlumno(null);
   }
@@ -225,6 +231,7 @@ export function TabPrestamoAvanzado({
     const next = todosSeleccionados ? new Set<string>() : new Set(librosConStock.map((l) => l.id));
     setSelectedLibroIds(next);
     setSelectedAlumnoIds(alumnosConTodosLosLibros(next));
+    setEstadoEntregaPendiente({});
   }
 
   function toggleAlumno(id: string) {
@@ -242,6 +249,7 @@ export function TabPrestamoAvanzado({
     else next.add(id);
     setSelectedLibroIds(next);
     setSelectedAlumnoIds(alumnosConTodosLosLibros(next));
+    setEstadoEntregaPendiente({});
   }
 
   function handleSelectAll() {
@@ -254,11 +262,21 @@ export function TabPrestamoAvanzado({
     setSaving(true);
     setErrorMsg(null);
 
-    const pares: { alumnoId: string; libroId: string }[] = [];
+    // La condición (nuevo/deteriorado) solo se puede atribuir sin ambigüedad
+    // cuando esta entrega es de un único libro.
+    const libroUnico = libroIdsToUse.size === 1 ? [...libroIdsToUse][0] : null;
+
+    const pares: { alumnoId: string; libroId: string; estadoEntrega?: EstadoEntrega | null }[] = [];
     for (const alumnoId of selectedAlumnoIds) {
       const existing = alumnoLibrosMap[alumnoId] ?? new Set();
       for (const libroId of libroIdsToUse) {
-        if (!existing.has(libroId)) pares.push({ alumnoId, libroId });
+        if (!existing.has(libroId)) {
+          pares.push({
+            alumnoId,
+            libroId,
+            estadoEntrega: libroUnico ? estadoEntregaPendiente[alumnoId] ?? null : null,
+          });
+        }
       }
     }
 
@@ -276,7 +294,43 @@ export function TabPrestamoAvanzado({
     if (error) { setErrorMsg(`Error al guardar: ${error}`); return; }
 
     setSelectedAlumnoIds(new Set());
+    setEstadoEntregaPendiente({});
     setSuccessMsg(`${insertados} préstamo${insertados !== 1 ? "s" : ""} registrado${insertados !== 1 ? "s" : ""} correctamente.`);
+  }
+
+  // Antes de la entrega: se guarda en local, se aplicará al pulsar "Entregar
+  // lote". Después de la entrega (con un único libro seleccionado): actualiza
+  // directamente el préstamo ya existente.
+  async function handleToggleEstadoEntrega(alumno: Alumno, estado: EstadoEntrega) {
+    if (!singleLibroId) return;
+    const yaLoTiene = alumnoLibrosMap[alumno.id]?.has(singleLibroId) ?? false;
+
+    if (!yaLoTiene) {
+      setEstadoEntregaPendiente((prev) => {
+        const next = { ...prev };
+        if (next[alumno.id] === estado) delete next[alumno.id];
+        else next[alumno.id] = estado;
+        return next;
+      });
+      return;
+    }
+
+    const prestamo = prestamoPorAlumnoYLibro[alumno.id]?.[singleLibroId];
+    if (!prestamo) return;
+    const nuevoValor = prestamo.estado_entrega === estado ? null : estado;
+
+    setEstadoUpdatingId(alumno.id);
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("prestamos_libros")
+      .update({ estado_entrega: nuevoValor })
+      .eq("id", prestamo.id);
+    setEstadoUpdatingId(null);
+    if (error) {
+      setErrorMsg(`Error al actualizar el estado de entrega: ${error.message}`);
+      return;
+    }
+    onPrestamosChange((prev) => prev.map((p) => (p.id === prestamo.id ? { ...p, estado_entrega: nuevoValor } : p)));
   }
 
   async function handleAnularLote() {
@@ -658,11 +712,18 @@ export function TabPrestamoAvanzado({
                   const completoManual = localCompletados.has(alumno.id);
                   const isSelected = selectedAlumnoIds.has(alumno.id);
                   const isMarking = markingId === alumno.id;
+                  const isUpdatingEstado = estadoUpdatingId === alumno.id;
+                  const yaLoTieneSingle = singleLibroId ? (alumnoLibrosMap[alumno.id]?.has(singleLibroId) ?? false) : false;
+                  const estadoActual: EstadoEntrega | null = singleLibroId
+                    ? (yaLoTieneSingle
+                        ? (prestamoPorAlumnoYLibro[alumno.id]?.[singleLibroId]?.estado_entrega ?? null)
+                        : (estadoEntregaPendiente[alumno.id] ?? null))
+                    : null;
 
                   return (
                     <div
                       key={alumno.id}
-                      className={`flex items-center gap-3 px-4 py-3 transition-colors ${isSelected ? "bg-blue-50" : "hover:bg-gray-50"}`}
+                      className={`flex items-center gap-3 px-4 py-3 transition-colors flex-wrap ${isSelected ? "bg-blue-50" : "hover:bg-gray-50"}`}
                     >
                       <input
                         type="checkbox"
@@ -674,6 +735,37 @@ export function TabPrestamoAvanzado({
                         {initials(alumno)}
                       </div>
                       <span className="text-sm text-gray-800 flex-1 min-w-0 truncate">{alumno.alumno}</span>
+
+                      {singleLibroId && (
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <label
+                            title="Libro nuevo"
+                            className="flex items-center gap-1 text-[11px] font-medium text-gray-500 cursor-pointer select-none"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={estadoActual === "nuevo"}
+                              disabled={isUpdatingEstado}
+                              onChange={() => handleToggleEstadoEntrega(alumno, "nuevo")}
+                              className="w-3.5 h-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer disabled:cursor-not-allowed"
+                            />
+                            Nuevo
+                          </label>
+                          <label
+                            title="Libro deteriorado"
+                            className="flex items-center gap-1 text-[11px] font-medium text-gray-500 cursor-pointer select-none"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={estadoActual === "deteriorado"}
+                              disabled={isUpdatingEstado}
+                              onChange={() => handleToggleEstadoEntrega(alumno, "deteriorado")}
+                              className="w-3.5 h-3.5 rounded border-gray-300 text-amber-600 focus:ring-amber-500 cursor-pointer disabled:cursor-not-allowed"
+                            />
+                            Deteriorado
+                          </label>
+                        </div>
+                      )}
 
                       <div className="flex items-center gap-1 flex-shrink-0">
                         {completoPorLibros ? (
