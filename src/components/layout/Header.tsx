@@ -209,7 +209,7 @@ export function Header({ userName, userEmail, userRoles, inactiveModuleSlugs, ve
 
       {/* Mobile drawer */}
       {drawerOpen && (
-        <div className="fixed inset-0 z-50 md:hidden">
+        <div className="fixed inset-0 z-[60] md:hidden">
           {/* Backdrop */}
           <div
             className="absolute inset-0 bg-black/50"
@@ -315,14 +315,7 @@ export function Header({ userName, userEmail, userRoles, inactiveModuleSlugs, ve
 
             {/* Drawer footer */}
             <div className="flex-shrink-0 border-t border-blue-800 p-3">
-              <button
-                onClick={handleLogout}
-                className="w-full flex items-center gap-3 px-3 py-3 rounded-lg text-sm text-blue-100 hover:bg-blue-800/60 transition-colors"
-              >
-                <LogOut size={18} />
-                Cerrar sesión
-              </button>
-              <p className="text-center text-blue-400 text-xs mt-2">v{version}</p>
+              <p className="text-center text-blue-400 text-xs">v{version}</p>
             </div>
           </div>
         </div>
