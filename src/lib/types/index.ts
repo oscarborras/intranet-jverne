@@ -196,6 +196,8 @@ export interface PeticionTIC {
   autor_id: string;
   asignado_id: string | null;
   solo_usuario: boolean;
+  foto_path: string | null;
+  foto_nombre: string | null;
   created_at: string;
   updated_at: string;
   autor?: { full_name: string };
@@ -222,6 +224,8 @@ export interface PeticionMantenimiento {
   estado: PeticionMantenimientoEstado;
   autor_id: string;
   validado_por: string | null;
+  foto_path: string | null;
+  foto_nombre: string | null;
   created_at: string;
   updated_at: string;
   autor?: { full_name: string };

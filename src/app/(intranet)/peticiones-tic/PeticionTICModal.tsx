@@ -9,6 +9,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { resolveAutorNames } from "@/lib/resolveAutorNames";
+import { VerFotoButton } from "@/components/VerFotoButton";
 import type { PeticionTIC, PeticionTICEstado, PeticionTICActividadTipo } from "@/lib/types";
 
 interface ActivityEntry {
@@ -300,6 +301,16 @@ export function PeticionTICModal({ peticion, canManage, canDelete, userId, onClo
                 </div>
               )}
             </section>
+
+            {/* Foto adjunta */}
+            {peticion.foto_path && (
+              <section>
+                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest mb-2">
+                  Foto adjunta
+                </p>
+                <VerFotoButton path={peticion.foto_path} nombre={peticion.foto_nombre ?? undefined} />
+              </section>
+            )}
 
             {/* Activity history */}
             <section>

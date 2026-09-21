@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import Link from "next/link";
-import { Wrench, Plus } from "lucide-react";
+import { Wrench, Plus, Camera, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { KanbanBoard } from "@/components/kanban/KanbanBoard";
+import { VerFotoButton } from "@/components/VerFotoButton";
+import { uploadIncidenciaFoto } from "@/lib/uploadIncidenciaFoto";
 import type { PeticionMantenimiento, PeticionMantenimientoEstado, PeticionPrioridad } from "@/lib/types";
 import type { KanbanItem, ColumnConfig } from "@/components/kanban/KanbanBoard";
 
@@ -41,6 +43,8 @@ export function PeticionesMantenimientoClient({ initialPeticiones, canValidate, 
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<PeticionMantenimiento | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
+  const [foto, setFoto] = useState<File | null>(null);
+  const fotoInputRef = useRef<HTMLInputElement>(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -57,6 +61,8 @@ export function PeticionesMantenimientoClient({ initialPeticiones, canValidate, 
     setShowForm(false);
     setEditing(null);
     setForm(EMPTY_FORM);
+    setFoto(null);
+    if (fotoInputRef.current) fotoInputRef.current.value = "";
   }
 
   function canEditItem(item: KanbanItem): boolean {
@@ -96,10 +102,15 @@ export function PeticionesMantenimientoClient({ initialPeticiones, canValidate, 
     setSaving(true);
     const supabase = createClient();
 
+    let fotoUpdate: { foto_path: string; foto_nombre: string } | null = null;
+    if (foto) {
+      fotoUpdate = await uploadIncidenciaFoto(supabase, userId, foto);
+    }
+
     if (editing) {
       const { data } = await supabase
         .from("peticiones_mantenimiento")
-        .update(form)
+        .update({ ...form, ...(fotoUpdate ?? {}) })
         .eq("id", editing.id)
         .select()
         .single();
@@ -109,7 +120,7 @@ export function PeticionesMantenimientoClient({ initialPeticiones, canValidate, 
     } else {
       const { data } = await supabase
         .from("peticiones_mantenimiento")
-        .insert({ ...form, autor_id: userId })
+        .insert({ ...form, autor_id: userId, foto_path: fotoUpdate?.foto_path ?? null, foto_nombre: fotoUpdate?.foto_nombre ?? null })
         .select()
         .single();
       if (data) setPeticiones((prev) => [{ ...(data as PeticionMantenimiento), autor: { full_name: myDisplayName } }, ...prev]);
@@ -207,6 +218,39 @@ export function PeticionesMantenimientoClient({ initialPeticiones, canValidate, 
                   <option value="alta">Alta</option>
                   <option value="urgente">Urgente</option>
                 </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Foto <span className="text-gray-400 font-normal">(opcional)</span>
+                </label>
+                {editing?.foto_path && !foto && (
+                  <div className="mb-2">
+                    <VerFotoButton path={editing.foto_path} nombre={editing.foto_nombre ?? undefined} />
+                  </div>
+                )}
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center gap-2 cursor-pointer px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors">
+                    <Camera size={14} className="text-gray-400" />
+                    {foto ? foto.name : editing?.foto_path ? "Sustituir foto" : "Hacer foto o elegir imagen"}
+                    <input
+                      ref={fotoInputRef}
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      className="hidden"
+                      onChange={(e) => setFoto(e.target.files?.[0] ?? null)}
+                    />
+                  </label>
+                  {foto && (
+                    <button
+                      type="button"
+                      onClick={() => { setFoto(null); if (fotoInputRef.current) fotoInputRef.current.value = ""; }}
+                      className="text-gray-400 hover:text-red-500 transition-colors"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
             <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">

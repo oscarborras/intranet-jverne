@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, MapPin, User, Users, Clock, Trash2 } from "lucide-react";
+import { ChevronDown, MapPin, User, Users, Clock, Trash2, Camera } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { KanbanItem } from "./KanbanBoard";
 
@@ -126,6 +126,7 @@ export function KanbanCard({ item, allStatuses, currentStatus, onStatusChange, o
           <User size={11} />
           <span className="truncate">{item.autor?.full_name ?? "—"}</span>
           {asignadoName && <span className="text-blue-500 truncate">· {asignadoName}</span>}
+          {item.foto_path && <Camera size={11} className="text-gray-400 flex-shrink-0" />}
         </div>
         <div className="flex items-center gap-1.5 text-xs text-gray-400">
           <Clock size={11} />

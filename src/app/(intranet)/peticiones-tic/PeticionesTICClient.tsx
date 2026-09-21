@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import Link from "next/link";
-import { Monitor, Plus, Users, User } from "lucide-react";
+import { Monitor, Plus, Users, User, Camera, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { KanbanBoard } from "@/components/kanban/KanbanBoard";
 import { PeticionTICModal } from "./PeticionTICModal";
+import { uploadIncidenciaFoto } from "@/lib/uploadIncidenciaFoto";
 import type { PeticionTIC, PeticionTICEstado, PeticionPrioridad } from "@/lib/types";
 import type { KanbanItem, ColumnConfig } from "@/components/kanban/KanbanBoard";
 
@@ -39,6 +40,8 @@ export function PeticionesTICClient({ initialPeticiones, canManage, canDelete, u
   const [formStep, setFormStep] = useState<1 | 2>(1);
   const [soloUsuario, setSoloUsuario] = useState<boolean | null>(null);
   const [form, setForm] = useState<FormState>({ titulo: "", descripcion: "", prioridad: "normal" });
+  const [foto, setFoto] = useState<File | null>(null);
+  const fotoInputRef = useRef<HTMLInputElement>(null);
   const [saving, setSaving] = useState(false);
   const [selectedPeticion, setSelectedPeticion] = useState<PeticionTIC | null>(null);
 
@@ -47,6 +50,7 @@ export function PeticionesTICClient({ initialPeticiones, canManage, canDelete, u
       setFormStep(1);
       setSoloUsuario(null);
       setForm({ titulo: "", descripcion: "", prioridad: "normal" });
+      setFoto(null);
       setShowForm(true);
       router.replace(pathname);
     }
@@ -67,9 +71,20 @@ export function PeticionesTICClient({ initialPeticiones, canManage, canDelete, u
     if (!form.titulo.trim()) return;
     setSaving(true);
     const supabase = createClient();
+
+    let foto_path: string | null = null;
+    let foto_nombre: string | null = null;
+    if (foto) {
+      const uploaded = await uploadIncidenciaFoto(supabase, userId, foto);
+      if (uploaded) {
+        foto_path = uploaded.foto_path;
+        foto_nombre = uploaded.foto_nombre;
+      }
+    }
+
     const { data } = await supabase
       .from("peticiones_tic")
-      .insert({ ...form, autor_id: userId, solo_usuario: soloUsuario ?? false })
+      .insert({ ...form, autor_id: userId, solo_usuario: soloUsuario ?? false, foto_path, foto_nombre })
       .select()
       .single();
     if (data) {
@@ -86,6 +101,8 @@ export function PeticionesTICClient({ initialPeticiones, canManage, canDelete, u
     setFormStep(1);
     setSoloUsuario(null);
     setForm({ titulo: "", descripcion: "", prioridad: "normal" });
+    setFoto(null);
+    if (fotoInputRef.current) fotoInputRef.current.value = "";
   }
 
   function handleUpdate(updated: PeticionTIC) {
@@ -230,6 +247,34 @@ export function PeticionesTICClient({ initialPeticiones, canManage, canDelete, u
                       <option value="urgente">Urgente</option>
                     </select>
                   </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Foto <span className="text-gray-400 font-normal">(opcional)</span>
+                    </label>
+                    <div className="flex items-center gap-3">
+                      <label className="flex items-center gap-2 cursor-pointer px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors">
+                        <Camera size={14} className="text-gray-400" />
+                        {foto ? foto.name : "Hacer foto o elegir imagen"}
+                        <input
+                          ref={fotoInputRef}
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          className="hidden"
+                          onChange={(e) => setFoto(e.target.files?.[0] ?? null)}
+                        />
+                      </label>
+                      {foto && (
+                        <button
+                          type="button"
+                          onClick={() => { setFoto(null); if (fotoInputRef.current) fotoInputRef.current.value = ""; }}
+                          className="text-gray-400 hover:text-red-500 transition-colors"
+                        >
+                          <X size={14} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </div>
                 <div className="px-6 py-4 border-t border-gray-100 flex justify-between gap-3">
                   <button
@@ -240,7 +285,7 @@ export function PeticionesTICClient({ initialPeticiones, canManage, canDelete, u
                   </button>
                   <div className="flex gap-3">
                     <button
-                      onClick={() => { setShowForm(false); setFormStep(1); setSoloUsuario(null); setForm({ titulo: "", descripcion: "", prioridad: "normal" }); }}
+                      onClick={() => { setShowForm(false); setFormStep(1); setSoloUsuario(null); setForm({ titulo: "", descripcion: "", prioridad: "normal" }); setFoto(null); if (fotoInputRef.current) fotoInputRef.current.value = ""; }}
                       className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg"
                     >
                       Cancelar
