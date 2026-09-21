@@ -206,10 +206,25 @@ export function TabPrestamoAvanzado({
     setDetalleAlumno(null);
   }
 
+  // Alumnos del grupo que ya tienen TODOS los libros indicados (intersección,
+  // no basta con tener alguno). Se usa para premarcar el paso 2 al cambiar la
+  // selección de libros del paso 1.
+  function alumnosConTodosLosLibros(libroIds: Set<string>): Set<string> {
+    if (libroIds.size === 0) return new Set();
+    const result = new Set<string>();
+    for (const alumno of alumnosDelGrupo) {
+      const tiene = alumnoLibrosMap[alumno.id] ?? new Set();
+      if ([...libroIds].every((id) => tiene.has(id))) result.add(alumno.id);
+    }
+    return result;
+  }
+
   function handleSelectAllLibros() {
     const librosConStock = loteLibros.filter((l) => disponibles(l.id) > 0);
     const todosSeleccionados = librosConStock.every((l) => selectedLibroIds.has(l.id));
-    setSelectedLibroIds(todosSeleccionados ? new Set() : new Set(librosConStock.map((l) => l.id)));
+    const next = todosSeleccionados ? new Set<string>() : new Set(librosConStock.map((l) => l.id));
+    setSelectedLibroIds(next);
+    setSelectedAlumnoIds(alumnosConTodosLosLibros(next));
   }
 
   function toggleAlumno(id: string) {
@@ -222,12 +237,11 @@ export function TabPrestamoAvanzado({
   }
 
   function toggleLibro(id: string) {
-    setSelectedLibroIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+    const next = new Set(selectedLibroIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSelectedLibroIds(next);
+    setSelectedAlumnoIds(alumnosConTodosLosLibros(next));
   }
 
   function handleSelectAll() {
