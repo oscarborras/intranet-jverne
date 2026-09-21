@@ -4,7 +4,8 @@ import { useState } from "react";
 import {
   CheckCircle, AlertTriangle, X, Users, BookOpen, ChevronDown, List, Loader2, Trash2,
 } from "lucide-react";
-import type { Alumno, LibroCatalogo, PrestamoLibro } from "@/lib/types";
+import { createClient } from "@/lib/supabase/client";
+import type { Alumno, LibroCatalogo, PrestamoLibro, EstadoEntrega } from "@/lib/types";
 import { usePrestamosLoteData, initials, todayString, type Profesor } from "./usePrestamosLoteData";
 
 interface Props {
@@ -46,15 +47,21 @@ export function TabPrestamoSimple({
   const [confirmarAnular, setConfirmarAnular] = useState<{ alumno: Alumno; prestamoId: string; libroTitulo: string } | null>(null);
   const [detalleAlumno, setDetalleAlumno] = useState<Alumno | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  // Condición del libro elegida antes de marcar la entrega (se guarda junto al
+  // préstamo). Se pierde al cambiar de grupo o de libro sin haber entregado.
+  const [estadoEntregaPendiente, setEstadoEntregaPendiente] = useState<Record<string, EstadoEntrega>>({});
+  const [estadoUpdatingId, setEstadoUpdatingId] = useState<string | null>(null);
 
   function handleUnidadChange(unidad: string) {
     setSelectedUnidad(unidad);
     setSelectedLibroId(null);
+    setEstadoEntregaPendiente({});
     setErrorMsg(null);
   }
 
   function toggleLibro(id: string) {
     setSelectedLibroId((prev) => (prev === id ? null : id));
+    setEstadoEntregaPendiente({});
     setErrorMsg(null);
   }
 
@@ -81,9 +88,54 @@ export function TabPrestamoSimple({
 
     setProcessingId(alumno.id);
     setErrorMsg(null);
-    const { error } = await insertarPrestamos([{ alumnoId: alumno.id, libroId: selectedLibroId }], todayString());
+    const estadoEntrega = estadoEntregaPendiente[alumno.id] ?? null;
+    const { error } = await insertarPrestamos(
+      [{ alumnoId: alumno.id, libroId: selectedLibroId, estadoEntrega }],
+      todayString()
+    );
     setProcessingId(null);
-    if (error) setErrorMsg(`Error al registrar la entrega: ${error}`);
+    if (error) {
+      setErrorMsg(`Error al registrar la entrega: ${error}`);
+    } else {
+      setEstadoEntregaPendiente((prev) => {
+        const next = { ...prev };
+        delete next[alumno.id];
+        return next;
+      });
+    }
+  }
+
+  // Antes de la entrega: se guarda solo en local, se aplicará al insertar.
+  // Después de la entrega: actualiza directamente el préstamo ya existente.
+  async function handleToggleEstadoEntrega(alumno: Alumno, estado: EstadoEntrega) {
+    const yaLoTiene = selectedLibroId ? (alumnoLibrosMap[alumno.id]?.has(selectedLibroId) ?? false) : false;
+
+    if (!yaLoTiene) {
+      setEstadoEntregaPendiente((prev) => {
+        const next = { ...prev };
+        if (next[alumno.id] === estado) delete next[alumno.id];
+        else next[alumno.id] = estado;
+        return next;
+      });
+      return;
+    }
+
+    const prestamo = selectedLibroId ? prestamoPorAlumnoYLibro[alumno.id]?.[selectedLibroId] : undefined;
+    if (!prestamo) return;
+    const nuevoValor = prestamo.estado_entrega === estado ? null : estado;
+
+    setEstadoUpdatingId(alumno.id);
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("prestamos_libros")
+      .update({ estado_entrega: nuevoValor })
+      .eq("id", prestamo.id);
+    setEstadoUpdatingId(null);
+    if (error) {
+      setErrorMsg(`Error al actualizar el estado de entrega: ${error.message}`);
+      return;
+    }
+    onPrestamosChange((prev) => prev.map((p) => (p.id === prestamo.id ? { ...p, estado_entrega: nuevoValor } : p)));
   }
 
   async function confirmarAnularEntrega() {
@@ -213,9 +265,14 @@ export function TabPrestamoSimple({
                 {alumnosDelGrupo.map((alumno) => {
                   const tieneLibro = selectedLibroId ? (alumnoLibrosMap[alumno.id]?.has(selectedLibroId) ?? false) : false;
                   const isProcessing = processingId === alumno.id;
+                  const isUpdatingEstado = estadoUpdatingId === alumno.id;
                   const tieneAlgunLibro = (alumnoLibrosMap[alumno.id]?.size ?? 0) > 0;
+                  const prestamoActual = selectedLibroId ? prestamoPorAlumnoYLibro[alumno.id]?.[selectedLibroId] : undefined;
+                  const estadoActual: EstadoEntrega | null = tieneLibro
+                    ? (prestamoActual?.estado_entrega ?? null)
+                    : (estadoEntregaPendiente[alumno.id] ?? null);
                   return (
-                    <div key={alumno.id} className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-gray-50">
+                    <div key={alumno.id} className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-gray-50 flex-wrap">
                       <input
                         type="checkbox"
                         checked={tieneLibro}
@@ -227,6 +284,34 @@ export function TabPrestamoSimple({
                         {initials(alumno)}
                       </div>
                       <span className="text-sm text-gray-800 flex-1 min-w-0 truncate">{alumno.alumno}</span>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <label
+                          title="Libro nuevo"
+                          className="flex items-center gap-1 text-[11px] font-medium text-gray-500 cursor-pointer select-none"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={estadoActual === "nuevo"}
+                            disabled={!selectedLibroId || isProcessing || isUpdatingEstado}
+                            onChange={() => handleToggleEstadoEntrega(alumno, "nuevo")}
+                            className="w-3.5 h-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer disabled:cursor-not-allowed"
+                          />
+                          Nuevo
+                        </label>
+                        <label
+                          title="Libro deteriorado"
+                          className="flex items-center gap-1 text-[11px] font-medium text-gray-500 cursor-pointer select-none"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={estadoActual === "deteriorado"}
+                            disabled={!selectedLibroId || isProcessing || isUpdatingEstado}
+                            onChange={() => handleToggleEstadoEntrega(alumno, "deteriorado")}
+                            className="w-3.5 h-3.5 rounded border-gray-300 text-amber-600 focus:ring-amber-500 cursor-pointer disabled:cursor-not-allowed"
+                          />
+                          Deteriorado
+                        </label>
+                      </div>
                       {isProcessing ? (
                         <Loader2 size={14} className="text-gray-400 animate-spin flex-shrink-0" />
                       ) : tieneLibro ? (

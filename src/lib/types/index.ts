@@ -426,6 +426,7 @@ export interface LibroCatalogo {
 }
 
 export type EstadoDevolucion = "bueno" | "deteriorado" | "perdido";
+export type EstadoEntrega = "nuevo" | "deteriorado";
 
 export interface PrestamoLibro {
   id: string;
@@ -439,6 +440,7 @@ export interface PrestamoLibro {
   fecha_devolucion: string | null;
   devolucion_registrada_at: string | null;
   estado_devolucion: EstadoDevolucion | null;
+  estado_entrega: EstadoEntrega | null;
   observaciones: string | null;
   entregado_por: string;
   devuelto_por: string | null;

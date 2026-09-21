@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
-import type { Alumno, LibroCatalogo, PrestamoLibro } from "@/lib/types";
+import type { Alumno, LibroCatalogo, PrestamoLibro, EstadoEntrega } from "@/lib/types";
 
 export const NO_ACTIVOS = "__no_activos__";
 
@@ -66,7 +66,7 @@ export function usePrestamosLoteData({
     async function refreshActivos() {
       const { data } = await supabase
         .from("prestamos_libros")
-        .select("id, libro_id, alumno_id, alumno_nombre, alumno_grupo, num_ejemplar, fecha_prestamo, entregado_por, devuelto_por, curso_escolar, fecha_devolucion, estado_devolucion, observaciones, created_at, libro:libros_catalogo(titulo, asignatura, nivel, diversificacion)")
+        .select("id, libro_id, alumno_id, alumno_nombre, alumno_grupo, num_ejemplar, fecha_prestamo, entregado_por, devuelto_por, curso_escolar, fecha_devolucion, estado_devolucion, estado_entrega, observaciones, created_at, libro:libros_catalogo(titulo, asignatura, nivel, diversificacion)")
         .eq("curso_escolar", cursoEscolar)
         .is("fecha_devolucion", null)
         .order("alumno_grupo")
@@ -186,7 +186,7 @@ export function usePrestamosLoteData({
   // ── Escrituras ─────────────────────────────────────────────────────────────
 
   async function insertarPrestamos(
-    pares: { alumnoId: string; libroId: string }[],
+    pares: { alumnoId: string; libroId: string; estadoEntrega?: EstadoEntrega | null }[],
     fecha: string
   ): Promise<{ insertados: number; error?: string }> {
     if (!efectivoProfesorId) {
@@ -194,7 +194,7 @@ export function usePrestamosLoteData({
     }
     if (pares.length === 0) return { insertados: 0 };
 
-    const inserts = pares.map(({ alumnoId, libroId }) => {
+    const inserts = pares.map(({ alumnoId, libroId, estadoEntrega }) => {
       const alumno = alumnos.find((a) => a.id === alumnoId) ?? alumnosInactivos.find((a) => a.id === alumnoId);
       return {
         libro_id: libroId,
@@ -204,13 +204,14 @@ export function usePrestamosLoteData({
         curso_escolar: cursoEscolar,
         fecha_prestamo: fecha,
         entregado_por: efectivoProfesorId,
+        estado_entrega: estadoEntrega ?? null,
       };
     });
 
     const { data, error } = await supabase
       .from("prestamos_libros")
       .insert(inserts)
-      .select("id, libro_id, alumno_id, alumno_nombre, alumno_grupo, num_ejemplar, fecha_prestamo, entregado_por, devuelto_por, curso_escolar, fecha_devolucion, estado_devolucion, observaciones, en_revision, estado_revision, fecha_revision, created_at, libro:libros_catalogo(titulo, asignatura, nivel)");
+      .select("id, libro_id, alumno_id, alumno_nombre, alumno_grupo, num_ejemplar, fecha_prestamo, entregado_por, devuelto_por, curso_escolar, fecha_devolucion, estado_devolucion, estado_entrega, observaciones, en_revision, estado_revision, fecha_revision, created_at, libro:libros_catalogo(titulo, asignatura, nivel)");
 
     if (error || !data) {
       return { insertados: 0, error: error?.message ?? "Respuesta inesperada del servidor" };
