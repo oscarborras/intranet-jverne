@@ -2,17 +2,17 @@
 
 import { useState, useRef } from "react";
 import {
-  HelpCircle, Laptop, Users, CalendarDays, Plus, BookOpen,
-  CheckCircle2, MapPin, ChevronRight, ArrowLeft, Clock,
-  Mail, X, CalendarCheck, Smartphone, ShieldAlert,
+  HelpCircle, Laptop, Users, User, CalendarDays, Plus, PlusCircle, BookOpen,
+  CheckCircle2, MapPin, ChevronRight, ArrowLeft, Clock, Camera,
+  Mail, X, CalendarCheck, Smartphone, ShieldAlert, Monitor, Wrench,
   BookMarked, FileText, GraduationCap, ExternalLink, RotateCcw, Printer, ClipboardCheck,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type ItemId = "carros" | "citas" | "movil" | "prestamos" | "devoluciones" | "revisiones";
+type ItemId = "carros" | "citas" | "movil" | "prestamos" | "devoluciones" | "revisiones" | "tic" | "mantenimiento";
 type Category = "tutorial" | "protocolo";
-type ModuleId = "carros-portatiles" | "citas-familias" | "gratuidad-libros";
+type ModuleId = "carros-portatiles" | "citas-familias" | "gratuidad-libros" | "peticiones-tic" | "peticiones-mantenimiento";
 
 interface ItemMeta {
   id: ItemId;
@@ -89,6 +89,26 @@ const ITEMS: ItemMeta[] = [
     headerText: "text-indigo-600",
   },
   {
+    id: "tic",
+    category: "tutorial",
+    icon: <Monitor size={22} className="text-white" />,
+    title: "Crear una petición TIC",
+    description: "Registra una incidencia con un ordenador, impresora, red o aplicación.",
+    badge: "6 pasos · 1 min",
+    headerBg: "bg-blue-600",
+    headerText: "text-blue-600",
+  },
+  {
+    id: "mantenimiento",
+    category: "tutorial",
+    icon: <Wrench size={22} className="text-white" />,
+    title: "Crear una petición de Mantenimiento",
+    description: "Registra una incidencia de instalaciones, mobiliario o similar.",
+    badge: "5 pasos · 1 min",
+    headerBg: "bg-red-500",
+    headerText: "text-red-600",
+  },
+  {
     id: "movil",
     category: "protocolo",
     icon: <Smartphone size={22} className="text-white" />,
@@ -127,6 +147,24 @@ const MODULES: ModuleMeta[] = [
     description: "Préstamos y devoluciones del programa de gratuidad de libros.",
     color: "bg-emerald-600",
     tutorials: ["prestamos", "devoluciones", "revisiones"],
+  },
+  {
+    id: "peticiones-tic",
+    slug: "peticiones-tic",
+    icon: <Monitor size={22} className="text-white" />,
+    title: "Peticiones TIC",
+    description: "Incidencias con ordenadores, impresoras, red y aplicaciones.",
+    color: "bg-blue-600",
+    tutorials: ["tic"],
+  },
+  {
+    id: "peticiones-mantenimiento",
+    slug: "peticiones-mantenimiento",
+    icon: <Wrench size={22} className="text-white" />,
+    title: "Peticiones Mantenimiento",
+    description: "Incidencias de instalaciones, mobiliario y similares.",
+    color: "bg-red-500",
+    tutorials: ["mantenimiento"],
   },
 ];
 
@@ -514,21 +552,31 @@ function TutorialPrestamos() {
         </div>
         <div className="flex-1 pb-1">
           <p className="font-medium text-gray-900 text-sm mb-1">Paso 2 — Marca quién recibe el libro</p>
-          <p className="text-sm text-gray-500 mb-3">En el panel derecho, marca la casilla de cada alumno: <strong className="text-gray-700">la entrega se registra al instante</strong>, no hace falta ningún botón adicional. Quien ya lo tuviera aparece premarcado como <span className="text-green-700 font-medium">Entregado</span>.</p>
-          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden max-w-[270px]">
+          <p className="text-sm text-gray-500 mb-3">En el panel derecho, marca la casilla de cada alumno: <strong className="text-gray-700">la entrega se registra al instante</strong>, no hace falta ningún botón adicional. Quien ya lo tuviera aparece premarcado como <span className="text-green-700 font-medium">Entregado</span>. Junto a cada alumno puedes marcar también, si quieres, si el libro se entrega <strong className="text-gray-700">Nuevo</strong> o <strong className="text-gray-700">Deteriorado</strong> — es opcional, y puedes marcarlo antes o después de registrar la entrega.</p>
+          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden max-w-[300px]">
             <div className="px-3 py-2 border-b border-gray-100">
               <span className="text-[10px] font-semibold text-gray-700">Alumnado del grupo</span>
             </div>
             {[
-              { nombre: "García Pérez, Ana", entregado: true },
-              { nombre: "Martínez López, Luis", entregado: false },
-              { nombre: "Sánchez Ruiz, Carmen", entregado: false },
+              { nombre: "García Pérez, Ana", entregado: true, estado: "nuevo" as const },
+              { nombre: "Martínez López, Luis", entregado: false, estado: null },
+              { nombre: "Sánchez Ruiz, Carmen", entregado: false, estado: null },
             ].map(a => (
               <div key={a.nombre} className={`flex items-center gap-2 px-3 py-2 border-b border-gray-50 last:border-0 ${a.entregado ? "bg-green-50/40" : ""}`}>
                 <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border-2 ${a.entregado ? "bg-green-600 border-green-600" : "border-gray-300"}`}>
                   {a.entregado && <span className="text-white text-[8px] font-bold leading-none">✓</span>}
                 </div>
                 <span className="text-[10px] text-gray-800 flex-1 min-w-0 truncate">{a.nombre}</span>
+                <span className="flex items-center gap-1.5 flex-shrink-0">
+                  <span className={`flex items-center gap-0.5 text-[8px] ${a.estado === "nuevo" ? "text-blue-600 font-semibold" : "text-gray-400"}`}>
+                    <span className={`w-2.5 h-2.5 rounded-sm border ${a.estado === "nuevo" ? "bg-blue-600 border-blue-600" : "border-gray-300"}`} />
+                    Nuevo
+                  </span>
+                  <span className="flex items-center gap-0.5 text-[8px] text-gray-400">
+                    <span className="w-2.5 h-2.5 rounded-sm border border-gray-300" />
+                    Det.
+                  </span>
+                </span>
                 {a.entregado && (
                   <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-full flex-shrink-0 text-green-700 bg-green-100">Entregado</span>
                 )}
@@ -1013,6 +1061,222 @@ function ProtocoloMovil() {
   );
 }
 
+// ─── Tutorial: Nueva incidencia — TIC ─────────────────────────────────────────
+
+function TutorialTic() {
+  return (
+    <ol className="divide-y divide-gray-50">
+      <li className="px-6 py-5 flex gap-4">
+        <div className="flex-shrink-0 flex flex-col items-center">
+          <StepNum n={1} accent="blue" /><StepConnector />
+        </div>
+        <div className="flex-1 pb-1">
+          <p className="font-medium text-gray-900 text-sm mb-1">Accede a «Nueva incidencia»</p>
+          <p className="text-sm text-gray-500 mb-3">En el menú lateral, dentro de «Peticiones», pulsa <strong className="text-gray-700">Nueva incidencia</strong>.</p>
+          <div className="bg-gray-50 rounded-lg border border-gray-100 p-3 text-xs space-y-1 max-w-[210px]">
+            <div className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider px-2 mb-1">Peticiones</div>
+            <div className="flex items-center gap-2 text-blue-700 font-semibold bg-blue-50 py-1 px-2 rounded border border-blue-200"><PlusCircle size={12} /> Nueva incidencia</div>
+            <div className="flex items-center gap-2 text-gray-400 py-1 px-2"><Monitor size={12} /> Peticiones TIC</div>
+            <div className="flex items-center gap-2 text-gray-400 py-1 px-2"><Wrench size={12} /> Peticiones Mantenimiento</div>
+          </div>
+        </div>
+      </li>
+
+      <li className="px-6 py-5 flex gap-4">
+        <div className="flex-shrink-0 flex flex-col items-center">
+          <StepNum n={2} accent="blue" /><StepConnector />
+        </div>
+        <div className="flex-1 pb-1">
+          <p className="font-medium text-gray-900 text-sm mb-1">Elige «Un equipo o programa»</p>
+          <p className="text-sm text-gray-500 mb-3">No hace falta saber si es «TIC» o «Mantenimiento» — solo describe el tipo de problema con tus propias palabras.</p>
+          <div className="grid grid-cols-2 gap-2 max-w-[260px]">
+            <div className="border-2 border-blue-400 bg-blue-50 rounded-xl p-2.5">
+              <div className="w-7 h-7 rounded-lg bg-blue-100 flex items-center justify-center mb-1.5"><Monitor size={14} className="text-blue-600" /></div>
+              <p className="text-[10px] font-semibold text-gray-900">Un equipo o programa</p>
+              <p className="text-[9px] text-gray-400 mt-0.5">Ordenador, red, aplicación...</p>
+            </div>
+            <div className="border-2 border-gray-200 rounded-xl p-2.5 opacity-60">
+              <div className="w-7 h-7 rounded-lg bg-red-100 flex items-center justify-center mb-1.5"><Wrench size={14} className="text-red-500" /></div>
+              <p className="text-[10px] font-semibold text-gray-900">Instalaciones o mobiliario</p>
+              <p className="text-[9px] text-gray-400 mt-0.5">Aulas, puertas, limpieza...</p>
+            </div>
+          </div>
+        </div>
+      </li>
+
+      <li className="px-6 py-5 flex gap-4">
+        <div className="flex-shrink-0 flex flex-col items-center">
+          <StepNum n={3} accent="blue" /><StepConnector />
+        </div>
+        <div className="flex-1 pb-1">
+          <p className="font-medium text-gray-900 text-sm mb-1">Indica a quién afecta</p>
+          <p className="text-sm text-gray-500 mb-3">Elige si el problema solo te afecta a ti o puede afectar a más personas del centro.</p>
+          <div className="space-y-1.5 max-w-[230px]">
+            <div className="flex items-center gap-2 border-2 border-blue-400 bg-blue-50 rounded-lg px-2.5 py-2">
+              <User size={13} className="text-blue-600" />
+              <span className="text-[10px] font-medium text-gray-800">Solo me afecta a mí</span>
+            </div>
+            <div className="flex items-center gap-2 border-2 border-gray-200 rounded-lg px-2.5 py-2 opacity-60">
+              <Users size={13} className="text-gray-500" />
+              <span className="text-[10px] font-medium text-gray-800">Puede afectar a más usuarios</span>
+            </div>
+          </div>
+        </div>
+      </li>
+
+      <li className="px-6 py-5 flex gap-4">
+        <div className="flex-shrink-0 flex flex-col items-center">
+          <StepNum n={4} accent="blue" /><StepConnector />
+        </div>
+        <div className="flex-1 pb-1">
+          <p className="font-medium text-gray-900 text-sm mb-1">Describe el problema</p>
+          <p className="text-sm text-gray-500 mb-3">Escribe un título breve, una descripción y la prioridad. La foto es opcional — en el móvil puedes hacerla en el momento.</p>
+          <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-3 max-w-[230px] space-y-2">
+            <div>
+              <label className="text-[9px] text-gray-500 block mb-0.5">Título</label>
+              <div className="border border-gray-200 rounded-md px-2 py-1 text-[10px] text-gray-700">No enciende el proyector</div>
+            </div>
+            <div>
+              <label className="text-[9px] text-gray-500 block mb-0.5">Prioridad</label>
+              <div className="border border-gray-200 rounded-md px-2 py-1 text-[10px] text-gray-700">Normal</div>
+            </div>
+            <div className="flex items-center gap-1.5 border border-gray-200 rounded-md px-2 py-1 text-[10px] text-gray-500">
+              <Camera size={11} className="text-gray-400" /> Hacer foto o elegir imagen
+            </div>
+          </div>
+        </div>
+      </li>
+
+      <li className="px-6 py-5 flex gap-4">
+        <div className="flex-shrink-0 flex flex-col items-center">
+          <StepNum n={5} accent="blue" /><StepConnector />
+        </div>
+        <div className="flex-1 pb-1">
+          <p className="font-medium text-gray-900 text-sm mb-1">Pulsa «Crear Petición»</p>
+          <p className="text-sm text-gray-500 mb-3">Tu petición queda registrada al instante y aparece en el tablero de Peticiones TIC.</p>
+          <div className="flex gap-2">
+            <span className="px-3 py-1.5 rounded-lg border border-gray-200 text-[11px] text-gray-500">Atrás</span>
+            <span className="px-3 py-1.5 rounded-lg bg-blue-600 text-[11px] text-white font-semibold">Crear Petición</span>
+          </div>
+        </div>
+      </li>
+
+      <li className="px-6 py-5 flex gap-4">
+        <div className="flex-shrink-0">
+          <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
+            <CheckCircle2 size={16} className="text-green-600" />
+          </div>
+        </div>
+        <div className="flex-1">
+          <p className="font-medium text-gray-900 text-sm mb-1">¡Listo! Petición registrada</p>
+          <p className="text-sm text-gray-500 mb-3">El equipo TIC verá tu petición en su tablero. Puedes hacer seguimiento, y borrarla tú mismo si te has equivocado, desde <strong className="text-gray-700">Peticiones TIC</strong>.</p>
+          <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-3 text-xs text-green-800">
+            ✓ Petición TIC-042 creada correctamente.
+          </div>
+        </div>
+      </li>
+    </ol>
+  );
+}
+
+// ─── Tutorial: Nueva incidencia — Mantenimiento ───────────────────────────────
+
+function TutorialMantenimiento() {
+  return (
+    <ol className="divide-y divide-gray-50">
+      <li className="px-6 py-5 flex gap-4">
+        <div className="flex-shrink-0 flex flex-col items-center">
+          <StepNum n={1} accent="blue" /><StepConnector />
+        </div>
+        <div className="flex-1 pb-1">
+          <p className="font-medium text-gray-900 text-sm mb-1">Accede a «Nueva incidencia»</p>
+          <p className="text-sm text-gray-500 mb-3">En el menú lateral, dentro de «Peticiones», pulsa <strong className="text-gray-700">Nueva incidencia</strong>.</p>
+          <div className="bg-gray-50 rounded-lg border border-gray-100 p-3 text-xs space-y-1 max-w-[210px]">
+            <div className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider px-2 mb-1">Peticiones</div>
+            <div className="flex items-center gap-2 text-blue-700 font-semibold bg-blue-50 py-1 px-2 rounded border border-blue-200"><PlusCircle size={12} /> Nueva incidencia</div>
+            <div className="flex items-center gap-2 text-gray-400 py-1 px-2"><Monitor size={12} /> Peticiones TIC</div>
+            <div className="flex items-center gap-2 text-gray-400 py-1 px-2"><Wrench size={12} /> Peticiones Mantenimiento</div>
+          </div>
+        </div>
+      </li>
+
+      <li className="px-6 py-5 flex gap-4">
+        <div className="flex-shrink-0 flex flex-col items-center">
+          <StepNum n={2} accent="blue" /><StepConnector />
+        </div>
+        <div className="flex-1 pb-1">
+          <p className="font-medium text-gray-900 text-sm mb-1">Elige «Las instalaciones o el mobiliario»</p>
+          <p className="text-sm text-gray-500 mb-3">No hace falta saber si es «TIC» o «Mantenimiento» — solo describe el tipo de problema con tus propias palabras.</p>
+          <div className="grid grid-cols-2 gap-2 max-w-[260px]">
+            <div className="border-2 border-gray-200 rounded-xl p-2.5 opacity-60">
+              <div className="w-7 h-7 rounded-lg bg-blue-100 flex items-center justify-center mb-1.5"><Monitor size={14} className="text-blue-600" /></div>
+              <p className="text-[10px] font-semibold text-gray-900">Un equipo o programa</p>
+              <p className="text-[9px] text-gray-400 mt-0.5">Ordenador, red, aplicación...</p>
+            </div>
+            <div className="border-2 border-red-400 bg-red-50 rounded-xl p-2.5">
+              <div className="w-7 h-7 rounded-lg bg-red-100 flex items-center justify-center mb-1.5"><Wrench size={14} className="text-red-500" /></div>
+              <p className="text-[10px] font-semibold text-gray-900">Instalaciones o mobiliario</p>
+              <p className="text-[9px] text-gray-400 mt-0.5">Aulas, puertas, limpieza...</p>
+            </div>
+          </div>
+        </div>
+      </li>
+
+      <li className="px-6 py-5 flex gap-4">
+        <div className="flex-shrink-0 flex flex-col items-center">
+          <StepNum n={3} accent="blue" /><StepConnector />
+        </div>
+        <div className="flex-1 pb-1">
+          <p className="font-medium text-gray-900 text-sm mb-1">Describe el problema y la ubicación</p>
+          <p className="text-sm text-gray-500 mb-3">Indica el título, dónde está (aula, planta, zona...), la descripción y la prioridad. La foto es opcional.</p>
+          <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-3 max-w-[230px] space-y-2">
+            <div>
+              <label className="text-[9px] text-gray-500 block mb-0.5">Título</label>
+              <div className="border border-gray-200 rounded-md px-2 py-1 text-[10px] text-gray-700">Persiana rota</div>
+            </div>
+            <div>
+              <label className="text-[9px] text-gray-500 block mb-0.5">Ubicación</label>
+              <div className="border border-gray-200 rounded-md px-2 py-1 text-[10px] text-gray-700">Aula 2º ESO B</div>
+            </div>
+            <div className="flex items-center gap-1.5 border border-gray-200 rounded-md px-2 py-1 text-[10px] text-gray-500">
+              <Camera size={11} className="text-gray-400" /> Hacer foto o elegir imagen
+            </div>
+          </div>
+        </div>
+      </li>
+
+      <li className="px-6 py-5 flex gap-4">
+        <div className="flex-shrink-0 flex flex-col items-center">
+          <StepNum n={4} accent="blue" /><StepConnector />
+        </div>
+        <div className="flex-1 pb-1">
+          <p className="font-medium text-gray-900 text-sm mb-1">Pulsa «Crear Petición»</p>
+          <p className="text-sm text-gray-500 mb-3">Tu petición queda registrada al instante y aparece en el tablero de Peticiones Mantenimiento.</p>
+          <div className="flex gap-2">
+            <span className="px-3 py-1.5 rounded-lg border border-gray-200 text-[11px] text-gray-500">Cancelar</span>
+            <span className="px-3 py-1.5 rounded-lg bg-red-500 text-[11px] text-white font-semibold">Crear Petición</span>
+          </div>
+        </div>
+      </li>
+
+      <li className="px-6 py-5 flex gap-4">
+        <div className="flex-shrink-0">
+          <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
+            <CheckCircle2 size={16} className="text-green-600" />
+          </div>
+        </div>
+        <div className="flex-1">
+          <p className="font-medium text-gray-900 text-sm mb-1">¡Listo! Petición registrada</p>
+          <p className="text-sm text-gray-500 mb-3">El equipo de mantenimiento la verá en su tablero. Si eres tú quien la creó (o eres Admin), puedes editarla o borrarla desde <strong className="text-gray-700">Peticiones Mantenimiento</strong>.</p>
+          <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-3 text-xs text-green-800">
+            ✓ Petición MNT-018 creada correctamente.
+          </div>
+        </div>
+      </li>
+    </ol>
+  );
+}
+
 // ─── Content & tips map ───────────────────────────────────────────────────────
 
 const ITEM_CONTENT: Record<ItemId, React.ReactNode> = {
@@ -1021,13 +1285,15 @@ const ITEM_CONTENT: Record<ItemId, React.ReactNode> = {
   prestamos: <TutorialPrestamos />,
   devoluciones: <TutorialDevoluciones />,
   revisiones: <TutorialRevisiones />,
+  tic: <TutorialTic />,
+  mantenimiento: <TutorialMantenimiento />,
   movil: <ProtocoloMovil />,
 };
 
 const ITEM_TIPS: Record<ItemId, React.ReactNode> = {
   prestamos: (
     <p className="text-xs text-amber-800">
-      <strong>¿Varios libros para el mismo grupo?</strong> Repite el paso 1 con cada libro: elige uno, marca a quien lo recibe, y pasa al siguiente. Junto a cada alumno tienes un icono de lista para ver todos los libros que ya le has entregado.
+      <strong>¿Varios libros para el mismo grupo?</strong> Repite el paso 1 con cada libro: elige uno, marca a quien lo recibe, y pasa al siguiente. Junto a cada alumno tienes un icono de lista para ver todos los libros que ya le has entregado, además de las casillas <strong>Nuevo</strong>/<strong>Deteriorado</strong> por si quieres dejar constancia del estado del ejemplar.
     </p>
   ),
   devoluciones: (
@@ -1048,6 +1314,16 @@ const ITEM_TIPS: Record<ItemId, React.ReactNode> = {
   revisiones: (
     <p className="text-xs text-amber-800">
       <strong>¿Ver o anular una revisión ya guardada?</strong> Activa el toggle <strong>Ver revisados</strong> en la barra superior para consultar el estado de los libros ya revisados y, si es necesario, anular la revisión con el botón de deshacer (↩).
+    </p>
+  ),
+  tic: (
+    <p className="text-xs text-amber-800">
+      <strong>¿Ya sabes si es TIC o Mantenimiento?</strong> Puedes saltarte la pantalla de elección: desde el tablero de <strong>Peticiones TIC</strong> también hay un botón «Nueva Petición» que te lleva por el mismo camino.
+    </p>
+  ),
+  mantenimiento: (
+    <p className="text-xs text-amber-800">
+      <strong>¿Te equivocaste al crearla?</strong> Si eres el autor de la petición (o eres Admin), puedes eliminarla pulsando el icono de papelera en su tarjeta del tablero, con confirmación.
     </p>
   ),
   movil: (
