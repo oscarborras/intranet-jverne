@@ -253,6 +253,7 @@ export function GratuidadLibrosClient({
           prestamos={liveTodosPrestamos}
           cursoEscolarActual={cursoSeleccionado}
           alumnos={alumnos}
+          libros={libros}
           onNavigateToTab={isHistorico ? () => {} : navigateToTab}
           isHistorico={isHistorico}
         />

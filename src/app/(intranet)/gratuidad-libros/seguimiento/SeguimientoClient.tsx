@@ -6,12 +6,13 @@ import {
   BookOpen, CheckCircle, AlertTriangle, XCircle, Clock,
   ChevronDown, ChevronUp, Download, RotateCcw, Undo2,
 } from "lucide-react";
-import type { PrestamoLibro, EstadoDevolucion, Alumno } from "@/lib/types";
+import type { PrestamoLibro, EstadoDevolucion, Alumno, LibroCatalogo } from "@/lib/types";
 
 interface Props {
   prestamos: PrestamoLibro[];
   cursoEscolarActual: string;
   alumnos?: Alumno[];
+  libros?: LibroCatalogo[];
   onNavigateToTab?: (tab: "prestamos" | "devoluciones", grupo: string) => void;
   // true cuando se consulta un curso escolar distinto del activo: el alumnado ya
   // cambió de grupo, así que la vista "Por cursos" (que compara contra la
@@ -138,7 +139,7 @@ function GrupoCard({ grupo, tutor, entregados, devueltos, total, onPrestamos, on
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 
-export function SeguimientoClient({ prestamos, cursoEscolarActual, alumnos = [], onNavigateToTab, isHistorico = false }: Props) {
+export function SeguimientoClient({ prestamos, cursoEscolarActual, alumnos = [], libros = [], onNavigateToTab, isHistorico = false }: Props) {
   const [vista, setVista] = useState<Vista>(isHistorico ? "grupos" : "cursos");
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set());
   const [filtroNivel, setFiltroNivel] = useState<string>("todos");
@@ -147,13 +148,14 @@ export function SeguimientoClient({ prestamos, cursoEscolarActual, alumnos = [],
   const [gratuidadGrupos, setGratuidadGrupos] = useState<Set<string>>(new Set());
   const [livePrestamos, setLivePrestamos] = useState<PrestamoLibro[]>(prestamos);
   const [undoingId, setUndoingId] = useState<string | null>(null);
+  const [incidenciasSinResolver, setIncidenciasSinResolver] = useState<number>(0);
 
   // Re-fetch all loans on mount + fetch tutores
   useEffect(() => {
     async function fetchData() {
       const supabase = createClient();
 
-      const [{ data: cursosData }, { data: rawPrestamos }] = await Promise.all([
+      const [{ data: cursosData }, { data: rawPrestamos }, { count: incidenciasCount }] = await Promise.all([
         supabase.from("cursos").select("nombre, email_tutor").eq("gratuidad", true),
         supabase
           .from("prestamos_libros")
@@ -161,7 +163,14 @@ export function SeguimientoClient({ prestamos, cursoEscolarActual, alumnos = [],
           .eq("curso_escolar", cursoEscolarActual)
           .order("alumno_grupo")
           .order("alumno_nombre"),
+        supabase
+          .from("gratuidad_incidencias")
+          .select("id", { count: "exact", head: true })
+          .eq("curso_escolar", cursoEscolarActual)
+          .neq("estado", "archivada"),
       ]);
+
+      setIncidenciasSinResolver(incidenciasCount ?? 0);
 
       // Resolve professor names
       if (rawPrestamos && rawPrestamos.length > 0) {
@@ -251,11 +260,15 @@ export function SeguimientoClient({ prestamos, cursoEscolarActual, alumnos = [],
   const stats = useMemo(() => {
     const total = livePrestamos.length;
     const devueltos = livePrestamos.filter((p) => p.fecha_devolucion !== null).length;
-    const activos = total - devueltos;
-    const deteriorados = livePrestamos.filter((p) => p.estado_devolucion === "deteriorado").length;
-    const perdidos = livePrestamos.filter((p) => p.estado_devolucion === "perdido").length;
-    return { total, devueltos, activos, deteriorados, perdidos };
+    return { total, devueltos };
   }, [livePrestamos]);
+
+  const totalLibros = useMemo(
+    () => libros.filter((l) => l.activo).reduce((sum, l) => sum + l.stock_total, 0),
+    [libros]
+  );
+  const totalEntregados = stats.total;
+  const totalSinEntregar = Math.max(0, totalLibros - totalEntregados);
 
   // ── Vista por cursos ─────────────────────────────────────────────────────────
 
@@ -265,34 +278,43 @@ export function SeguimientoClient({ prestamos, cursoEscolarActual, alumnos = [],
       .filter((g) => gratuidadGrupos.size === 0 || gratuidadGrupos.has(g))
       .sort();
 
-    // All students who have received at least one book (active or returned)
-    const allLoansPerGroup = livePrestamos.reduce<Record<string, Set<string>>>((acc, p) => {
-      if (!acc[p.alumno_grupo]) acc[p.alumno_grupo] = new Set();
-      acc[p.alumno_grupo].add(p.alumno_id ?? p.alumno_nombre);
-      return acc;
-    }, {});
-
-    // Students with at least one active (not returned) loan
-    const activeLoansPerGroup = livePrestamos.reduce<Record<string, Set<string>>>((acc, p) => {
-      if (p.fecha_devolucion) return acc;
-      if (!acc[p.alumno_grupo]) acc[p.alumno_grupo] = new Set();
-      acc[p.alumno_grupo].add(p.alumno_id ?? p.alumno_nombre);
-      return acc;
-    }, {});
-
     const result: Record<string, { grupo: string; total: number; entregados: number; devueltos: number }[]> = {};
     for (const grupo of grupos) {
       const nivel = nivelFromGrupo(grupo);
       if (!nivel) continue;
       const totalEnGrupo = alumnos.filter((a) => a.unidad === grupo).length;
-      const entregados = allLoansPerGroup[grupo]?.size ?? 0;
-      const conActivos = activeLoansPerGroup[grupo]?.size ?? 0;
-      const devueltos = entregados - conActivos;
+
+      // El lote del nivel: todos los libros activos del catálogo para ese nivel.
+      // Un alumno solo cuenta como "entregado"/"devuelto" cuando tiene el lote
+      // COMPLETO, no con solo alguno de sus libros.
+      const loteIds = new Set(libros.filter((l) => l.activo && l.nivel === nivel).map((l) => l.id));
+      const loteSize = loteIds.size;
+
+      const recibidosPorAlumno: Record<string, Set<string>> = {};
+      const devueltosPorAlumno: Record<string, Set<string>> = {};
+      for (const p of livePrestamos) {
+        if (p.alumno_grupo !== grupo || !loteIds.has(p.libro_id)) continue;
+        const key = p.alumno_id ?? p.alumno_nombre;
+        (recibidosPorAlumno[key] ??= new Set()).add(p.libro_id);
+        if (p.fecha_devolucion) (devueltosPorAlumno[key] ??= new Set()).add(p.libro_id);
+      }
+
+      let entregados = 0;
+      let devueltos = 0;
+      if (loteSize > 0) {
+        for (const key of Object.keys(recibidosPorAlumno)) {
+          const completoRecibido = recibidosPorAlumno[key].size === loteSize;
+          if (!completoRecibido) continue;
+          entregados++;
+          if ((devueltosPorAlumno[key]?.size ?? 0) === loteSize) devueltos++;
+        }
+      }
+
       if (!result[nivel]) result[nivel] = [];
       result[nivel].push({ grupo, total: totalEnGrupo, entregados, devueltos });
     }
     return result;
-  }, [alumnos, livePrestamos, gratuidadGrupos]);
+  }, [alumnos, livePrestamos, gratuidadGrupos, libros]);
 
   const nivelesConDatos = ESO_NIVELES.filter((n) => porNivel[n]?.length);
 
@@ -401,12 +423,13 @@ export function SeguimientoClient({ prestamos, cursoEscolarActual, alumnos = [],
       </div>
 
       {/* Tarjetas resumen */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         {[
-          { label: "Total préstamos", value: stats.total,  color: "text-blue-700 bg-blue-50 border-blue-200" },
-          { label: "Pendientes",      value: stats.activos, color: "text-amber-700 bg-amber-50 border-amber-200", icon: <Clock size={16} /> },
-          { label: "Devueltos",       value: stats.devueltos, color: "text-green-700 bg-green-50 border-green-200", icon: <CheckCircle size={16} /> },
-          { label: "Incidencias",     value: stats.deteriorados + stats.perdidos, color: "text-red-700 bg-red-50 border-red-200", icon: <AlertTriangle size={16} /> },
+          { label: "Total de libros",          value: totalLibros,            color: "text-blue-700 bg-blue-50 border-blue-200" },
+          { label: "Total entregados",         value: totalEntregados,        color: "text-indigo-700 bg-indigo-50 border-indigo-200", icon: <BookOpen size={16} /> },
+          { label: "Total sin entregar",       value: totalSinEntregar,       color: "text-amber-700 bg-amber-50 border-amber-200", icon: <Clock size={16} /> },
+          { label: "Devueltos",                value: stats.devueltos,        color: "text-green-700 bg-green-50 border-green-200", icon: <CheckCircle size={16} /> },
+          { label: "Incidencias sin resolver", value: incidenciasSinResolver, color: "text-red-700 bg-red-50 border-red-200", icon: <AlertTriangle size={16} /> },
         ].map((card) => (
           <div key={card.label} className={`border rounded-xl p-4 ${card.color}`}>
             <div className="flex items-center gap-1.5 mb-1">
