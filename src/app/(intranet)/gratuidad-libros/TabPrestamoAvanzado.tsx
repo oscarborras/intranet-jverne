@@ -770,6 +770,7 @@ export function TabPrestamoAvanzado({
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-gray-800 truncate">{libroTituloMap[p.libro_id] ?? p.libro?.titulo ?? "—"}</p>
                     <p className="text-xs text-gray-400">{p.libro?.asignatura ?? ""}</p>
+                    <p className="text-xs text-gray-400">Entregado por: {p.entregado_por_nombre?.profesor ?? "—"}</p>
                   </div>
                   <button
                     onClick={() => handleEliminarPrestamo(p.id)}

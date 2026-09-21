@@ -429,7 +429,7 @@ export function SeguimientoClient({ prestamos, cursoEscolarActual, alumnos = [],
               vista === v ? "bg-white text-gray-900 shadow-sm" : "text-gray-600 hover:text-gray-900"
             }`}
           >
-            {v === "cursos" ? "Por cursos" : v === "grupos" ? "Por grupos" : "Por libros"}
+            {v === "cursos" ? "Por Lotes" : v === "grupos" ? "Por grupos" : "Por libros"}
           </button>
         ))}
       </div>
@@ -507,7 +507,7 @@ export function SeguimientoClient({ prestamos, cursoEscolarActual, alumnos = [],
                   gruposFiltro === f ? "bg-white text-gray-900 shadow-sm" : "text-gray-600 hover:text-gray-900"
                 }`}
               >
-                {f === "pendientes" ? "Pendientes" : "Devueltos"}
+                {f === "pendientes" ? "Entregados" : "Devueltos"}
               </button>
             ))}
           </div>
@@ -556,7 +556,7 @@ export function SeguimientoClient({ prestamos, cursoEscolarActual, alumnos = [],
                           ? "bg-amber-100 text-amber-700"
                           : "bg-green-100 text-green-700"
                       }`}>
-                        {prestamosGrupo.length} {gruposFiltro === "pendientes" ? "pendientes" : "devueltos"}
+                        {prestamosGrupo.length} {gruposFiltro === "pendientes" ? "entregados" : "devueltos"}
                       </span>
                       {isExpanded
                         ? <ChevronUp size={16} className={gruposFiltro === "pendientes" ? "text-amber-500" : "text-green-500"} />
@@ -583,6 +583,7 @@ export function SeguimientoClient({ prestamos, cursoEscolarActual, alumnos = [],
                                       {p.num_ejemplar && (
                                         <span className="text-gray-400 flex-shrink-0">· Ej. {p.num_ejemplar}</span>
                                       )}
+                                      <span className="text-gray-400 flex-shrink-0">· {p.entregado_por_nombre?.profesor ?? "—"}</span>
                                     </span>
                                     {gruposFiltro === "devueltos" && (
                                       <div className="flex items-center gap-1.5 flex-shrink-0">

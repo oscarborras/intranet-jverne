@@ -41,7 +41,7 @@ export default async function NuevaIncidenciaPage() {
               <div>
                 <p className="font-semibold text-gray-900">Un equipo o programa</p>
                 <p className="text-sm text-gray-500 mt-1">
-                  Ordenador, impresora, fotocopiadora, pizarra digital, proyector, red, Internet, aplicación...
+                  Email corporativo, Ordenador, impresora, fotocopiadora, pizarra digital, proyector, red, Internet, aplicación...
                 </p>
               </div>
             </Link>
@@ -58,7 +58,7 @@ export default async function NuevaIncidenciaPage() {
               <div>
                 <p className="font-semibold text-gray-900">Las instalaciones o el mobiliario</p>
                 <p className="text-sm text-gray-500 mt-1">
-                  Aulas, puertas, mobiliario, limpieza, luz, climatización...
+                  Aulas, puertas, mobiliario, limpieza, luz, climatización, ...
                 </p>
               </div>
             </Link>

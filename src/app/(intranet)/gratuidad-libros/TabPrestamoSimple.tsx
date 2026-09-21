@@ -312,6 +312,7 @@ export function TabPrestamoSimple({
                 <div key={p.id} className="px-4 py-3">
                   <p className="text-sm font-medium text-gray-800 truncate">{p.libro?.titulo ?? "—"}</p>
                   <p className="text-xs text-gray-400">{p.libro?.asignatura ?? ""}</p>
+                  <p className="text-xs text-gray-400">Entregado por: {p.entregado_por_nombre?.profesor ?? "—"}</p>
                 </div>
               ))}
             </div>
