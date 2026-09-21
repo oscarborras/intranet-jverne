@@ -12,7 +12,7 @@ import {
 
 type ItemId = "carros" | "citas" | "movil" | "prestamos" | "devoluciones" | "revisiones" | "tic" | "mantenimiento";
 type Category = "tutorial" | "protocolo";
-type ModuleId = "carros-portatiles" | "citas-familias" | "gratuidad-libros" | "peticiones-tic" | "peticiones-mantenimiento";
+type ModuleId = "carros-portatiles" | "citas-familias" | "gratuidad-libros" | "peticiones-incidencias";
 
 interface ItemMeta {
   id: ItemId;
@@ -27,7 +27,9 @@ interface ItemMeta {
 
 interface ModuleMeta {
   id: ModuleId;
-  slug: string;
+  // Uno o varios slugs de modulos_config. Con varios, el botón se muestra si
+  // al menos uno de ellos está activo para el perfil del usuario.
+  slug: string | string[];
   icon: React.ReactNode;
   title: string;
   description: string;
@@ -149,22 +151,13 @@ const MODULES: ModuleMeta[] = [
     tutorials: ["prestamos", "devoluciones", "revisiones"],
   },
   {
-    id: "peticiones-tic",
-    slug: "peticiones-tic",
-    icon: <Monitor size={22} className="text-white" />,
-    title: "Peticiones TIC",
-    description: "Incidencias con ordenadores, impresoras, red y aplicaciones.",
-    color: "bg-blue-600",
-    tutorials: ["tic"],
-  },
-  {
-    id: "peticiones-mantenimiento",
-    slug: "peticiones-mantenimiento",
-    icon: <Wrench size={22} className="text-white" />,
-    title: "Peticiones Mantenimiento",
-    description: "Incidencias de instalaciones, mobiliario y similares.",
-    color: "bg-red-500",
-    tutorials: ["mantenimiento"],
+    id: "peticiones-incidencias",
+    slug: ["peticiones-tic", "peticiones-mantenimiento"],
+    icon: <ShieldAlert size={22} className="text-white" />,
+    title: "Peticiones e incidencias",
+    description: "Incidencias TIC (equipos, red, aplicaciones) y de mantenimiento (instalaciones, mobiliario).",
+    color: "bg-slate-700",
+    tutorials: ["tic", "mantenimiento"],
   },
 ];
 
@@ -1418,7 +1411,10 @@ export function AyudaClient({ inactiveModuleSlugs }: Props) {
     if (win) setTimeout(() => URL.revokeObjectURL(url), 60000);
   }
 
-  const visibleModules  = MODULES.filter((m) => !inactiveModuleSlugs.includes(m.slug));
+  const visibleModules  = MODULES.filter((m) => {
+    const slugs = Array.isArray(m.slug) ? m.slug : [m.slug];
+    return slugs.some((s) => !inactiveModuleSlugs.includes(s));
+  });
   const protocolos      = ITEMS.filter((i) => i.category === "protocolo");
   const activeItemMeta  = activeItem   ? ITEMS.find((t) => t.id === activeItem)!    : null;
   const activeModuleMeta = activeModule ? MODULES.find((m) => m.id === activeModule)! : null;
@@ -1484,22 +1480,40 @@ export function AyudaClient({ inactiveModuleSlugs }: Props) {
       {/* ── Home view ─────────────────────────────────────────────────────── */}
       {showHome && (
         <>
-          {/* Web del Claustro — always visible */}
-          <a
-            href="https://sites.google.com/iesjulioverne.es/webclaustro/inicio?authuser=0"
-            target="_blank"
-            rel="noreferrer"
-            className="flex items-center gap-4 bg-white rounded-xl border border-gray-100 p-4 hover:border-gray-200 hover:shadow-sm transition-all group"
-          >
-            <div className="w-11 h-11 rounded-xl bg-indigo-600 flex items-center justify-center flex-shrink-0">
-              <ExternalLink size={20} className="text-white" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="font-semibold text-gray-900 text-sm">Web de ayuda del Claustro</p>
-              <p className="text-xs text-gray-500 mt-0.5">Documentación y recursos del claustro de IES Julio Verne</p>
-            </div>
-            <ChevronRight size={16} className="text-gray-300 group-hover:text-gray-500 flex-shrink-0 transition-colors" />
-          </a>
+          {/* Web del Claustro + Códigos Ausencias — always visible */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <a
+              href="https://sites.google.com/iesjulioverne.es/webclaustro/inicio?authuser=0"
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-4 bg-white rounded-xl border border-gray-100 p-4 hover:border-gray-200 hover:shadow-sm transition-all group"
+            >
+              <div className="w-11 h-11 rounded-xl bg-indigo-600 flex items-center justify-center flex-shrink-0">
+                <ExternalLink size={20} className="text-white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-gray-900 text-sm">Web de ayuda del Claustro</p>
+                <p className="text-xs text-gray-500 mt-0.5">Documentación y recursos del claustro de IES Julio Verne</p>
+              </div>
+              <ChevronRight size={16} className="text-gray-300 group-hover:text-gray-500 flex-shrink-0 transition-colors" />
+            </a>
+
+            <a
+              href="/documentos/codigos-ausencias.pdf"
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-4 bg-white rounded-xl border border-gray-100 p-4 hover:border-gray-200 hover:shadow-sm transition-all group"
+            >
+              <div className="w-11 h-11 rounded-xl bg-pink-500 flex items-center justify-center flex-shrink-0">
+                <FileText size={20} className="text-white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-gray-900 text-sm">Códigos Ausencias</p>
+                <p className="text-xs text-gray-500 mt-0.5">Motivos y códigos para la solicitud de permisos y licencias</p>
+              </div>
+              <ChevronRight size={16} className="text-gray-300 group-hover:text-gray-500 flex-shrink-0 transition-colors" />
+            </a>
+          </div>
 
           <div className="space-y-5">
             {/* Module tutorial buttons — filtered by active modules */}
