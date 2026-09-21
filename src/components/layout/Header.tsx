@@ -36,6 +36,7 @@ interface HeaderProps {
   userEmail: string;
   userRoles: Perfil[];
   inactiveModuleSlugs: string[];
+  version: string;
 }
 
 interface NavItem {
@@ -104,7 +105,7 @@ const navGroups: NavGroup[] = [
   },
 ];
 
-export function Header({ userName, userEmail, userRoles, inactiveModuleSlugs }: HeaderProps) {
+export function Header({ userName, userEmail, userRoles, inactiveModuleSlugs, version }: HeaderProps) {
   const router = useRouter();
   const pathname = usePathname();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -321,6 +322,7 @@ export function Header({ userName, userEmail, userRoles, inactiveModuleSlugs }: 
                 <LogOut size={18} />
                 Cerrar sesión
               </button>
+              <p className="text-center text-blue-400 text-xs mt-2">v{version}</p>
             </div>
           </div>
         </div>
