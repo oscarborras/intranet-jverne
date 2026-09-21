@@ -683,7 +683,7 @@ export function SeguimientoClient({ prestamos, cursoEscolarActual, alumnos = [],
                     <div className="flex items-center gap-2 flex-shrink-0">
                       {libro.activos > 0 && (
                         <span className="text-xs bg-amber-100 text-amber-700 font-medium px-2 py-0.5 rounded-full">
-                          {libro.activos} fuera
+                          {libro.activos} prestados
                         </span>
                       )}
                       {libro.devueltos > 0 && (
