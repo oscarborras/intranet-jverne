@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
-  BookOpen, CheckCircle, AlertTriangle, XCircle, Clock,
+  BookOpen, CheckCircle, AlertTriangle, XCircle, Clock, Library,
   ChevronDown, ChevronUp, Download, RotateCcw, Undo2,
 } from "lucide-react";
 import type { PrestamoLibro, EstadoDevolucion, Alumno, LibroCatalogo } from "@/lib/types";
@@ -149,13 +149,14 @@ export function SeguimientoClient({ prestamos, cursoEscolarActual, alumnos = [],
   const [livePrestamos, setLivePrestamos] = useState<PrestamoLibro[]>(prestamos);
   const [undoingId, setUndoingId] = useState<string | null>(null);
   const [incidenciasSinResolver, setIncidenciasSinResolver] = useState<number>(0);
+  const [completadosSet, setCompletadosSet] = useState<Set<string>>(new Set());
 
   // Re-fetch all loans on mount + fetch tutores
   useEffect(() => {
     async function fetchData() {
       const supabase = createClient();
 
-      const [{ data: cursosData }, { data: rawPrestamos }, { count: incidenciasCount }] = await Promise.all([
+      const [{ data: cursosData }, { data: rawPrestamos }, { count: incidenciasCount }, { data: completadosData }] = await Promise.all([
         supabase.from("cursos").select("nombre, email_tutor").eq("gratuidad", true),
         supabase
           .from("prestamos_libros")
@@ -167,10 +168,15 @@ export function SeguimientoClient({ prestamos, cursoEscolarActual, alumnos = [],
           .from("gratuidad_incidencias")
           .select("id", { count: "exact", head: true })
           .eq("curso_escolar", cursoEscolarActual)
-          .neq("estado", "archivada"),
+          .in("estado", ["abierta", "en_gestion"]),
+        supabase
+          .from("gratuidad_lote_completado")
+          .select("alumno_id")
+          .eq("curso_escolar", cursoEscolarActual),
       ]);
 
       setIncidenciasSinResolver(incidenciasCount ?? 0);
+      setCompletadosSet(new Set((completadosData ?? []).map((c) => c.alumno_id as string)));
 
       // Resolve professor names
       if (rawPrestamos && rawPrestamos.length > 0) {
@@ -282,31 +288,34 @@ export function SeguimientoClient({ prestamos, cursoEscolarActual, alumnos = [],
     for (const grupo of grupos) {
       const nivel = nivelFromGrupo(grupo);
       if (!nivel) continue;
-      const totalEnGrupo = alumnos.filter((a) => a.unidad === grupo).length;
+      const alumnosDelGrupo = alumnos.filter((a) => a.unidad === grupo);
+      const totalEnGrupo = alumnosDelGrupo.length;
 
       // El lote del nivel: todos los libros activos del catálogo para ese nivel.
-      // Un alumno solo cuenta como "entregado"/"devuelto" cuando tiene el lote
-      // COMPLETO, no con solo alguno de sus libros.
+      // Un alumno cuenta como "entregado" cuando tiene el lote COMPLETO en
+      // préstamos, o cuando coordinación lo ha marcado manualmente como
+      // completado (gratuidad_lote_completado). "Devuelto" exige el lote
+      // completo devuelto — el marcado manual no afecta a esa cuenta.
       const loteIds = new Set(libros.filter((l) => l.activo && l.nivel === nivel).map((l) => l.id));
       const loteSize = loteIds.size;
 
       const recibidosPorAlumno: Record<string, Set<string>> = {};
       const devueltosPorAlumno: Record<string, Set<string>> = {};
       for (const p of livePrestamos) {
-        if (p.alumno_grupo !== grupo || !loteIds.has(p.libro_id)) continue;
-        const key = p.alumno_id ?? p.alumno_nombre;
-        (recibidosPorAlumno[key] ??= new Set()).add(p.libro_id);
-        if (p.fecha_devolucion) (devueltosPorAlumno[key] ??= new Set()).add(p.libro_id);
+        if (p.alumno_grupo !== grupo || !p.alumno_id || !loteIds.has(p.libro_id)) continue;
+        (recibidosPorAlumno[p.alumno_id] ??= new Set()).add(p.libro_id);
+        if (p.fecha_devolucion) (devueltosPorAlumno[p.alumno_id] ??= new Set()).add(p.libro_id);
       }
 
       let entregados = 0;
       let devueltos = 0;
       if (loteSize > 0) {
-        for (const key of Object.keys(recibidosPorAlumno)) {
-          const completoRecibido = recibidosPorAlumno[key].size === loteSize;
-          if (!completoRecibido) continue;
+        for (const alumno of alumnosDelGrupo) {
+          const completoRecibido = (recibidosPorAlumno[alumno.id]?.size ?? 0) === loteSize;
+          const marcadoCompletado = completadosSet.has(alumno.id);
+          if (!completoRecibido && !marcadoCompletado) continue;
           entregados++;
-          if ((devueltosPorAlumno[key]?.size ?? 0) === loteSize) devueltos++;
+          if ((devueltosPorAlumno[alumno.id]?.size ?? 0) === loteSize) devueltos++;
         }
       }
 
@@ -314,7 +323,7 @@ export function SeguimientoClient({ prestamos, cursoEscolarActual, alumnos = [],
       result[nivel].push({ grupo, total: totalEnGrupo, entregados, devueltos });
     }
     return result;
-  }, [alumnos, livePrestamos, gratuidadGrupos, libros]);
+  }, [alumnos, livePrestamos, gratuidadGrupos, libros, completadosSet]);
 
   const nivelesConDatos = ESO_NIVELES.filter((n) => porNivel[n]?.length);
 
@@ -425,18 +434,18 @@ export function SeguimientoClient({ prestamos, cursoEscolarActual, alumnos = [],
       {/* Tarjetas resumen */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         {[
-          { label: "Total de libros",          value: totalLibros,            color: "text-blue-700 bg-blue-50 border-blue-200" },
+          { label: "Total de libros",          value: totalLibros,            color: "text-blue-700 bg-blue-50 border-blue-200", icon: <Library size={16} /> },
           { label: "Total entregados",         value: totalEntregados,        color: "text-indigo-700 bg-indigo-50 border-indigo-200", icon: <BookOpen size={16} /> },
           { label: "Total sin entregar",       value: totalSinEntregar,       color: "text-amber-700 bg-amber-50 border-amber-200", icon: <Clock size={16} /> },
           { label: "Devueltos",                value: stats.devueltos,        color: "text-green-700 bg-green-50 border-green-200", icon: <CheckCircle size={16} /> },
           { label: "Incidencias sin resolver", value: incidenciasSinResolver, color: "text-red-700 bg-red-50 border-red-200", icon: <AlertTriangle size={16} /> },
         ].map((card) => (
-          <div key={card.label} className={`border rounded-xl p-4 ${card.color}`}>
+          <div key={card.label} className={`border rounded-xl p-4 flex flex-col h-full ${card.color}`}>
             <div className="flex items-center gap-1.5 mb-1">
               {"icon" in card && card.icon}
               <span className="text-xs font-medium opacity-80">{card.label}</span>
             </div>
-            <p className="text-3xl font-bold">{card.value}</p>
+            <p className="text-3xl font-bold mt-auto">{card.value}</p>
           </div>
         ))}
       </div>
