@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { Settings, Save, CheckCircle, AlertCircle, SlidersHorizontal, UserX, BookOpen, ChevronDown } from "lucide-react";
+import { Settings, Save, CheckCircle, AlertCircle, SlidersHorizontal, UserX, BookOpen, ChevronDown, Bell } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import type { ConfigIntranet } from "@/lib/types";
+import type { ConfigIntranet, Perfil } from "@/lib/types";
 
 interface Props {
   config: ConfigIntranet[];
+  perfiles: Pick<Perfil, "id" | "nombre">[];
 }
 
 // Display label for each known clave
@@ -18,6 +19,9 @@ const LABELS: Record<string, string> = {
   mostrar_grid_dashboard_movil:  "Mostrar grid de módulos en móvil",
   modo_gratuidad_libros:         "Modo de funcionamiento",
   curso_escolar_activo:          "Curso escolar activo",
+  notificaciones_ausencias_perfiles: "Módulo Ausencias",
+  notificaciones_peticiones_tic_perfiles: "Módulo Peticiones TIC",
+  notificaciones_peticiones_mantenimiento_perfiles: "Módulo Peticiones Mantenimiento",
 };
 
 // Claves that store dates as dd/MM/yyyy
@@ -43,6 +47,18 @@ const HIDDEN_CLAVES = new Set(["ultima_importacion_profesores", "ultima_importac
 // Claves grouped under the "Gratuidad Libros" tab
 const GRATUIDAD_CLAVES = new Set(["modo_gratuidad_libros", "curso_escolar_activo"]);
 
+// Claves under the "Notificaciones" tab: JSON array of perfil ids that receive the module's emails
+const NOTIFICACION_CLAVES = new Set(["notificaciones_ausencias_perfiles", "notificaciones_peticiones_tic_perfiles", "notificaciones_peticiones_mantenimiento_perfiles"]);
+
+function parsePerfilIds(val: string | undefined): number[] {
+  try {
+    const parsed: unknown = JSON.parse(val ?? "[]");
+    return Array.isArray(parsed) ? parsed.filter((n): n is number => typeof n === "number") : [];
+  } catch {
+    return [];
+  }
+}
+
 // Genera los cursos escolares disponibles para el selector: 4 anteriores + el siguiente
 function cursosEscolaresOptions(): string[] {
   const now = new Date();
@@ -66,9 +82,53 @@ function inputToDdmmyyyy(val: string): string {
   return `${d}/${m}/${y}`;
 }
 
-type Tab = "asuntos_propios" | "otros" | "gratuidad_libros";
+type Tab = "asuntos_propios" | "otros" | "gratuidad_libros" | "notificaciones";
 
-export function ConfiguracionClient({ config }: Props) {
+interface TabAccent {
+  header: string;
+  iconChip: string;
+  activeTab: string;
+  cardBorder: string;
+  checked: string;
+  checkbox: string;
+}
+
+const TAB_ACCENTS: Record<Tab, TabAccent> = {
+  asuntos_propios: {
+    header: "bg-amber-50 border-amber-100",
+    iconChip: "bg-amber-100 text-amber-700",
+    activeTab: "text-amber-700",
+    cardBorder: "border-l-amber-400",
+    checked: "border-amber-300 bg-amber-50",
+    checkbox: "accent-amber-600",
+  },
+  gratuidad_libros: {
+    header: "bg-emerald-50 border-emerald-100",
+    iconChip: "bg-emerald-100 text-emerald-700",
+    activeTab: "text-emerald-700",
+    cardBorder: "border-l-emerald-400",
+    checked: "border-emerald-300 bg-emerald-50",
+    checkbox: "accent-emerald-600",
+  },
+  notificaciones: {
+    header: "bg-violet-50 border-violet-100",
+    iconChip: "bg-violet-100 text-violet-700",
+    activeTab: "text-violet-700",
+    cardBorder: "border-l-violet-400",
+    checked: "border-violet-300 bg-violet-50",
+    checkbox: "accent-violet-600",
+  },
+  otros: {
+    header: "bg-sky-50 border-sky-100",
+    iconChip: "bg-sky-100 text-sky-700",
+    activeTab: "text-sky-700",
+    cardBorder: "border-l-sky-400",
+    checked: "border-sky-300 bg-sky-50",
+    checkbox: "accent-sky-600",
+  },
+};
+
+export function ConfiguracionClient({ config, perfiles }: Props) {
   // Local state: clave → current valor (in input format for dates)
   const [values, setValues] = useState<Record<string, string>>(() => {
     const init: Record<string, string> = {};
@@ -109,15 +169,22 @@ export function ConfiguracionClient({ config }: Props) {
   }
 
   // Group rows by section (currently all in one section; ready for future groups)
-  const asuntosRows = config.filter((r) =>
-    ["max_profes_asuntos_propios", "fecha_inicio_asuntos_propios", "fecha_fin_asuntos_propios"].includes(r.clave)
-  );
+  // Explicit display order (DB order follows created_at, which put "fin" before "inicio")
+  const ASUNTOS_ORDER = ["max_profes_asuntos_propios", "fecha_inicio_asuntos_propios", "fecha_fin_asuntos_propios"];
+  const asuntosRows = config
+    .filter((r) => ASUNTOS_ORDER.includes(r.clave))
+    .sort((a, b) => ASUNTOS_ORDER.indexOf(a.clave) - ASUNTOS_ORDER.indexOf(b.clave));
   const gratuidadRows = config.filter((r) => GRATUIDAD_CLAVES.has(r.clave));
+  const notificacionRows = config.filter((r) => NOTIFICACION_CLAVES.has(r.clave));
   const otherRows = config.filter(
-    (r) => !asuntosRows.includes(r) && !gratuidadRows.includes(r) && !HIDDEN_CLAVES.has(r.clave)
+    (r) =>
+      !asuntosRows.includes(r) &&
+      !gratuidadRows.includes(r) &&
+      !notificacionRows.includes(r) &&
+      !HIDDEN_CLAVES.has(r.clave)
   );
 
-  function renderField(row: ConfigIntranet) {
+  function renderField(row: ConfigIntranet, accent: TabAccent) {
     const label = LABELS[row.clave] ?? row.clave;
     const isDate = DATE_CLAVES.has(row.clave);
     const isBoolean = BOOLEAN_CLAVES.has(row.clave);
@@ -125,12 +192,57 @@ export function ConfiguracionClient({ config }: Props) {
     const boolVal = values[row.clave] === "true";
     const selectOpts = SELECT_OPTIONS[row.clave];
 
+    if (NOTIFICACION_CLAVES.has(row.clave)) {
+      const selectedIds = parsePerfilIds(values[row.clave]);
+      const togglePerfil = (id: number) => {
+        const next = selectedIds.includes(id)
+          ? selectedIds.filter((x) => x !== id)
+          : [...selectedIds, id].sort((a, b) => a - b);
+        setValues((v) => ({ ...v, [row.clave]: JSON.stringify(next) }));
+      };
+      return (
+        <fieldset key={row.clave}>
+          <legend className="flex items-center gap-2 text-sm font-semibold text-gray-800 mb-1">
+            {label}
+            <span className="text-xs font-medium text-gray-500 bg-white border border-gray-200 rounded-full px-2 py-0.5">
+              {selectedIds.length} {selectedIds.length === 1 ? "perfil" : "perfiles"}
+            </span>
+          </legend>
+          <p className="text-xs text-gray-500 mb-2">{row.descripcion}</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {perfiles.map((perfil) => {
+              const checked = selectedIds.includes(perfil.id);
+              return (
+                <label
+                  key={perfil.id}
+                  className={`flex items-center gap-3 min-h-11 px-3 py-2 border rounded-lg cursor-pointer transition-colors ${
+                    checked ? `${accent.checked} font-medium text-gray-900` : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => togglePerfil(perfil.id)}
+                    className={`h-4 w-4 rounded ${accent.checkbox}`}
+                  />
+                  <span className="text-sm">{perfil.nombre}</span>
+                </label>
+              );
+            })}
+          </div>
+          {selectedIds.length === 0 && (
+            <p className="text-xs text-amber-600 mt-1.5">Ningún perfil seleccionado: no se enviarán emails.</p>
+          )}
+        </fieldset>
+      );
+    }
+
     if (row.clave === "curso_escolar_activo") {
       const opts = cursosEscolaresOptions();
       return (
         <div key={row.clave}>
-          <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
-          <p className="text-xs text-gray-400 mb-1.5">{row.descripcion}</p>
+          <label className="block text-sm font-semibold text-gray-800 mb-1">{label}</label>
+          <p className="text-xs text-gray-500 mb-1.5">{row.descripcion}</p>
           <div className="relative w-full sm:w-56">
             <select
               value={values[row.clave] ?? opts[1]}
@@ -151,8 +263,8 @@ export function ConfiguracionClient({ config }: Props) {
       const selected = selectOpts.find((o) => o.value === values[row.clave]) ?? selectOpts[0];
       return (
         <div key={row.clave}>
-          <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
-          <p className="text-xs text-gray-400 mb-1.5">{row.descripcion}</p>
+          <label className="block text-sm font-semibold text-gray-800 mb-1">{label}</label>
+          <p className="text-xs text-gray-500 mb-1.5">{row.descripcion}</p>
           <div className="relative w-full sm:w-80">
             <select
               value={values[row.clave] ?? "completo"}
@@ -174,8 +286,8 @@ export function ConfiguracionClient({ config }: Props) {
       return (
         <div key={row.clave} className="flex items-center justify-between gap-4 py-1">
           <div>
-            <p className="text-sm font-medium text-gray-700">{label}</p>
-            <p className="text-xs text-gray-400 mt-0.5">{row.descripcion}</p>
+            <p className="text-sm font-semibold text-gray-800">{label}</p>
+            <p className="text-xs text-gray-500 mt-0.5">{row.descripcion}</p>
           </div>
           <button
             role="switch"
@@ -197,17 +309,17 @@ export function ConfiguracionClient({ config }: Props) {
 
     return (
       <div key={row.clave}>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-sm font-semibold text-gray-800 mb-1">
           {label}
         </label>
-        <p className="text-xs text-gray-400 mb-1.5">{row.descripcion}</p>
+        <p className="text-xs text-gray-500 mb-1.5">{row.descripcion}</p>
         {isNumber ? (
           <div className="flex items-center gap-3">
             <input
               type="number"
               min={1}
               max={99}
-              className="w-24 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-24 bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               value={values[row.clave] ?? ""}
               onChange={(e) =>
                 setValues((v) => ({ ...v, [row.clave]: String(Math.max(1, parseInt(e.target.value) || 1)) }))
@@ -218,7 +330,7 @@ export function ConfiguracionClient({ config }: Props) {
         ) : isDate ? (
           <input
             type="date"
-            className="w-full sm:w-56 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             value={values[row.clave] ?? ""}
             onChange={(e) =>
               setValues((v) => ({ ...v, [row.clave]: e.target.value }))
@@ -227,7 +339,7 @@ export function ConfiguracionClient({ config }: Props) {
         ) : (
           <input
             type="text"
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             value={values[row.clave] ?? ""}
             onChange={(e) =>
               setValues((v) => ({ ...v, [row.clave]: e.target.value }))
@@ -236,6 +348,35 @@ export function ConfiguracionClient({ config }: Props) {
         )}
       </div>
     );
+  }
+
+  // Each setting goes in its own card; date rows are grouped into a single "period" card
+  function renderRows(rows: ConfigIntranet[], accent: TabAccent) {
+    const cardClass = `rounded-lg border border-gray-200 border-l-4 ${accent.cardBorder} bg-gray-50 p-4`;
+    const dateRows = rows.filter((r) => DATE_CLAVES.has(r.clave));
+    const items: React.ReactNode[] = [];
+    let periodAdded = false;
+    rows.forEach((row) => {
+      if (DATE_CLAVES.has(row.clave)) {
+        if (periodAdded) return;
+        periodAdded = true;
+        items.push(
+          <div key="periodo" className={cardClass}>
+            <p className="text-sm font-semibold text-gray-800 mb-3">Período de aplicación</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {dateRows.map((r) => renderField(r, accent))}
+            </div>
+          </div>
+        );
+        return;
+      }
+      items.push(
+        <div key={row.clave} className={cardClass}>
+          {renderField(row, accent)}
+        </div>
+      );
+    });
+    return items;
   }
 
   const tabs: { id: Tab; label: string; icon: React.ReactNode; rows: ConfigIntranet[]; description: string }[] = ([
@@ -254,6 +395,13 @@ export function ConfiguracionClient({ config }: Props) {
       description: "Controla qué pestañas del módulo de gratuidad son visibles para los profesores.",
     },
     {
+      id: "notificaciones" as Tab,
+      label: "Notificaciones",
+      icon: <Bell size={15} />,
+      rows: notificacionRows,
+      description: "Perfiles que reciben los emails enviados por cada módulo. Se puede marcar más de un perfil.",
+    },
+    {
       id: "otros" as Tab,
       label: "Otros parámetros",
       icon: <SlidersHorizontal size={15} />,
@@ -263,6 +411,7 @@ export function ConfiguracionClient({ config }: Props) {
   ] as { id: Tab; label: string; icon: React.ReactNode; rows: ConfigIntranet[]; description: string }[]).filter((t) => t.rows.length > 0);
 
   const currentTab = tabs.find((t) => t.id === activeTab) ?? tabs[0];
+  const currentAccent = currentTab ? TAB_ACCENTS[currentTab.id] : TAB_ACCENTS.otros;
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
@@ -278,14 +427,14 @@ export function ConfiguracionClient({ config }: Props) {
 
       {/* Tab bar */}
       {tabs.length > 1 && (
-        <div className="flex bg-gray-100 rounded-lg p-1 w-fit gap-1">
+        <div className="flex bg-gray-100 rounded-lg p-1 w-fit max-w-full overflow-x-auto gap-1">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                activeTab === tab.id
-                  ? "bg-white text-gray-900 shadow-sm"
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors ${
+                currentTab?.id === tab.id
+                  ? `bg-white shadow-sm ${TAB_ACCENTS[tab.id].activeTab}`
                   : "text-gray-500 hover:text-gray-700"
               }`}
             >
@@ -298,12 +447,16 @@ export function ConfiguracionClient({ config }: Props) {
 
       {/* Tab content */}
       {currentTab && (
-        <div className="bg-white rounded-xl border border-gray-100">
-          <div className="px-6 py-4 border-b border-gray-100">
-            <p className="text-xs text-gray-400">{currentTab.description}</p>
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className={`flex items-start gap-3 px-4 sm:px-6 py-4 border-b ${currentAccent.header}`}>
+            <span className={`p-2 rounded-lg ${currentAccent.iconChip}`}>{currentTab.icon}</span>
+            <div>
+              <h2 className="text-sm font-semibold text-gray-900">{currentTab.label}</h2>
+              <p className="text-xs text-gray-600 mt-0.5">{currentTab.description}</p>
+            </div>
           </div>
-          <div className="px-6 py-5 space-y-5">
-            {currentTab.rows.map(renderField)}
+          <div className="p-4 sm:p-6 space-y-3">
+            {renderRows(currentTab.rows, currentAccent)}
           </div>
         </div>
       )}

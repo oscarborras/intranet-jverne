@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { ConfiguracionClient } from "./ConfiguracionClient";
-import type { ConfigIntranet } from "@/lib/types";
+import type { ConfigIntranet, Perfil } from "@/lib/types";
 
 export default async function ConfiguracionPage() {
   const supabase = await createClient();
@@ -26,10 +26,15 @@ export default async function ConfiguracionPage() {
     redirect("/dashboard");
   }
 
-  const { data: config } = await supabase
-    .from("config_intranet")
-    .select("*")
-    .order("created_at");
+  const [{ data: config }, { data: perfiles }] = await Promise.all([
+    supabase.from("config_intranet").select("*").order("created_at"),
+    supabase.from("perfiles_intranet").select("id, nombre").order("id"),
+  ]);
 
-  return <ConfiguracionClient config={(config ?? []) as ConfigIntranet[]} />;
+  return (
+    <ConfiguracionClient
+      config={(config ?? []) as ConfigIntranet[]}
+      perfiles={(perfiles ?? []) as Pick<Perfil, "id" | "nombre">[]}
+    />
+  );
 }

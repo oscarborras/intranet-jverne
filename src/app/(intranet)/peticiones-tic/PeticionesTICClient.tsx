@@ -82,19 +82,15 @@ export function PeticionesTICClient({ initialPeticiones, canManage, canDelete, u
       }
     }
 
-    const { data } = await supabase
-      .from("peticiones_tic")
-      .insert({ ...form, autor_id: userId, solo_usuario: soloUsuario ?? false, foto_path, foto_nombre })
-      .select()
-      .single();
-    if (data) {
-      await supabase.from("peticiones_tic_actividad").insert({
-        peticion_id: data.id,
-        user_id: userId,
-        tipo: "creacion",
-        contenido: "Petición creada",
-      });
-      setPeticiones((prev) => [{ ...(data as PeticionTIC), autor: { full_name: myDisplayName } }, ...prev]);
+    // Created server-side so the configured profiles get the email notification
+    const res = await fetch("/api/peticiones-tic/crear", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...form, solo_usuario: soloUsuario ?? false, foto_path, foto_nombre }),
+    });
+    if (res.ok) {
+      const { peticion } = (await res.json()) as { peticion: PeticionTIC };
+      setPeticiones((prev) => [{ ...peticion, autor: { full_name: myDisplayName } }, ...prev]);
     }
     setSaving(false);
     setShowForm(false);

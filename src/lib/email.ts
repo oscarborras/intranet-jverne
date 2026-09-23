@@ -165,7 +165,7 @@ export async function sendCanceladaProfesorEmail(p: CancelProfesorParams) {
 // ─── Ausencias ────────────────────────────────────────────────────────────────
 
 interface AusenciaRegistradaParams {
-  directivaEmails: string[];
+  recipientEmails: string[];
   profesorNombre: string;
   codigo: string;
   fecha: string;
@@ -177,7 +177,7 @@ interface AusenciaRegistradaParams {
 }
 
 export async function sendAusenciaRegistradaEmail(p: AusenciaRegistradaParams) {
-  if (p.directivaEmails.length === 0) return;
+  if (p.recipientEmails.length === 0) return;
 
   const fechaFormateada = new Date(p.fecha + "T00:00:00").toLocaleDateString("es-ES", {
     weekday: "long",
@@ -208,7 +208,7 @@ export async function sendAusenciaRegistradaEmail(p: AusenciaRegistradaParams) {
 
   return resend.emails.send({
     from: FROM,
-    to: p.directivaEmails,
+    to: p.recipientEmails,
     subject: `Ausencia registrada – ${p.profesorNombre} – ${fechaFormateada}`,
     html: body,
   });
@@ -244,6 +244,113 @@ export async function sendCanceladaFamiliaEmail(p: CancelFamiliaParams) {
     from: FROM,
     to: p.profesorEmail,
     subject: `Cita cancelada por la familia – ${p.alumnoNombre}`,
+    html: body,
+  });
+}
+
+// Escapes user-typed text before interpolating it into email HTML
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+const PRIORIDAD_LABELS: Record<string, string> = {
+  baja: "Baja",
+  normal: "Normal",
+  alta: "Alta",
+  urgente: "Urgente",
+};
+
+interface NuevaPeticionTICParams {
+  recipientEmails: string[];
+  codigo: string;
+  titulo: string;
+  descripcion: string;
+  prioridad: string;
+  autorNombre: string;
+  soloUsuario: boolean;
+}
+
+export async function sendNuevaPeticionTICEmail(p: NuevaPeticionTICParams) {
+  if (p.recipientEmails.length === 0) return;
+
+  const titulo = escapeHtml(p.titulo);
+  const autor = escapeHtml(p.autorNombre);
+  const descripcion = p.descripcion.trim()
+    ? escapeHtml(p.descripcion).replace(/\n/g, "<br>")
+    : "";
+
+  const body = baseLayout(`
+    <h2 style="margin:0 0 8px;font-size:20px;color:#111827;">Nueva petición TIC</h2>
+    <p style="margin:0 0 24px;color:#6b7280;font-size:14px;">
+      <strong>${autor}</strong> ha registrado una nueva petición TIC.
+    </p>
+    <table cellpadding="0" cellspacing="0" style="width:100%;border-top:1px solid #e5e7eb;padding-top:16px;">
+      ${row("Código", escapeHtml(p.codigo))}
+      ${row("Título", titulo)}
+      ${row("Prioridad", PRIORIDAD_LABELS[p.prioridad] ?? escapeHtml(p.prioridad))}
+      ${row("Autor/a", autor)}
+      ${row("Alcance", p.soloUsuario ? "Personal (solo el autor)" : "Compartida")}
+      ${descripcion ? row("Descripción", descripcion) : ""}
+    </table>
+    <a href="${SITE_URL}/peticiones-tic" style="display:inline-block;margin-top:24px;padding:10px 20px;background:#1e40af;color:#fff;border-radius:6px;text-decoration:none;font-size:14px;font-weight:500;">
+      Ver en la intranet →
+    </a>
+  `);
+
+  return resend.emails.send({
+    from: FROM,
+    to: p.recipientEmails,
+    subject: `Nueva petición TIC ${p.codigo} – ${p.titulo}`,
+    html: body,
+  });
+}
+
+interface NuevaPeticionMantenimientoParams {
+  recipientEmails: string[];
+  codigo: string;
+  titulo: string;
+  descripcion: string;
+  ubicacion: string;
+  prioridad: string;
+  autorNombre: string;
+}
+
+export async function sendNuevaPeticionMantenimientoEmail(p: NuevaPeticionMantenimientoParams) {
+  if (p.recipientEmails.length === 0) return;
+
+  const titulo = escapeHtml(p.titulo);
+  const autor = escapeHtml(p.autorNombre);
+  const descripcion = p.descripcion.trim()
+    ? escapeHtml(p.descripcion).replace(/\n/g, "<br>")
+    : "";
+
+  const body = baseLayout(`
+    <h2 style="margin:0 0 8px;font-size:20px;color:#111827;">Nueva petición de mantenimiento</h2>
+    <p style="margin:0 0 24px;color:#6b7280;font-size:14px;">
+      <strong>${autor}</strong> ha registrado una nueva petición de mantenimiento pendiente de validar.
+    </p>
+    <table cellpadding="0" cellspacing="0" style="width:100%;border-top:1px solid #e5e7eb;padding-top:16px;">
+      ${row("Código", escapeHtml(p.codigo))}
+      ${row("Título", titulo)}
+      ${row("Ubicación", escapeHtml(p.ubicacion))}
+      ${row("Prioridad", PRIORIDAD_LABELS[p.prioridad] ?? escapeHtml(p.prioridad))}
+      ${row("Autor/a", autor)}
+      ${descripcion ? row("Descripción", descripcion) : ""}
+    </table>
+    <a href="${SITE_URL}/peticiones-mantenimiento" style="display:inline-block;margin-top:24px;padding:10px 20px;background:#1e40af;color:#fff;border-radius:6px;text-decoration:none;font-size:14px;font-weight:500;">
+      Ver en la intranet →
+    </a>
+  `);
+
+  return resend.emails.send({
+    from: FROM,
+    to: p.recipientEmails,
+    subject: `Nueva petición de mantenimiento ${p.codigo} – ${p.titulo}`,
     html: body,
   });
 }

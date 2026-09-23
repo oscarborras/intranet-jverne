@@ -118,12 +118,16 @@ export function PeticionesMantenimientoClient({ initialPeticiones, canValidate, 
         setPeticiones((prev) => prev.map((p) => (p.id === editing.id ? { ...p, ...(data as PeticionMantenimiento) } : p)));
       }
     } else {
-      const { data } = await supabase
-        .from("peticiones_mantenimiento")
-        .insert({ ...form, autor_id: userId, foto_path: fotoUpdate?.foto_path ?? null, foto_nombre: fotoUpdate?.foto_nombre ?? null })
-        .select()
-        .single();
-      if (data) setPeticiones((prev) => [{ ...(data as PeticionMantenimiento), autor: { full_name: myDisplayName } }, ...prev]);
+      // Created server-side so the configured profiles get the email notification
+      const res = await fetch("/api/peticiones-mantenimiento/crear", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...form, foto_path: fotoUpdate?.foto_path ?? null, foto_nombre: fotoUpdate?.foto_nombre ?? null }),
+      });
+      if (res.ok) {
+        const { peticion } = (await res.json()) as { peticion: PeticionMantenimiento };
+        setPeticiones((prev) => [{ ...peticion, autor: { full_name: myDisplayName } }, ...prev]);
+      }
     }
 
     setSaving(false);

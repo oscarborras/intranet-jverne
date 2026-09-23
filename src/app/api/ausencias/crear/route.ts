@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { sendAusenciaRegistradaEmail } from "@/lib/email";
+import { getNotificationEmails, NOTIFICATION_CLAVES } from "@/lib/notifications";
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
@@ -82,25 +83,11 @@ export async function POST(req: NextRequest) {
       : Promise.resolve({ data: null }),
   ]);
 
-  // Get Directiva users' emails
-  const { data: directivaRoles } = await supabase
-    .from("user_roles_intranet")
-    .select("user_id, perfiles_intranet!inner(nombre)")
-    .eq("perfiles_intranet.nombre", "Directiva");
-
-  const directivaIds = (directivaRoles ?? []).map((r) => r.user_id as string);
-  let directivaEmails: string[] = [];
-
-  if (directivaIds.length > 0) {
-    const { data: directivaProfiles } = await supabase
-      .from("users_view")
-      .select("email")
-      .in("id", directivaIds);
-    directivaEmails = (directivaProfiles ?? []).map((p) => p.email as string).filter(Boolean);
-  }
+  // Recipients: users with any perfil configured in Configuración → Notificaciones
+  const recipientEmails = await getNotificationEmails(supabase, NOTIFICATION_CLAVES.ausencias, "Directiva");
 
   await sendAusenciaRegistradaEmail({
-    directivaEmails,
+    recipientEmails,
     profesorNombre: profile?.full_name ?? "Profesor/a",
     codigo,
     fecha: body.fecha,
