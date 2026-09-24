@@ -16,7 +16,7 @@ const COLUMNS: ColumnConfig<PeticionMantenimientoEstado>[] = [
   { key: "por_validar", label: "Por Validar", color: "bg-gray-50", headerColor: "bg-gray-500" },
   { key: "abierta", label: "Abiertas", color: "bg-red-50", headerColor: "bg-red-500" },
   { key: "en_progreso", label: "En Progreso", color: "bg-yellow-50", headerColor: "bg-yellow-500" },
-  { key: "finalizada", label: "Finalizadas", color: "bg-green-50", headerColor: "bg-green-600" },
+  { key: "finalizada", label: "Finalizadas", color: "bg-green-50", headerColor: "bg-green-600", sortBy: "finalizada_at" },
 ];
 
 interface Props {

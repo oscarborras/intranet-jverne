@@ -15,7 +15,7 @@ import type { KanbanItem, ColumnConfig } from "@/components/kanban/KanbanBoard";
 const COLUMNS: ColumnConfig<PeticionTICEstado>[] = [
   { key: "pendiente",   label: "Pendientes",  color: "bg-red-50",    headerColor: "bg-red-500"    },
   { key: "en_progreso", label: "En Progreso",  color: "bg-yellow-50", headerColor: "bg-yellow-500" },
-  { key: "finalizada",  label: "Finalizadas",  color: "bg-green-50",  headerColor: "bg-green-500"  },
+  { key: "finalizada",  label: "Finalizadas",  color: "bg-green-50",  headerColor: "bg-green-500", sortBy: "finalizada_at" },
 ];
 
 interface Props {
