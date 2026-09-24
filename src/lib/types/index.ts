@@ -128,6 +128,7 @@ export interface Espacio {
   tipo: EspacioTipo;
   capacidad: number | null;
   activo: boolean;
+  permite_horario_libre: boolean;
 }
 
 export interface Recurso {
@@ -143,7 +144,10 @@ export interface ReservaEspacio {
   espacio_id: number;
   user_id: string;
   fecha: string;
-  tramo_id: number;
+  // Either a fixed slot (tramo_id) or a free afternoon range (hora_inicio/hora_fin, "HH:MM:SS")
+  tramo_id: number | null;
+  hora_inicio: string | null;
+  hora_fin: string | null;
   motivo: string;
   created_at: string;
   espacios?: Espacio;

@@ -17,7 +17,7 @@ export default async function ReservaEspaciosPage() {
   const firstDay = `${year}-${String(month).padStart(2, "0")}-01`;
   const lastDay = `${year}-${String(month).padStart(2, "0")}-${String(new Date(year, month, 0).getDate()).padStart(2, "0")}`;
 
-  const [{ data: espacios }, { data: reservas }, { data: tramos }] = await Promise.all([
+  const [{ data: espacios }, { data: reservas }, { data: tramos }, { data: horarioTardeRows }] = await Promise.all([
     supabase.from("espacios").select("*").eq("activo", true).order("id"),
     supabase
       .from("reservas_espacios")
@@ -25,7 +25,12 @@ export default async function ReservaEspaciosPage() {
       .gte("fecha", firstDay)
       .lte("fecha", lastDay),
     supabase.from("tramos_horarios").select("*").order("orden"),
+    supabase.from("config_intranet").select("clave, valor").in("clave", ["horario_tarde_inicio", "horario_tarde_fin"]),
   ]);
+  const horarioTarde = {
+    inicio: horarioTardeRows?.find((r) => r.clave === "horario_tarde_inicio")?.valor ?? "15:00",
+    fin: horarioTardeRows?.find((r) => r.clave === "horario_tarde_fin")?.valor ?? "19:00",
+  };
 
   // Fetch names for users who have reservations
   const uniqueUserIds = [...new Set((reservas ?? []).map((r) => r.user_id as string))];
@@ -65,6 +70,7 @@ export default async function ReservaEspaciosPage() {
       currentUserName={currentUserName}
       isAdmin={isAdmin}
       canBulkReserve={canBulkReserve}
+      horarioTarde={horarioTarde}
     />
   );
 }

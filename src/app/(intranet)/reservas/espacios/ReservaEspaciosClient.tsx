@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Building2, Settings, Plus, Pencil, Trash2, X, Check, CalendarRange } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { ReservaGrid, type Reservation, type ReservationClickData } from "@/components/calendar/ReservaGrid";
+import { ReservaGrid, type Reservation, type ReservationClickData, type FreeTimeConfig } from "@/components/calendar/ReservaGrid";
 import { ReservaDetailModal } from "@/components/calendar/ReservaDetailModal";
 import { ReservaBulkModal, type BulkSlot } from "@/components/calendar/ReservaBulkModal";
 import type { Espacio, ReservaEspacio, TramoHorario, EspacioTipo } from "@/lib/types";
@@ -17,6 +17,7 @@ interface Props {
   currentUserName: string;
   isAdmin: boolean;
   canBulkReserve: boolean;
+  horarioTarde: { inicio: string; fin: string };
 }
 
 const TIPO_LABELS: Record<EspacioTipo, string> = {
@@ -30,13 +31,14 @@ interface EspacioForm {
   tipo: EspacioTipo;
   capacidad: string;
   activo: boolean;
+  permite_horario_libre: boolean;
 }
 
-const emptyForm: EspacioForm = { nombre: "", tipo: "otro", capacidad: "", activo: true };
+const emptyForm: EspacioForm = { nombre: "", tipo: "otro", capacidad: "", activo: true, permite_horario_libre: false };
 
 export function ReservaEspaciosClient({
   espacios: initialEspacios, initialReservas, tramos,
-  userId, userNames, currentUserName, isAdmin, canBulkReserve,
+  userId, userNames, currentUserName, isAdmin, canBulkReserve, horarioTarde,
 }: Props) {
   const [reservas, setReservas] = useState<ReservaEspacio[]>(initialReservas);
   const [localUserNames, setLocalUserNames] = useState<Record<string, string>>(userNames);
@@ -89,6 +91,8 @@ export function ReservaEspaciosClient({
     id: r.id,
     resource_id: r.espacio_id,
     tramo_id: r.tramo_id,
+    hora_inicio: r.hora_inicio,
+    hora_fin: r.hora_fin,
     fecha: r.fecha,
     user_id: r.user_id,
     label: r.motivo,
@@ -107,6 +111,36 @@ export function ReservaEspaciosClient({
     setReservas((prev) => [...prev, data as ReservaEspacio]);
     return true;
   }
+
+  async function handleReserveFree(
+    resourceId: number, fecha: string, horaInicio: string, horaFin: string, motivo: string
+  ): Promise<string | null> {
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("reservas_espacios")
+      .insert({
+        espacio_id: resourceId, tramo_id: null, hora_inicio: horaInicio, hora_fin: horaFin,
+        fecha, motivo: motivo || "Sin motivo", user_id: userId,
+      })
+      .select()
+      .single();
+    if (error || !data) {
+      // 23P01: overlap caught by the exclusion constraint; P0001: validation trigger message
+      if (error?.code === "23P01") return "Ya existe una reserva que se solapa con ese horario.";
+      if (error?.code === "P0001") return error.message;
+      return "No se ha podido realizar la reserva. Inténtalo de nuevo.";
+    }
+    setLocalUserNames((prev) => ({ ...prev, [userId]: currentUserName }));
+    setReservas((prev) => [...prev, data as ReservaEspacio]);
+    return null;
+  }
+
+  const freeTime: FreeTimeConfig = {
+    resourceIds: espacios.filter((e) => e.activo && e.permite_horario_libre).map((e) => e.id),
+    inicio: horarioTarde.inicio,
+    fin: horarioTarde.fin,
+    onReserve: handleReserveFree,
+  };
 
   async function handleCancel(id: number) {
     const supabase = createClient();
@@ -140,6 +174,7 @@ export function ReservaEspaciosClient({
       tipo: espacio.tipo,
       capacidad: espacio.capacidad != null ? String(espacio.capacidad) : "",
       activo: espacio.activo,
+      permite_horario_libre: espacio.permite_horario_libre,
     });
   }
 
@@ -153,6 +188,7 @@ export function ReservaEspaciosClient({
       tipo: editForm.tipo,
       capacidad: editForm.capacidad ? parseInt(editForm.capacidad) : null,
       activo: editForm.activo,
+      permite_horario_libre: editForm.permite_horario_libre,
     };
     const { data, error } = await supabase.from("espacios").update(payload).eq("id", editingId).select().single();
     if (error) { setManageError("No se pudo guardar el espacio."); }
@@ -183,6 +219,7 @@ export function ReservaEspaciosClient({
         tipo: addForm.tipo,
         capacidad: addForm.capacidad ? parseInt(addForm.capacidad) : null,
         activo: true,
+        permite_horario_libre: addForm.permite_horario_libre,
       })
       .select()
       .single();
@@ -234,6 +271,7 @@ export function ReservaEspaciosClient({
         onMonthChange={handleMonthChange}
         reserveExtraLabel="Motivo"
         onReservationClick={setSelectedRes}
+        freeTime={freeTime}
       />
 
       {selectedRes && (
@@ -306,6 +344,12 @@ export function ReservaEspaciosClient({
                           min="0"
                         />
                       </div>
+                      <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+                        <input type="checkbox" checked={editForm.permite_horario_libre}
+                          onChange={(e) => setEditForm((f) => ({ ...f, permite_horario_libre: e.target.checked }))}
+                          className="rounded" />
+                        Permitir reservas de tarde ({horarioTarde.inicio} - {horarioTarde.fin})
+                      </label>
                       <div className="flex items-center justify-between">
                         <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
                           <input type="checkbox" checked={editForm.activo}
@@ -332,6 +376,7 @@ export function ReservaEspaciosClient({
                         <p className="text-xs text-gray-400">
                           {TIPO_LABELS[espacio.tipo]}
                           {espacio.capacidad ? ` · Aforo: ${espacio.capacidad}` : ""}
+                          {espacio.permite_horario_libre && " · Reservas de tarde"}
                           {!espacio.activo && <span className="text-orange-500 ml-1">· Inactivo</span>}
                         </p>
                       </div>
@@ -391,6 +436,12 @@ export function ReservaEspaciosClient({
                       min="0"
                     />
                   </div>
+                  <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+                    <input type="checkbox" checked={addForm.permite_horario_libre}
+                      onChange={(e) => setAddForm((f) => ({ ...f, permite_horario_libre: e.target.checked }))}
+                      className="rounded" />
+                    Permitir reservas de tarde ({horarioTarde.inicio} - {horarioTarde.fin})
+                  </label>
                   <div className="flex justify-end gap-2">
                     <button onClick={() => { setShowAdd(false); setAddForm(emptyForm); }}
                       className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">

@@ -23,7 +23,12 @@ const LABELS: Record<string, string> = {
   notificaciones_peticiones_tic_perfiles: "Módulo Peticiones TIC",
   notificaciones_peticiones_mantenimiento_perfiles: "Módulo Peticiones Mantenimiento",
   dias_vista_finalizadas:        "Días visibles de peticiones finalizadas",
+  horario_tarde_inicio:          "Inicio del horario de tarde (reservas de espacios)",
+  horario_tarde_fin:             "Fin del horario de tarde (reservas de espacios)",
 };
+
+// Claves that store a time of day as HH:MM
+const TIME_CLAVES = new Set(["horario_tarde_inicio", "horario_tarde_fin"]);
 
 // Numeric claves and the unit shown next to the input
 const NUMBER_CLAVES: Record<string, { suffix: string; max: number }> = {
@@ -334,6 +339,16 @@ export function ConfiguracionClient({ config, perfiles }: Props) {
             />
             <span className="text-sm text-gray-500">{numberCfg.suffix}</span>
           </div>
+        ) : TIME_CLAVES.has(row.clave) ? (
+          <input
+            type="time"
+            step={900}
+            className="w-full sm:w-40 min-h-11 bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            value={values[row.clave] ?? ""}
+            onChange={(e) =>
+              setValues((v) => ({ ...v, [row.clave]: e.target.value }))
+            }
+          />
         ) : isDate ? (
           <input
             type="date"

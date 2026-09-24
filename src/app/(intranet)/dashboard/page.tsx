@@ -243,7 +243,7 @@ export default async function DashboardPage() {
       ? supabase.from("reservas_carros").select("id, fecha, aula, carro_id, tramo_id, carros(nombre), tramos_horarios(nombre, hora_inicio, hora_fin, orden)").eq("user_id", user.id).gte("fecha", todayStr).order("fecha", { ascending: true }).limit(5)
       : Promise.resolve({ data: [] }),
     showReservaEsp
-      ? supabase.from("reservas_espacios").select("id, fecha, motivo, espacio_id, tramo_id, espacios(nombre), tramos_horarios(nombre, hora_inicio, hora_fin, orden)").eq("user_id", user.id).gte("fecha", todayStr).order("fecha", { ascending: true }).limit(5)
+      ? supabase.from("reservas_espacios").select("id, fecha, motivo, espacio_id, tramo_id, hora_inicio, hora_fin, espacios(nombre), tramos_horarios(nombre, hora_inicio, hora_fin, orden)").eq("user_id", user.id).gte("fecha", todayStr).order("fecha", { ascending: true }).limit(5)
       : Promise.resolve({ data: [] }),
     showReservaRec
       ? supabase.from("reservas_recursos").select("id, fecha, aula, recurso_id, tramo_id, recursos(nombre), tramos_horarios(nombre, hora_inicio, hora_fin, orden)").eq("user_id", user.id).gte("fecha", todayStr).order("fecha", { ascending: true }).limit(5)
@@ -295,10 +295,11 @@ export default async function DashboardPage() {
       id: r.id as number,
       fecha: r.fecha as string,
       nombre: espacio?.nombre ?? "Espacio",
-      tramo: tramo?.nombre ?? "",
-      hora_inicio: tramo?.hora_inicio ?? "",
-      hora_fin: tramo?.hora_fin ?? "",
-      tramo_orden: tramo?.orden ?? 0,
+      // Afternoon free-time bookings have no tramo: use their own hours and sort them after the morning
+      tramo: tramo?.nombre ?? "Tarde",
+      hora_inicio: tramo?.hora_inicio ?? (r.hora_inicio as string | null) ?? "",
+      hora_fin: tramo?.hora_fin ?? (r.hora_fin as string | null) ?? "",
+      tramo_orden: tramo?.orden ?? 100,
       info: (r.motivo as string) ?? "",
       tipo: "espacio",
       href: "/reservas/espacios",
