@@ -23,10 +23,14 @@ interface Props {
   onClose: () => void;
 }
 
+function toLocalDateStr(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 export function ReservaBulkModal({
   table, resourceKey, resources, tramos, extraLabel, onConfirm, onClose,
 }: Props) {
-  const today = new Date().toISOString().split("T")[0];
+  const today = toLocalDateStr(new Date());
 
   const [resourceId, setResourceId] = useState(resources[0]?.id ?? 0);
   const [selectedTramos, setSelectedTramos] = useState<Set<number>>(new Set());
@@ -45,7 +49,7 @@ export function ReservaBulkModal({
     const cur = new Date(dateFrom + "T12:00:00");
     while (cur <= end) {
       const isoDay = (cur.getDay() + 6) % 7; // 0=Mon..6=Sun
-      if (activeDays.has(isoDay)) result.push(cur.toISOString().split("T")[0]);
+      if (activeDays.has(isoDay)) result.push(toLocalDateStr(cur));
       cur.setDate(cur.getDate() + 1);
     }
     return result;

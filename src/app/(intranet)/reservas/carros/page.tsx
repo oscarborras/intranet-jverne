@@ -15,7 +15,7 @@ export default async function ReservaCarrosPage() {
   const year = today.getFullYear();
   const month = today.getMonth() + 1;
   const firstDay = `${year}-${String(month).padStart(2, "0")}-01`;
-  const lastDay = new Date(year, month, 0).toISOString().split("T")[0];
+  const lastDay = `${year}-${String(month).padStart(2, "0")}-${String(new Date(year, month, 0).getDate()).padStart(2, "0")}`;
 
   const [{ data: carros }, { data: reservas }, { data: tramos }] = await Promise.all([
     supabase.from("carros").select("*").eq("activo", true).order("id"),

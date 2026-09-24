@@ -252,7 +252,7 @@ export function CalendarioClient({
     const cur = new Date(e.fecha_inicio.split("T")[0] + "T12:00:00");
     const end = new Date(e.fecha_fin.split("T")[0] + "T12:00:00");
     while (cur <= end) {
-      const key = cur.toISOString().split("T")[0];
+      const key = toDateStr(cur.getFullYear(), cur.getMonth() + 1, cur.getDate());
       if (!eventosByDate[key]) eventosByDate[key] = [];
       eventosByDate[key].push(e);
       cur.setDate(cur.getDate() + 1);

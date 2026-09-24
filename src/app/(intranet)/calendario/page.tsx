@@ -14,7 +14,8 @@ export default async function CalendarioPage() {
   const year = now.getFullYear();
   const month = now.getMonth() + 1;
   const firstDay = `${year}-${String(month).padStart(2, "0")}-01`;
-  const lastDay = new Date(year, month, 0).toISOString().split("T")[0];
+  const lastDay = `${year}-${String(month).padStart(2, "0")}-${String(new Date(year, month, 0).getDate()).padStart(2, "0")}`;
+  const todayStr = `${year}-${String(month).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 
   const [
     { data: eventos },
@@ -58,7 +59,7 @@ export default async function CalendarioPage() {
     const { data: profesoresData } = await supabase
       .from("profesores")
       .select("id, profesor")
-      .or("fecha_cese.is.null,fecha_cese.gt." + new Date().toISOString().split("T")[0])
+      .or("fecha_cese.is.null,fecha_cese.gt." + todayStr)
       .order("profesor");
     profesores = (profesoresData ?? []) as { id: string; profesor: string }[];
   }
