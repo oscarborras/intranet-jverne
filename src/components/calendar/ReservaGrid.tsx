@@ -239,7 +239,7 @@ export function ReservaGrid({
         <p className="text-sm text-gray-500">{subtitle}</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
         {/* Calendar */}
         <div className="bg-white rounded-xl border border-gray-100 overflow-hidden lg:col-span-1">
           <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
