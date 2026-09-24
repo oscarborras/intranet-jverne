@@ -105,7 +105,9 @@ export interface Carro {
   id: number;
   nombre: string;
   ubicacion: string | null;
+  // Type of devices in the cart
   descripcion: string | null;
+  num_equipos: number | null;
   activo: boolean;
 }
 

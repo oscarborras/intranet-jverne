@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Laptop, Settings, Plus, Pencil, Trash2, X, Check, CalendarRange } from "lucide-react";
+import { Laptop, Settings, Plus, Pencil, Trash2, X, Check, CalendarRange, Info, MapPin, Monitor } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { ReservaGrid, type Reservation, type ReservationClickData } from "@/components/calendar/ReservaGrid";
 import { ReservaDetailModal } from "@/components/calendar/ReservaDetailModal";
@@ -22,11 +22,22 @@ interface Props {
 interface CarroForm {
   nombre: string;
   ubicacion: string;
+  numEquipos: string;
   descripcion: string;
   activo: boolean;
 }
 
-const emptyForm: CarroForm = { nombre: "", ubicacion: "", descripcion: "", activo: true };
+const emptyForm: CarroForm = { nombre: "", ubicacion: "", numEquipos: "", descripcion: "", activo: true };
+
+// Empty or invalid input is stored as null
+function parseNumEquipos(value: string): number | null {
+  const n = parseInt(value, 10);
+  return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
+function equiposLabel(n: number) {
+  return `${n} ${n === 1 ? "equipo" : "equipos"}`;
+}
 
 export function ReservaCarrosClient({
   carros: initialCarros, initialReservas, tramos,
@@ -39,6 +50,7 @@ export function ReservaCarrosClient({
   const [showBulk, setShowBulk] = useState(false);
 
   const [managing, setManaging] = useState(false);
+  const [showInfo, setShowInfo] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editForm, setEditForm] = useState<CarroForm>(emptyForm);
   const [addForm, setAddForm] = useState<CarroForm>(emptyForm);
@@ -50,7 +62,9 @@ export function ReservaCarrosClient({
   const resources = carros.filter((c) => c.activo).map((c) => ({
     id: c.id,
     nombre: c.nombre,
-    subtitulo: c.ubicacion ?? undefined,
+    subtitulo: [c.ubicacion, c.num_equipos != null ? equiposLabel(c.num_equipos) : null]
+      .filter(Boolean)
+      .join(" · ") || undefined,
   }));
 
   async function handleMonthChange(yr: number, mo: number) {
@@ -135,6 +149,7 @@ export function ReservaCarrosClient({
     setEditForm({
       nombre: carro.nombre,
       ubicacion: carro.ubicacion ?? "",
+      numEquipos: carro.num_equipos != null ? String(carro.num_equipos) : "",
       descripcion: carro.descripcion ?? "",
       activo: carro.activo,
     });
@@ -148,6 +163,7 @@ export function ReservaCarrosClient({
     const payload = {
       nombre: editForm.nombre,
       ubicacion: editForm.ubicacion || null,
+      num_equipos: parseNumEquipos(editForm.numEquipos),
       descripcion: editForm.descripcion || null,
       activo: editForm.activo,
     };
@@ -178,6 +194,7 @@ export function ReservaCarrosClient({
       .insert({
         nombre: addForm.nombre,
         ubicacion: addForm.ubicacion || null,
+        num_equipos: parseNumEquipos(addForm.numEquipos),
         descripcion: addForm.descripcion || null,
         activo: true,
       })
@@ -208,6 +225,15 @@ export function ReservaCarrosClient({
               <span className="hidden sm:inline">Reserva múltiple</span>
             </button>
           )}
+          {!isAdmin && (
+            <button
+              onClick={() => setShowInfo(true)}
+              className="flex items-center gap-2 min-h-10 px-3 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
+            >
+              <Info size={16} />
+              Info Carros
+            </button>
+          )}
           {isAdmin && (
             <button
               onClick={() => setManaging(true)}
@@ -232,6 +258,68 @@ export function ReservaCarrosClient({
         reserveExtraLabel="Aula"
         onReservationClick={setSelectedRes}
       />
+
+      {/* Read-only cart info for users who cannot manage carts */}
+      {showInfo && (
+        <div
+          className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-16 bg-black/40 overflow-y-auto"
+          onClick={() => setShowInfo(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="info-carros-title"
+            className="bg-white rounded-2xl w-full max-w-lg shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h2 id="info-carros-title" className="font-semibold text-gray-900">Info Carros</h2>
+              <button
+                onClick={() => setShowInfo(false)}
+                aria-label="Cerrar"
+                className="p-2 rounded-lg text-gray-400 hover:bg-gray-100"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            {resources.length === 0 ? (
+              <p className="px-6 py-8 text-center text-sm text-gray-400">No hay carros disponibles</p>
+            ) : (
+              <ul className="divide-y divide-gray-50">
+                {carros.filter((c) => c.activo).map((carro) => (
+                  <li key={carro.id} className="px-6 py-3 space-y-1">
+                    <p className="text-sm font-medium text-gray-900">{carro.nombre}</p>
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
+                      <span className="flex items-center gap-1">
+                        <MapPin size={12} />
+                        {carro.ubicacion ?? "Sin ubicación"}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Laptop size={12} />
+                        {carro.num_equipos != null ? equiposLabel(carro.num_equipos) : "Nº de equipos sin indicar"}
+                      </span>
+                    </div>
+                    {carro.descripcion && (
+                      <p className="flex items-start gap-1 text-xs text-gray-600 whitespace-pre-wrap">
+                        <Monitor size={12} className="mt-0.5 flex-shrink-0" />
+                        {carro.descripcion}
+                      </p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div className="px-6 py-4 border-t border-gray-100 flex justify-end">
+              <button
+                onClick={() => setShowInfo(false)}
+                className="min-h-10 px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {selectedRes && (
         <ReservaDetailModal
@@ -297,13 +385,25 @@ export function ReservaCarrosClient({
                         />
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Descripción</label>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Número de equipos</label>
+                        <input
+                          type="number"
+                          inputMode="numeric"
+                          min={0}
+                          className="w-32 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          value={editForm.numEquipos}
+                          onChange={(e) => setEditForm((f) => ({ ...f, numEquipos: e.target.value }))}
+                          placeholder="Ej: 25"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Tipo de equipos</label>
                         <textarea
                           className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
                           rows={2}
                           value={editForm.descripcion}
                           onChange={(e) => setEditForm((f) => ({ ...f, descripcion: e.target.value }))}
-                          placeholder="Ej: 15 portátiles HP, cargador incluido"
+                          placeholder="Ej: Portátiles HP ProBook 440, Windows 11, con cargador"
                         />
                       </div>
                       <div className="flex items-center justify-between">
@@ -331,6 +431,7 @@ export function ReservaCarrosClient({
                         <p className="text-sm font-medium text-gray-900 truncate">{carro.nombre}</p>
                         <p className="text-xs text-gray-400">
                           {carro.ubicacion ?? "Sin ubicación"}
+                          {carro.num_equipos != null && ` · ${equiposLabel(carro.num_equipos)}`}
                           {!carro.activo && <span className="text-orange-500 ml-1">· Inactivo</span>}
                         </p>
                         {carro.descripcion && (
@@ -386,13 +487,25 @@ export function ReservaCarrosClient({
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Descripción</label>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Número de equipos</label>
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      min={0}
+                      className="w-32 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      value={addForm.numEquipos}
+                      onChange={(e) => setAddForm((f) => ({ ...f, numEquipos: e.target.value }))}
+                      placeholder="Ej: 25"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Tipo de equipos</label>
                     <textarea
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
                       rows={2}
                       value={addForm.descripcion}
                       onChange={(e) => setAddForm((f) => ({ ...f, descripcion: e.target.value }))}
-                      placeholder="Ej: 15 portátiles HP, cargador incluido"
+                      placeholder="Ej: Portátiles HP ProBook 440, Windows 11, con cargador"
                     />
                   </div>
                   <div className="flex justify-end gap-2">
