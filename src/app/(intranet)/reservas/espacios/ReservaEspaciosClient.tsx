@@ -56,7 +56,13 @@ export function ReservaEspaciosClient({
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [manageError, setManageError] = useState<string | null>(null);
 
-  const resources = espacios.filter((e) => e.activo).map((e) => ({ id: e.id, nombre: e.nombre }));
+  const resources = espacios
+    .filter((e) => e.activo)
+    .map((e) => ({
+      id: e.id,
+      nombre: e.nombre,
+      subtitulo: e.capacidad ? `Aforo: ${e.capacidad} personas` : undefined,
+    }));
 
   async function handleMonthChange(yr: number, mo: number) {
     const supabase = createClient();
