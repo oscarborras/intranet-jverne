@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import { KanbanBoard } from "@/components/kanban/KanbanBoard";
 import { VerFotoButton } from "@/components/VerFotoButton";
 import { uploadIncidenciaFoto } from "@/lib/uploadIncidenciaFoto";
+import { applyFinalizadaAt, finalizadasColumnInfo } from "@/lib/peticiones";
 import type { PeticionMantenimiento, PeticionMantenimientoEstado, PeticionPrioridad } from "@/lib/types";
 import type { KanbanItem, ColumnConfig } from "@/components/kanban/KanbanBoard";
 
@@ -24,6 +25,8 @@ interface Props {
   isAdmin: boolean;
   userId: string;
   myDisplayName: string;
+  diasVistaFinalizadas: number;
+  finalizadasAntiguas: number;
 }
 
 interface FormState {
@@ -35,7 +38,9 @@ interface FormState {
 
 const EMPTY_FORM: FormState = { titulo: "", descripcion: "", ubicacion: "", prioridad: "normal" };
 
-export function PeticionesMantenimientoClient({ initialPeticiones, canValidate, isAdmin, userId, myDisplayName }: Props) {
+export function PeticionesMantenimientoClient({
+  initialPeticiones, canValidate, isAdmin, userId, myDisplayName, diasVistaFinalizadas, finalizadasAntiguas,
+}: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -76,6 +81,10 @@ export function PeticionesMantenimientoClient({ initialPeticiones, canValidate, 
   }
 
   const items: KanbanItem[] = peticiones.map((p) => ({ ...p, tipo: "MNT" as const }));
+  const recientes = peticiones.filter((p) => p.estado === "finalizada").length;
+  const columnInfo = {
+    finalizada: finalizadasColumnInfo(diasVistaFinalizadas, recientes, finalizadasAntiguas, "/peticiones-mantenimiento/historial"),
+  };
 
   async function handleStatusChange(id: number, newStatus: PeticionMantenimientoEstado) {
     const supabase = createClient();
@@ -83,7 +92,7 @@ export function PeticionesMantenimientoClient({ initialPeticiones, canValidate, 
     if (newStatus === "abierta") updates.validado_por = userId;
     await supabase.from("peticiones_mantenimiento").update(updates).eq("id", id);
     setPeticiones((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, ...updates } : p))
+      prev.map((p) => (p.id === id ? applyFinalizadaAt(p, { ...p, ...updates }) : p))
     );
   }
 
@@ -169,6 +178,7 @@ export function PeticionesMantenimientoClient({ initialPeticiones, canValidate, 
         showStatusChange={canValidate}
         canDeleteItem={canDeleteItem}
         onDeleteItem={handleDelete}
+        columnInfo={columnInfo}
         onItemClick={(item) => { if (canEditItem(item)) openEdit(item as PeticionMantenimiento); }}
       />
 

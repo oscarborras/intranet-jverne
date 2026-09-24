@@ -6,6 +6,13 @@ import type { PeticionTIC, PeticionMantenimiento, PeticionTICEstado, PeticionMan
 
 export type KanbanItem = (PeticionTIC | PeticionMantenimiento) & { tipo: "TIC" | "MNT" };
 
+// Optional extras shown on a column: a subtitle under the header and a footer link
+export interface ColumnInfo {
+  subtitle?: string;
+  footerHref?: string;
+  footerLabel?: string;
+}
+
 export interface ColumnConfig<TStatus extends string> {
   key: TStatus;
   label: string;
@@ -21,6 +28,7 @@ interface KanbanBoardProps<TStatus extends string> {
   showStatusChange?: boolean;
   canDeleteItem?: (item: KanbanItem) => boolean;
   onDeleteItem?: (item: KanbanItem) => void;
+  columnInfo?: Partial<Record<TStatus, ColumnInfo>>;
 }
 
 export function KanbanBoard<TStatus extends string>({
@@ -31,6 +39,7 @@ export function KanbanBoard<TStatus extends string>({
   showStatusChange = true,
   canDeleteItem,
   onDeleteItem,
+  columnInfo,
 }: KanbanBoardProps<TStatus>) {
   const [updating, setUpdating] = useState<number | null>(null);
 
@@ -48,6 +57,7 @@ export function KanbanBoard<TStatus extends string>({
           <KanbanColumn
             key={col.key}
             config={col}
+            info={columnInfo?.[col.key]}
             items={colItems}
             allStatuses={columns.map((c) => ({ key: c.key, label: c.label }))}
             onStatusChange={(id, status) => handleStatusChange(id, status as TStatus)}

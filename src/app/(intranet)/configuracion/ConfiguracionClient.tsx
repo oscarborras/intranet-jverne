@@ -22,6 +22,13 @@ const LABELS: Record<string, string> = {
   notificaciones_ausencias_perfiles: "Módulo Ausencias",
   notificaciones_peticiones_tic_perfiles: "Módulo Peticiones TIC",
   notificaciones_peticiones_mantenimiento_perfiles: "Módulo Peticiones Mantenimiento",
+  dias_vista_finalizadas:        "Días visibles de peticiones finalizadas",
+};
+
+// Numeric claves and the unit shown next to the input
+const NUMBER_CLAVES: Record<string, { suffix: string; max: number }> = {
+  max_profes_asuntos_propios: { suffix: "profesores simultáneos", max: 99 },
+  dias_vista_finalizadas:     { suffix: "días", max: 365 },
 };
 
 // Claves that store dates as dd/MM/yyyy
@@ -188,7 +195,7 @@ export function ConfiguracionClient({ config, perfiles }: Props) {
     const label = LABELS[row.clave] ?? row.clave;
     const isDate = DATE_CLAVES.has(row.clave);
     const isBoolean = BOOLEAN_CLAVES.has(row.clave);
-    const isNumber = row.clave === "max_profes_asuntos_propios";
+    const numberCfg = NUMBER_CLAVES[row.clave];
     const boolVal = values[row.clave] === "true";
     const selectOpts = SELECT_OPTIONS[row.clave];
 
@@ -313,19 +320,19 @@ export function ConfiguracionClient({ config, perfiles }: Props) {
           {label}
         </label>
         <p className="text-xs text-gray-500 mb-1.5">{row.descripcion}</p>
-        {isNumber ? (
+        {numberCfg ? (
           <div className="flex items-center gap-3">
             <input
               type="number"
               min={1}
-              max={99}
+              max={numberCfg.max}
               className="w-24 bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               value={values[row.clave] ?? ""}
               onChange={(e) =>
                 setValues((v) => ({ ...v, [row.clave]: String(Math.max(1, parseInt(e.target.value) || 1)) }))
               }
             />
-            <span className="text-sm text-gray-500">profesores simultáneos</span>
+            <span className="text-sm text-gray-500">{numberCfg.suffix}</span>
           </div>
         ) : isDate ? (
           <input

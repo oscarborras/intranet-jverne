@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import { KanbanBoard } from "@/components/kanban/KanbanBoard";
 import { PeticionTICModal } from "./PeticionTICModal";
 import { uploadIncidenciaFoto } from "@/lib/uploadIncidenciaFoto";
+import { applyFinalizadaAt, finalizadasColumnInfo } from "@/lib/peticiones";
 import type { PeticionTIC, PeticionTICEstado, PeticionPrioridad } from "@/lib/types";
 import type { KanbanItem, ColumnConfig } from "@/components/kanban/KanbanBoard";
 
@@ -23,6 +24,8 @@ interface Props {
   canDelete: boolean;
   userId: string;
   myDisplayName: string;
+  diasVistaFinalizadas: number;
+  finalizadasAntiguas: number;
 }
 
 interface FormState {
@@ -31,7 +34,9 @@ interface FormState {
   prioridad: PeticionPrioridad;
 }
 
-export function PeticionesTICClient({ initialPeticiones, canManage, canDelete, userId, myDisplayName }: Props) {
+export function PeticionesTICClient({
+  initialPeticiones, canManage, canDelete, userId, myDisplayName, diasVistaFinalizadas, finalizadasAntiguas,
+}: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -58,12 +63,16 @@ export function PeticionesTICClient({ initialPeticiones, canManage, canDelete, u
   }, []);
 
   const items: KanbanItem[] = peticiones.map((p) => ({ ...p, tipo: "TIC" as const }));
+  const recientes = peticiones.filter((p) => p.estado === "finalizada").length;
+  const columnInfo = {
+    finalizada: finalizadasColumnInfo(diasVistaFinalizadas, recientes, finalizadasAntiguas, "/peticiones-tic/historial"),
+  };
 
   async function handleStatusChange(id: number, newStatus: PeticionTICEstado) {
     const supabase = createClient();
     await supabase.from("peticiones_tic").update({ estado: newStatus }).eq("id", id);
     setPeticiones((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, estado: newStatus } : p))
+      prev.map((p) => (p.id === id ? applyFinalizadaAt(p, { ...p, estado: newStatus }) : p))
     );
   }
 
@@ -102,7 +111,7 @@ export function PeticionesTICClient({ initialPeticiones, canManage, canDelete, u
   }
 
   function handleUpdate(updated: PeticionTIC) {
-    setPeticiones((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+    setPeticiones((prev) => prev.map((p) => (p.id === updated.id ? applyFinalizadaAt(p, updated) : p)));
     setSelectedPeticion(updated);
   }
 
@@ -139,6 +148,7 @@ export function PeticionesTICClient({ initialPeticiones, canManage, canDelete, u
         items={items}
         onStatusChange={handleStatusChange}
         showStatusChange={false}
+        columnInfo={columnInfo}
         onItemClick={(item) => setSelectedPeticion(item as PeticionTIC)}
       />
 

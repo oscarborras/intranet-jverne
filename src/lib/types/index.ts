@@ -200,6 +200,7 @@ export interface PeticionTIC {
   foto_nombre: string | null;
   created_at: string;
   updated_at: string;
+  finalizada_at: string | null;
   autor?: { full_name: string };
   asignado?: { full_name: string };
 }
@@ -228,6 +229,7 @@ export interface PeticionMantenimiento {
   foto_nombre: string | null;
   created_at: string;
   updated_at: string;
+  finalizada_at: string | null;
   autor?: { full_name: string };
   validador?: { full_name: string };
 }

@@ -1,8 +1,11 @@
+import Link from "next/link";
+import { History } from "lucide-react";
 import { KanbanCard } from "./KanbanCard";
-import type { KanbanItem, ColumnConfig } from "./KanbanBoard";
+import type { KanbanItem, ColumnConfig, ColumnInfo } from "./KanbanBoard";
 
 interface Props {
   config: ColumnConfig<string>;
+  info?: ColumnInfo;
   items: KanbanItem[];
   allStatuses: { key: string; label: string }[];
   onStatusChange: (id: number, newStatus: string) => void;
@@ -13,7 +16,7 @@ interface Props {
   onDeleteItem?: (item: KanbanItem) => void;
 }
 
-export function KanbanColumn({ config, items, allStatuses, onStatusChange, onItemClick, updating, showStatusChange = true, canDeleteItem, onDeleteItem }: Props) {
+export function KanbanColumn({ config, info, items, allStatuses, onStatusChange, onItemClick, updating, showStatusChange = true, canDeleteItem, onDeleteItem }: Props) {
   return (
     <div className="flex-shrink-0 w-72 flex flex-col rounded-xl overflow-hidden bg-gray-100">
       {/* Header */}
@@ -25,6 +28,9 @@ export function KanbanColumn({ config, items, allStatuses, onStatusChange, onIte
           {items.length}
         </span>
       </div>
+      {info?.subtitle && (
+        <p className="px-4 py-1.5 text-xs text-gray-600 bg-white/70 border-b border-gray-200">{info.subtitle}</p>
+      )}
 
       {/* Cards */}
       <div className="flex-1 p-2 space-y-2 overflow-y-auto">
@@ -47,6 +53,16 @@ export function KanbanColumn({ config, items, allStatuses, onStatusChange, onIte
           ))
         )}
       </div>
+
+      {info?.footerHref && (
+        <Link
+          href={info.footerHref}
+          className="flex items-center justify-center gap-2 min-h-11 px-4 py-2 text-sm font-medium text-gray-700 bg-white border-t border-gray-200 hover:bg-gray-50 transition-colors"
+        >
+          <History size={15} />
+          {info.footerLabel ?? "Ver histórico"}
+        </Link>
+      )}
     </div>
   );
 }
