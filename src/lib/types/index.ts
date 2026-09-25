@@ -251,6 +251,15 @@ export interface AsuntoPropios {
   created_at: string;
 }
 
+export interface DiaBloqueadoAsuntos {
+  id: string;
+  fecha: string;
+  motivo: string | null;
+  created_by: string;
+  created_at: string;
+  autor?: { full_name: string };
+}
+
 // ─── App Config ──────────────────────────────────────────────────────────────
 
 export interface ConfigIntranet {

@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { ChevronLeft, ChevronRight, Plus, X, Pencil, Calendar } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, X, Pencil, Calendar, Lock, LockOpen } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { resolveAutorNames } from "@/lib/resolveAutorNames";
-import type { CalendarEvento, TipoEventoIntranet, AsuntoPropios } from "@/lib/types";
+import type { CalendarEvento, TipoEventoIntranet, AsuntoPropios, DiaBloqueadoAsuntos } from "@/lib/types";
 
 const DAYS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 const MONTHS = [
@@ -25,6 +25,13 @@ const COLOR_CLASSES: Record<string, string> = {
   gray: "bg-gray-100 text-gray-700",
 };
 
+// Shared look for section action buttons in the day panel
+const ACTION_BTN =
+  "inline-flex items-center justify-center gap-1.5 min-h-9 px-3 py-1.5 text-xs font-semibold rounded-lg border shadow-sm transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1";
+const ACTION_BTN_BLUE = "bg-blue-600 border-blue-600 text-white hover:bg-blue-700 focus-visible:ring-blue-500";
+const ACTION_BTN_AMBER = "bg-amber-600 border-amber-600 text-white hover:bg-amber-700 focus-visible:ring-amber-500";
+const ACTION_BTN_OUTLINE = "bg-white border-gray-300 text-gray-700 hover:bg-gray-100 hover:border-gray-400 focus-visible:ring-gray-400";
+
 function tipoClasses(tipo: string, tipoMap: Map<string, TipoEventoIntranet>): string {
   const color = tipoMap.get(tipo)?.color ?? "gray";
   return COLOR_CLASSES[color] ?? COLOR_CLASSES.gray;
@@ -38,6 +45,7 @@ interface Props {
   canManageEvents: boolean;
   canCreateExtraescolar: boolean;
   initialAsuntos: AsuntoPropios[];
+  initialBloqueos: DiaBloqueadoAsuntos[];
   maxAsuntosPropios: number;
   profesores: { id: string; profesor: string }[];
   canManageAsuntos: boolean;
@@ -74,7 +82,7 @@ function toDateStr(year: number, month: number, day: number) {
 
 export function CalendarioClient({
   initialEventos, tiposEvento, userId, myDisplayName, canManageEvents, canCreateExtraescolar,
-  initialAsuntos, maxAsuntosPropios, profesores, canManageAsuntos,
+  initialAsuntos, initialBloqueos, maxAsuntosPropios, profesores, canManageAsuntos,
 }: Props) {
   const canCreateEvents = canManageEvents || canCreateExtraescolar;
   const today = new Date();
@@ -97,6 +105,13 @@ export function CalendarioClient({
   const [addingAsunto, setAddingAsunto] = useState(false);
   const [selectedProfesorId, setSelectedProfesorId] = useState("");
   const [savingAsunto, setSavingAsunto] = useState(false);
+  const [asuntoError, setAsuntoError] = useState<string | null>(null);
+
+  const [bloqueos, setBloqueos] = useState<DiaBloqueadoAsuntos[]>(initialBloqueos);
+  const [blockingDay, setBlockingDay] = useState(false);
+  const [motivoBloqueo, setMotivoBloqueo] = useState("");
+  const [savingBloqueo, setSavingBloqueo] = useState(false);
+  const [confirmUnblock, setConfirmUnblock] = useState(false);
 
   const tipoMap = useMemo(
     () => new Map(tiposEvento.map(t => [t.nombre, t])),
@@ -112,18 +127,29 @@ export function CalendarioClient({
     return map;
   }, [asuntos]);
 
+  const bloqueoByDate = useMemo(
+    () => new Map(bloqueos.map((b) => [b.fecha, b])),
+    [bloqueos]
+  );
+
   const fetchMonth = useCallback(async (y: number, m: number) => {
     const supabase = createClient();
     const first = toDateStr(y, m, 1);
     const last = toDateStr(y, m, getDaysInMonth(y, m));
-    const [{ data: ev }, { data: ap }] = await Promise.all([
+    const [{ data: ev }, { data: ap }, { data: bl }] = await Promise.all([
       supabase.from("calendar_eventos").select("*").lte("fecha_inicio", last).gte("fecha_fin", first),
       supabase.from("asuntos_propios").select("*").gte("fecha", first).lte("fecha", last),
+      supabase.from("dias_bloqueados_asuntos").select("*").gte("fecha", first).lte("fecha", last),
     ]);
-    const autorNames = await resolveAutorNames(supabase, (ev ?? []).map((e) => e.autor_id as string));
+    const autorNames = await resolveAutorNames(supabase, [
+      ...(ev ?? []).map((e) => e.autor_id as string),
+      ...(bl ?? []).map((b) => b.created_by as string),
+    ]);
     const evConAutor = (ev ?? []).map((e) => ({ ...e, autor: { full_name: autorNames[e.autor_id as string] ?? "—" } }));
+    const blConAutor = (bl ?? []).map((b) => ({ ...b, autor: { full_name: autorNames[b.created_by as string] ?? "—" } }));
     setEventos(evConAutor as CalendarEvento[]);
     setAsuntos((ap ?? []) as AsuntoPropios[]);
+    setBloqueos(blConAutor as DiaBloqueadoAsuntos[]);
   }, []);
 
   useEffect(() => {
@@ -136,6 +162,24 @@ export function CalendarioClient({
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [year, month, fetchMonth]);
+
+  function resetDayPanelState() {
+    setDeletingId(null);
+    setAddingAsunto(false);
+    setSelectedProfesorId("");
+    setAsuntoError(null);
+    setBlockingDay(false);
+    setMotivoBloqueo("");
+    setConfirmUnblock(false);
+  }
+
+  function openBlockForm() {
+    setBlockingDay(true);
+    setAddingAsunto(false);
+    setSelectedProfesorId("");
+    setConfirmUnblock(false);
+    setAsuntoError(null);
+  }
 
   function prevMonth() {
     const nm = month === 1 ? 12 : month - 1;
@@ -231,7 +275,16 @@ export function CalendarioClient({
       .insert({ user_id: selectedProfesorId, user_full_name: profesor.profesor, fecha: selectedDay, created_by: userId })
       .select()
       .single();
-    if (!error && data) setAsuntos((prev) => [...prev, data as AsuntoPropios]);
+    if (error) {
+      setAsuntoError(
+        error.code === "23514"
+          ? "Este día no está disponible para asuntos propios."
+          : "No se ha podido registrar el asunto propio."
+      );
+    } else if (data) {
+      setAsuntos((prev) => [...prev, data as AsuntoPropios]);
+      setAsuntoError(null);
+    }
     setSavingAsunto(false);
     setAddingAsunto(false);
     setSelectedProfesorId("");
@@ -241,6 +294,40 @@ export function CalendarioClient({
     const supabase = createClient();
     await supabase.from("asuntos_propios").delete().eq("id", id);
     setAsuntos((prev) => prev.filter((a) => a.id !== id));
+  }
+
+  async function handleBlockDay() {
+    if (!selectedDay) return;
+    setSavingBloqueo(true);
+    const supabase = createClient();
+    const motivo = motivoBloqueo.trim();
+    const { data, error } = await supabase
+      .from("dias_bloqueados_asuntos")
+      .insert({ fecha: selectedDay, motivo: motivo || null, created_by: userId })
+      .select()
+      .single();
+    if (error) {
+      setAsuntoError("No se ha podido bloquear el día.");
+    } else if (data) {
+      setBloqueos((prev) => [...prev, { ...(data as DiaBloqueadoAsuntos), autor: { full_name: myDisplayName } }]);
+      setAsuntoError(null);
+      setAddingAsunto(false);
+    }
+    setSavingBloqueo(false);
+    setBlockingDay(false);
+    setMotivoBloqueo("");
+  }
+
+  async function handleUnblockDay(id: string) {
+    const supabase = createClient();
+    const { error } = await supabase.from("dias_bloqueados_asuntos").delete().eq("id", id);
+    if (error) {
+      setAsuntoError("No se ha podido desbloquear el día.");
+    } else {
+      setBloqueos((prev) => prev.filter((b) => b.id !== id));
+      setAsuntoError(null);
+    }
+    setConfirmUnblock(false);
   }
 
   const daysInMonth = getDaysInMonth(year, month);
@@ -310,6 +397,7 @@ export function CalendarioClient({
             const isSelected = dateStr === selectedDay;
             const isWeekend = (firstDayOffset + i) % 7 >= 5;
             const dayEvents = eventosByDate[dateStr] ?? [];
+            const isBlocked = bloqueoByDate.has(dateStr);
 
             return (
               <div
@@ -322,9 +410,7 @@ export function CalendarioClient({
                 )}
                 onClick={() => {
                   setSelectedDay(dateStr === selectedDay ? null : dateStr);
-                  setDeletingId(null);
-                  setAddingAsunto(false);
-                  setSelectedProfesorId("");
+                  resetDayPanelState();
                 }}
                 onDoubleClick={() => canCreateEvents && openNew(dateStr)}
               >
@@ -335,15 +421,32 @@ export function CalendarioClient({
                   )}>
                     {day}
                   </div>
-                  {asuntosByDate[dateStr] && (() => {
-                    const libre = maxAsuntosPropios - (asuntosByDate[dateStr]?.length ?? 0);
+                  {isBlocked ? (
+                    <span
+                      className="inline-flex items-center gap-0.5 text-xs font-semibold px-1.5 py-0.5 rounded-full truncate leading-tight bg-gray-200 text-gray-600"
+                      title="No disponible para asuntos propios"
+                      aria-label="No disponible para asuntos propios"
+                    >
+                      <Lock size={10} className="flex-shrink-0" />
+                      <span className="hidden sm:inline truncate">No disponible</span>
+                    </span>
+                  ) : asuntosByDate[dateStr] && (() => {
+                    const ocupadas = asuntosByDate[dateStr]?.length ?? 0;
+                    const libre = maxAsuntosPropios - ocupadas;
+                    const plazasHint = libre > 0
+                      ? `Asuntos propios: ${libre} de ${maxAsuntosPropios} plaza${maxAsuntosPropios !== 1 ? "s" : ""} libre${libre !== 1 ? "s" : ""}`
+                      : `Asuntos propios: sin plazas libres (${ocupadas}/${maxAsuntosPropios} ocupadas)`;
                     return (
-                      <span className={cn(
-                        "text-xs font-semibold px-1.5 py-0.5 rounded-full truncate leading-tight",
-                        libre > 0
-                          ? "bg-amber-100 text-amber-700"
-                          : "bg-red-100 text-red-600"
-                      )}>
+                      <span
+                        className={cn(
+                          "text-xs font-semibold px-1.5 py-0.5 rounded-full truncate leading-tight",
+                          libre > 0
+                            ? "bg-amber-100 text-amber-700"
+                            : "bg-red-100 text-red-600"
+                        )}
+                        title={plazasHint}
+                        aria-label={plazasHint}
+                      >
                         {libre > 0 ? `${libre} plaza${libre !== 1 ? "s" : ""} libres` : "Completo"}
                       </span>
                     );
@@ -372,6 +475,7 @@ export function CalendarioClient({
       {/* Plazas info note */}
       <p className="text-xs text-gray-400 text-center">
         Los días sin etiqueta de plazas tienen todas las plazas de asuntos propios disponibles.
+        Los días marcados con <Lock size={10} className="inline -mt-0.5" /> no están disponibles para asuntos propios.
       </p>
 
       {/* Day detail panel */}
@@ -379,6 +483,7 @@ export function CalendarioClient({
         const dayAsuntos = asuntosByDate[selectedDay] ?? [];
         const libre = maxAsuntosPropios - dayAsuntos.length;
         const yaRegistrado = (id: string) => dayAsuntos.some((a) => a.user_id === id);
+        const dayBloqueo = bloqueoByDate.get(selectedDay);
 
         return (
           <div className="rounded-xl border border-gray-200 overflow-hidden shadow-sm">
@@ -390,7 +495,7 @@ export function CalendarioClient({
                 })}
               </h3>
               <button
-                onClick={() => { setSelectedDay(null); setDeletingId(null); setAddingAsunto(false); }}
+                onClick={() => { setSelectedDay(null); resetDayPanelState(); }}
                 className="text-gray-300 hover:text-white transition-colors cursor-pointer"
                 aria-label="Cerrar"
               >
@@ -413,9 +518,9 @@ export function CalendarioClient({
                 {canCreateEvents && (
                   <button
                     onClick={() => openNew(selectedDay)}
-                    className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium cursor-pointer"
+                    className={cn(ACTION_BTN, ACTION_BTN_BLUE)}
                   >
-                    <Plus size={13} />
+                    <Plus size={14} />
                     Nuevo
                   </button>
                 )}
@@ -467,19 +572,35 @@ export function CalendarioClient({
             </div>
 
             {/* ── Asuntos propios section ── */}
-            <div className="bg-white border-t-2 border-amber-200">
-              <div className="flex items-center justify-between px-5 py-2.5 bg-amber-50 border-b border-amber-100">
-                <div className="flex items-center gap-2">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 text-amber-500"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
-                  <span className="text-xs font-semibold text-amber-700 uppercase tracking-wider">Asuntos propios</span>
-                  {dayAsuntos.length > 0 && (
+            <div className={cn("bg-white border-t-2", dayBloqueo ? "border-gray-300" : "border-amber-200")}>
+              <div className={cn(
+                "flex items-center justify-between gap-2 px-5 py-2.5 border-b",
+                dayBloqueo ? "bg-gray-100 border-gray-200" : "bg-amber-50 border-amber-100"
+              )}>
+                <div className="flex items-center gap-2 min-w-0 flex-wrap">
+                  {dayBloqueo ? (
+                    <Lock size={14} className="text-gray-500" />
+                  ) : (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 text-amber-500"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
+                  )}
+                  <span className={cn(
+                    "text-xs font-semibold uppercase tracking-wider",
+                    dayBloqueo ? "text-gray-600" : "text-amber-700"
+                  )}>
+                    Asuntos propios
+                  </span>
+                  {dayBloqueo ? (
+                    <span className="bg-gray-200 text-gray-700 text-xs font-semibold px-1.5 py-0.5 rounded-full">
+                      No disponible
+                    </span>
+                  ) : dayAsuntos.length > 0 && (
                     <span className="bg-amber-100 text-amber-700 text-xs font-semibold px-1.5 py-0.5 rounded-full">
                       {dayAsuntos.length}/{maxAsuntosPropios}
                     </span>
                   )}
                 </div>
-                <div className="flex items-center gap-2">
-                  {dayAsuntos.length > 0 && (
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {!dayBloqueo && dayAsuntos.length > 0 && (
                     <span className={cn(
                       "text-xs font-medium",
                       libre > 0 ? "text-amber-600" : "text-red-500"
@@ -487,51 +608,153 @@ export function CalendarioClient({
                       {libre > 0 ? `${libre} libre${libre !== 1 ? "s" : ""}` : "Completo"}
                     </span>
                   )}
-                  {canManageAsuntos && libre > 0 && !addingAsunto && (
+                  {/* Block / unblock: header on desktop, section footer on mobile */}
+                  {canManageAsuntos && dayBloqueo && !confirmUnblock && (
                     <button
-                      onClick={() => { setAddingAsunto(true); setSelectedProfesorId(""); }}
-                      className="flex items-center gap-1 text-xs text-amber-700 hover:text-amber-900 font-medium cursor-pointer"
+                      onClick={() => { setConfirmUnblock(true); setAsuntoError(null); }}
+                      className={cn(ACTION_BTN, ACTION_BTN_OUTLINE, "hidden sm:inline-flex")}
                     >
-                      <Plus size={13} />
+                      <LockOpen size={14} />
+                      Desbloquear
+                    </button>
+                  )}
+                  {canManageAsuntos && !dayBloqueo && !blockingDay && (
+                    <button
+                      onClick={openBlockForm}
+                      className={cn(ACTION_BTN, ACTION_BTN_OUTLINE, "hidden sm:inline-flex")}
+                    >
+                      <Lock size={14} />
+                      Bloquear
+                    </button>
+                  )}
+                  {canManageAsuntos && !dayBloqueo && libre > 0 && !addingAsunto && !blockingDay && (
+                    <button
+                      onClick={() => { setAddingAsunto(true); setSelectedProfesorId(""); setAsuntoError(null); }}
+                      className={cn(ACTION_BTN, ACTION_BTN_AMBER)}
+                    >
+                      <Plus size={14} />
                       Añadir
                     </button>
                   )}
                 </div>
               </div>
 
-              {canManageAsuntos && (
+              {(canManageAsuntos || dayBloqueo) && (
                 <div className="px-5 py-3 space-y-2">
+                  {/* Blocked day notice */}
+                  {dayBloqueo && (
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 space-y-0.5">
+                      <p className="text-sm font-medium text-gray-700">Día no disponible para asuntos propios</p>
+                      {dayBloqueo.motivo && (
+                        <p className="text-sm text-gray-600">Motivo: {dayBloqueo.motivo}</p>
+                      )}
+                      {canManageAsuntos && (
+                        <p className="text-xs text-gray-400">Bloqueado por {dayBloqueo.autor?.full_name ?? "—"}</p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Unblock confirmation */}
+                  {canManageAsuntos && dayBloqueo && confirmUnblock && (
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 bg-white border border-gray-200 rounded-lg px-3 py-2.5">
+                      <span className="text-sm text-gray-700 flex-1">¿Desbloquear este día para asuntos propios?</span>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleUnblockDay(dayBloqueo.id)}
+                          className={cn(ACTION_BTN, "flex-1 sm:flex-none bg-red-600 border-red-600 text-white hover:bg-red-700 focus-visible:ring-red-500")}
+                        >
+                          Sí, desbloquear
+                        </button>
+                        <button
+                          onClick={() => setConfirmUnblock(false)}
+                          className={cn(ACTION_BTN, ACTION_BTN_OUTLINE, "flex-1 sm:flex-none")}
+                        >
+                          No
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Block form */}
+                  {canManageAsuntos && !dayBloqueo && blockingDay && (
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-3 space-y-2 mb-3">
+                      <label htmlFor="motivo-bloqueo" className="block text-xs font-medium text-gray-600">
+                        Motivo (opcional)
+                      </label>
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <input
+                          id="motivo-bloqueo"
+                          type="text"
+                          maxLength={200}
+                          placeholder="Ej.: Sesión de evaluación"
+                          className="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400 bg-white"
+                          value={motivoBloqueo}
+                          onChange={(e) => setMotivoBloqueo(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === "Enter" && !savingBloqueo) handleBlockDay(); }}
+                        />
+                        <div className="flex gap-2">
+                          <button
+                            onClick={handleBlockDay}
+                            disabled={savingBloqueo}
+                            className={cn(ACTION_BTN, "flex-1 sm:flex-none bg-gray-700 border-gray-700 text-white hover:bg-gray-800 focus-visible:ring-gray-500")}
+                          >
+                            <Lock size={14} />
+                            {savingBloqueo ? "..." : "Bloquear"}
+                          </button>
+                          <button
+                            onClick={() => { setBlockingDay(false); setMotivoBloqueo(""); }}
+                            className={cn(ACTION_BTN, ACTION_BTN_OUTLINE, "flex-1 sm:flex-none")}
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                      </div>
+                      {dayAsuntos.length > 0 && (
+                        <p className="text-xs text-amber-700">
+                          Ya hay {dayAsuntos.length} profesor{dayAsuntos.length !== 1 ? "es" : ""} registrado{dayAsuntos.length !== 1 ? "s" : ""} este día. Sus asuntos propios se mantendrán.
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {asuntoError && (
+                    <p role="alert" className="text-xs text-red-600">{asuntoError}</p>
+                  )}
+
                   {/* Add form */}
-                  {addingAsunto && (
-                    <div className="flex items-center gap-2 mb-3">
+                  {canManageAsuntos && addingAsunto && !dayBloqueo && (
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-3">
                       <select
                         className="flex-1 border border-amber-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-amber-50"
                         value={selectedProfesorId}
                         onChange={(e) => setSelectedProfesorId(e.target.value)}
+                        aria-label="Profesor"
                       >
                         <option value="">Selecciona un profesor...</option>
                         {profesores.filter((p) => !yaRegistrado(p.id)).map((p) => (
                           <option key={p.id} value={p.id}>{p.profesor}</option>
                         ))}
                       </select>
-                      <button
-                        onClick={handleAddAsunto}
-                        disabled={!selectedProfesorId || savingAsunto}
-                        className="px-3 py-1.5 text-xs bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-medium disabled:opacity-50 cursor-pointer whitespace-nowrap"
-                      >
-                        {savingAsunto ? "..." : "Añadir"}
-                      </button>
-                      <button
-                        onClick={() => { setAddingAsunto(false); setSelectedProfesorId(""); }}
-                        className="px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-100 rounded-lg border border-gray-200 cursor-pointer"
-                      >
-                        Cancelar
-                      </button>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={handleAddAsunto}
+                          disabled={!selectedProfesorId || savingAsunto}
+                          className={cn(ACTION_BTN, ACTION_BTN_AMBER, "flex-1 sm:flex-none whitespace-nowrap")}
+                        >
+                          {savingAsunto ? "..." : "Añadir"}
+                        </button>
+                        <button
+                          onClick={() => { setAddingAsunto(false); setSelectedProfesorId(""); }}
+                          className={cn(ACTION_BTN, ACTION_BTN_OUTLINE, "flex-1 sm:flex-none")}
+                        >
+                          Cancelar
+                        </button>
+                      </div>
                     </div>
                   )}
 
                   {/* Professors list */}
-                  {dayAsuntos.length > 0 ? (
+                  {canManageAsuntos && (dayAsuntos.length > 0 ? (
                     <ul className="space-y-1.5">
                       {dayAsuntos.map((a) => (
                         <li key={a.id} className="flex items-center justify-between bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
@@ -546,8 +769,31 @@ export function CalendarioClient({
                         </li>
                       ))}
                     </ul>
-                  ) : (
+                  ) : !dayBloqueo && (
                     <p className="text-xs text-gray-400 py-2 text-center">Sin solicitudes de asuntos propios para este día</p>
+                  ))}
+
+                  {/* Mobile-only block / unblock action at the section footer */}
+                  {canManageAsuntos && !blockingDay && !confirmUnblock && (
+                    <div className="sm:hidden pt-2 border-t border-gray-100">
+                      {dayBloqueo ? (
+                        <button
+                          onClick={() => { setConfirmUnblock(true); setAsuntoError(null); }}
+                          className={cn(ACTION_BTN, ACTION_BTN_OUTLINE, "w-full min-h-11 text-sm")}
+                        >
+                          <LockOpen size={16} />
+                          Desbloquear día
+                        </button>
+                      ) : (
+                        <button
+                          onClick={openBlockForm}
+                          className={cn(ACTION_BTN, ACTION_BTN_OUTLINE, "w-full min-h-11 text-sm")}
+                        >
+                          <Lock size={16} />
+                          Marcar día como no disponible
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
               )}

@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { CalendarioClient } from "./CalendarioClient";
 import { resolveAutorNames } from "@/lib/resolveAutorNames";
-import type { CalendarEvento, TipoEventoIntranet, AsuntoPropios } from "@/lib/types";
+import type { CalendarEvento, TipoEventoIntranet, AsuntoPropios, DiaBloqueadoAsuntos } from "@/lib/types";
 
 export default async function CalendarioPage() {
   const supabase = await createClient();
@@ -23,12 +23,14 @@ export default async function CalendarioPage() {
     { data: userRoles },
     { data: asuntos },
     { data: configRows },
+    { data: bloqueos },
   ] = await Promise.all([
     supabase.from("calendar_eventos").select("*").lte("fecha_inicio", lastDay).gte("fecha_fin", firstDay),
     supabase.from("tipos_eventos_intranet").select("*").eq("activo", true).order("orden"),
     supabase.from("user_roles_intranet").select("perfiles_intranet(nombre)").eq("user_id", user!.id),
     supabase.from("asuntos_propios").select("*").gte("fecha", firstDay).lte("fecha", lastDay),
     supabase.from("config_intranet").select("clave, valor"),
+    supabase.from("dias_bloqueados_asuntos").select("*").gte("fecha", firstDay).lte("fecha", lastDay),
   ]);
 
   const roleNames = (userRoles ?? []).map((ur) => {
@@ -42,11 +44,16 @@ export default async function CalendarioPage() {
 
   const autorNames = await resolveAutorNames(supabase, [
     ...(eventos ?? []).map((e) => e.autor_id as string),
+    ...(bloqueos ?? []).map((b) => b.created_by as string),
     user!.id,
   ]);
   const eventosConAutor = (eventos ?? []).map((e) => ({
     ...e,
     autor: { full_name: autorNames[e.autor_id as string] ?? "—" },
+  }));
+  const bloqueosConAutor = (bloqueos ?? []).map((b) => ({
+    ...b,
+    autor: { full_name: autorNames[b.created_by as string] ?? "—" },
   }));
   const myDisplayName = autorNames[user!.id] ?? "—";
 
@@ -73,6 +80,7 @@ export default async function CalendarioPage() {
       canManageEvents={canManageEvents}
       canCreateExtraescolar={canCreateExtraescolar}
       initialAsuntos={(asuntos ?? []) as AsuntoPropios[]}
+      initialBloqueos={bloqueosConAutor as DiaBloqueadoAsuntos[]}
       maxAsuntosPropios={maxAsuntosPropios}
       profesores={profesores}
       canManageAsuntos={canManageAsuntos}
