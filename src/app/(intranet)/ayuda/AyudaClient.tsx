@@ -1,17 +1,17 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   HelpCircle, Laptop, Users, User, CalendarDays, Plus, PlusCircle, BookOpen,
   CheckCircle2, MapPin, ChevronRight, ArrowLeft, Clock, Camera,
   Mail, X, CalendarCheck, Smartphone, ShieldAlert, Monitor, Wrench,
   BookMarked, FileText, GraduationCap, ExternalLink, RotateCcw, Printer, ClipboardCheck,
-  CalendarClock, LayoutDashboard, RefreshCw, Search,
+  CalendarClock, LayoutDashboard, RefreshCw, Search, Copy, Check,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type ItemId = "carros" | "citas" | "ordenanza" | "movil" | "prestamos" | "devoluciones" | "revisiones" | "tic" | "mantenimiento";
+type ItemId = "carros" | "citas" | "familias" | "ordenanza" | "movil" | "prestamos" | "devoluciones" | "revisiones" | "tic" | "mantenimiento";
 type Category = "tutorial" | "protocolo";
 type ModuleId = "carros-portatiles" | "citas-familias" | "citas-del-dia" | "gratuidad-libros" | "peticiones-incidencias";
 
@@ -62,6 +62,16 @@ const ITEMS: ItemMeta[] = [
     badge: "7 pasos · 2 min",
     headerBg: "bg-red-600",
     headerText: "text-red-600",
+  },
+  {
+    id: "familias",
+    category: "tutorial",
+    icon: <Mail size={22} className="text-white" />,
+    title: "Cómo piden y cancelan cita las familias",
+    description: "Lo que ve la familia al solicitar una cita desde casa y cómo la cancela si no puede asistir.",
+    badge: "8 pasos · 2 min",
+    headerBg: "bg-rose-600",
+    headerText: "text-rose-600",
   },
   {
     id: "ordenanza",
@@ -152,7 +162,7 @@ const MODULES: ModuleMeta[] = [
     title: "Citas con Familias",
     description: "Confirmación y gestión de citas con las familias del alumnado.",
     color: "bg-red-600",
-    tutorials: ["citas"],
+    tutorials: ["citas", "familias"],
   },
   {
     id: "citas-del-dia",
@@ -463,6 +473,212 @@ function TutorialCitas() {
           <div className="flex items-center gap-2">
             <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-600 text-white text-[11px] font-semibold"><Plus size={11} /> Nueva cita</span>
             <span className="text-xs text-gray-400">→ se crea directamente como «Confirmada»</span>
+          </div>
+        </div>
+      </li>
+    </ol>
+  );
+}
+
+// ─── Tutorial: Solicitud y cancelación por las familias ───────────────────────
+
+// Prominent banner that splits a tutorial into parts
+function PartHeading({ icon: Icon, title, subtitle, bg }: {
+  icon: React.ElementType;
+  title: string;
+  subtitle: string;
+  bg: string;
+}) {
+  return (
+    <li className="px-4 sm:px-6 pt-5 pb-2">
+      <div className={`${bg} rounded-xl px-4 py-3 flex items-center gap-3`}>
+        <span className="w-9 h-9 rounded-lg bg-white/20 flex items-center justify-center flex-shrink-0">
+          <Icon size={18} className="text-white" />
+        </span>
+        <div className="min-w-0">
+          <h3 className="text-white font-bold text-sm uppercase tracking-wide">{title}</h3>
+          <p className="text-white/80 text-xs mt-0.5">{subtitle}</p>
+        </div>
+      </div>
+    </li>
+  );
+}
+
+const FAMILIAS_SOLICITAR_PATH = "/familias/solicitar";
+
+// Full public URL of the family request page, built from the address currently in use.
+// Read after mount so server and client render the same HTML (no hydration mismatch).
+function FamiliasSolicitarUrl() {
+  const [url, setUrl] = useState(FAMILIAS_SOLICITAR_PATH);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    setUrl(`${window.location.origin}${FAMILIAS_SOLICITAR_PATH}`);
+  }, []);
+
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard not available (e.g. insecure context): the URL is still visible to copy by hand
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-2 max-w-md">
+      <a
+        href={url}
+        target="_blank"
+        rel="noreferrer"
+        className="flex-1 min-w-0 bg-gray-50 rounded-lg border border-gray-200 px-3 py-2 flex items-center gap-2 hover:border-rose-300 transition-colors"
+      >
+        <ExternalLink size={12} className="text-gray-400 flex-shrink-0" />
+        <span className="text-[11px] text-gray-700 font-mono break-all">{url}</span>
+      </a>
+      <button
+        type="button"
+        onClick={handleCopy}
+        aria-label="Copiar dirección"
+        className="flex-shrink-0 flex items-center gap-1 px-3 py-2 min-h-[36px] rounded-lg border border-gray-200 bg-white text-[11px] font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+      >
+        {copied ? <><Check size={12} className="text-green-600" /> Copiada</> : <><Copy size={12} /> Copiar</>}
+      </button>
+    </div>
+  );
+}
+
+function TutorialFamilias() {
+  return (
+    <ol className="divide-y divide-gray-50">
+      <PartHeading icon={CalendarCheck} title="Solicitar la cita" subtitle="Pasos 1 a 5 · lo que hace la familia desde casa" bg="bg-rose-600" />
+
+      <li className="px-6 py-5 flex gap-4">
+        <div className="flex-shrink-0 flex flex-col items-center">
+          <StepNum n={1} accent="red" /><StepConnector />
+        </div>
+        <div className="flex-1 pb-1">
+          <p className="font-medium text-gray-900 text-sm mb-1">La familia entra en la página de solicitud</p>
+          <p className="text-sm text-gray-500 mb-3">Comparte con las familias esta dirección (por iPasen, correo o la agenda). No necesitan usuario ni contraseña.</p>
+          <FamiliasSolicitarUrl />
+        </div>
+      </li>
+
+      <li className="px-6 py-5 flex gap-4">
+        <div className="flex-shrink-0 flex flex-col items-center">
+          <StepNum n={2} accent="red" /><StepConnector />
+        </div>
+        <div className="flex-1 pb-1">
+          <p className="font-medium text-gray-900 text-sm mb-1">Elige con quién quiere la cita</p>
+          <p className="text-sm text-gray-500 mb-3">Puede pedirla con <strong className="text-gray-700">un profesor/a</strong> o con un cargo del equipo directivo. Al elegir un cargo, la solicitud llega a quien lo ocupa; la familia solo ve el nombre del cargo.</p>
+          <div className="grid grid-cols-2 gap-1.5 max-w-xs">
+            {["Un profesor/a", "Director/a", "Jefatura de estudios", "Secretaría"].map((label, i) => (
+              <span key={label} className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md border text-[10px] ${i === 0 ? "border-violet-400 bg-violet-50 text-violet-800 font-semibold" : "border-gray-200 bg-white text-gray-600"}`}>
+                <span className={`w-2.5 h-2.5 rounded-full border flex-shrink-0 ${i === 0 ? "border-violet-600 bg-violet-600" : "border-gray-300"}`} />
+                {label}
+              </span>
+            ))}
+          </div>
+        </div>
+      </li>
+
+      <li className="px-6 py-5 flex gap-4">
+        <div className="flex-shrink-0 flex flex-col items-center">
+          <StepNum n={3} accent="red" /><StepConnector />
+        </div>
+        <div className="flex-1 pb-1">
+          <p className="font-medium text-gray-900 text-sm mb-1">Busca al profesor/a por su nombre</p>
+          <p className="text-sm text-gray-500 mb-3">Escribe al menos <strong className="text-gray-700">3 letras</strong> del nombre o los apellidos (sin importar tildes ni mayúsculas) y elige entre las sugerencias. Por privacidad, nunca se muestra la lista completa del profesorado.</p>
+          <div className="max-w-xs">
+            <div className="bg-white rounded-lg border border-gray-200 px-3 py-2 flex items-center gap-2">
+              <Search size={12} className="text-gray-400" />
+              <span className="text-[11px] text-gray-700">garcia ana</span>
+            </div>
+            <div className="mt-1 bg-white rounded-lg border border-violet-200 shadow-sm p-1">
+              <p className="text-[11px] text-gray-900 px-2 py-1.5 rounded bg-violet-50">García López, Ana</p>
+              <p className="text-[11px] text-gray-900 px-2 py-1.5">García Ruiz, Ana María</p>
+            </div>
+          </div>
+        </div>
+      </li>
+
+      <li className="px-6 py-5 flex gap-4">
+        <div className="flex-shrink-0 flex flex-col items-center">
+          <StepNum n={4} accent="red" /><StepConnector />
+        </div>
+        <div className="flex-1 pb-1">
+          <p className="font-medium text-gray-900 text-sm mb-1">Rellena los datos y el motivo</p>
+          <p className="text-sm text-gray-500 mb-3">Nombre y curso del alumno/a, sus datos como familiar y el motivo de la visita. El <strong className="text-gray-700">email</strong> es importante: ahí recibirá la confirmación y el enlace para cancelar.</p>
+          <div className="space-y-1.5 max-w-xs text-[11px] font-semibold">
+            <div className="rounded-md border border-blue-200 bg-blue-50 text-blue-900 px-2.5 py-1.5 flex items-center gap-1.5"><GraduationCap size={12} /> Datos del alumno/a</div>
+            <div className="rounded-md border border-green-200 bg-green-50 text-green-900 px-2.5 py-1.5 flex items-center gap-1.5"><Users size={12} /> Datos del familiar</div>
+            <div className="rounded-md border border-amber-200 bg-amber-50 text-amber-900 px-2.5 py-1.5 flex items-center gap-1.5"><FileText size={12} /> Motivo de la visita</div>
+          </div>
+        </div>
+      </li>
+
+      <li className="px-6 py-5 flex gap-4">
+        <div className="flex-shrink-0 flex flex-col items-center">
+          <StepNum n={5} accent="red" /><StepConnector />
+        </div>
+        <div className="flex-1 pb-1">
+          <p className="font-medium text-gray-900 text-sm mb-1">Envía la solicitud y te llega a ti</p>
+          <p className="text-sm text-gray-500 mb-3">La familia ve el mensaje <strong className="text-gray-700">«Solicitud enviada»</strong>. Tú recibes un email y la solicitud aparece en la pestaña <strong className="text-gray-700">Pendientes</strong> de «Citas con Familias», donde la confirmas con fecha, hora y lugar.</p>
+          <div className="bg-gray-50 rounded-lg border border-gray-100 p-3 max-w-xs">
+            <div className="flex items-center gap-2 mb-1"><Mail size={11} className="text-gray-400" /><span className="text-[10px] text-gray-500">Para: tu correo del centro</span></div>
+            <p className="text-[11px] text-gray-700 font-medium">Nueva solicitud de cita – García López, Ana</p>
+          </div>
+        </div>
+      </li>
+
+      <PartHeading icon={X} title="Cancelar la cita" subtitle="Pasos 6 a 8 · cuando la familia no puede asistir" bg="bg-slate-700" />
+
+      <li className="px-6 py-5 flex gap-4">
+        <div className="flex-shrink-0 flex flex-col items-center">
+          <StepNum n={6} accent="red" /><StepConnector />
+        </div>
+        <div className="flex-1 pb-1">
+          <p className="font-medium text-gray-900 text-sm mb-1">Al confirmarla, la familia recibe el enlace de cancelación</p>
+          <p className="text-sm text-gray-500 mb-3">El email <strong className="text-gray-700">«Cita confirmada»</strong> incluye la fecha, la hora, el lugar y un botón para cancelar. Es la única forma de cancelar que tiene la familia.</p>
+          <div className="bg-gray-50 rounded-lg border border-gray-100 p-3 max-w-xs">
+            <p className="text-[11px] text-gray-700 font-medium mb-1">Cita confirmada · IES Julio Verne</p>
+            <p className="text-[10px] text-gray-500 mb-2">22 de mayo a las 16:30 · Sala de visitas</p>
+            <span className="inline-block px-2.5 py-1 rounded bg-red-600 text-[10px] text-white font-semibold">Cancelar mi cita</span>
+          </div>
+        </div>
+      </li>
+
+      <li className="px-6 py-5 flex gap-4">
+        <div className="flex-shrink-0 flex flex-col items-center">
+          <StepNum n={7} accent="red" /><StepConnector />
+        </div>
+        <div className="flex-1 pb-1">
+          <p className="font-medium text-gray-900 text-sm mb-1">La familia revisa los datos y confirma la cancelación</p>
+          <p className="text-sm text-gray-500 mb-3">El botón abre una página con los datos de la cita y la pregunta <strong className="text-gray-700">«¿Desea cancelar esta cita?»</strong>. Al pulsar <strong className="text-gray-700">Sí, cancelar la cita</strong> queda cancelada.</p>
+          <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-3 max-w-[240px]">
+            <p className="text-[11px] font-semibold text-gray-700 mb-2">¿Desea cancelar esta cita?</p>
+            <div className="bg-gray-50 rounded px-2 py-1.5 text-[10px] text-gray-500 mb-2 space-y-0.5">
+              <p className="flex items-center gap-1"><CalendarDays size={9} /> 22 de mayo · <Clock size={9} /> 16:30</p>
+              <p className="flex items-center gap-1"><MapPin size={9} /> Sala de visitas</p>
+            </div>
+            <span className="block text-center px-2 py-1 rounded bg-red-600 text-[10px] text-white font-semibold">Sí, cancelar la cita</span>
+          </div>
+        </div>
+      </li>
+
+      <li className="px-6 py-5 flex gap-4">
+        <div className="flex-shrink-0">
+          <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
+            <CheckCircle2 size={16} className="text-green-600" />
+          </div>
+        </div>
+        <div className="flex-1">
+          <p className="font-medium text-gray-900 text-sm mb-1">Recibes el aviso de la cancelación</p>
+          <p className="text-sm text-gray-500 mb-3">Te llega el email <strong className="text-gray-700">«Cita cancelada por la familia»</strong> y la cita pasa a la pestaña <strong className="text-gray-700">Canceladas</strong>, marcada con «(familia)».</p>
+          <div className="flex items-center gap-2">
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-600">Cancelada</span>
+            <span className="text-[10px] text-gray-400">(familia)</span>
           </div>
         </div>
       </li>
@@ -1381,6 +1597,7 @@ function TutorialMantenimiento() {
 const ITEM_CONTENT: Record<ItemId, React.ReactNode> = {
   carros: <TutorialCarros />,
   citas: <TutorialCitas />,
+  familias: <TutorialFamilias />,
   ordenanza: <TutorialOrdenanza />,
   prestamos: <TutorialPrestamos />,
   devoluciones: <TutorialDevoluciones />,
@@ -1409,6 +1626,11 @@ const ITEM_TIPS: Record<ItemId, React.ReactNode> = {
   citas: (
     <p className="text-xs text-amber-800">
       <strong>Enlace para familias:</strong> Comparte <strong>/familias/solicitar</strong> con las familias para que pidan cita desde casa sin necesidad de acceso a la intranet.
+    </p>
+  ),
+  familias: (
+    <p className="text-xs text-amber-800">
+      <strong>¿La familia quiere cancelar una solicitud aún pendiente?</strong> Hasta que confirmes la cita no recibe el enlace de cancelación, así que tendrá que avisarte a ti o al centro. El enlace deja de funcionar cuando la cita ya está completada o cancelada.
     </p>
   ),
   ordenanza: (

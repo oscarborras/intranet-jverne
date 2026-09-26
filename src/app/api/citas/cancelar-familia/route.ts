@@ -35,11 +35,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Error al cancelar la cita" }, { status: 500 });
   }
 
+  // profesor_id references profesores.id (not the auth user id), so the email comes from profesores
   const { data: profesorData } = await supabase
-    .from("users_view")
-    .select("email, full_name")
+    .from("profesores")
+    .select("email")
     .eq("id", cita.profesor_id)
-    .single();
+    .maybeSingle();
 
   if (profesorData?.email && process.env.RESEND_API_KEY) {
     await sendCanceladaFamiliaEmail({
