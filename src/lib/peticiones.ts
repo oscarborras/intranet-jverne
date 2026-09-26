@@ -1,4 +1,14 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { PeticionTICEstado } from "@/lib/types";
+
+// Shared so every activity entry uses the same wording ("Estado cambiado de X a Finalizada");
+// the statistics page relies on it to find who finished each request.
+export const TIC_ESTADO_LABELS: Record<PeticionTICEstado, string> = {
+  pendiente: "Pendiente",
+  en_progreso: "En Progreso",
+  finalizada: "Finalizada",
+  eliminada: "Eliminada",
+};
 
 export const DEFAULT_DIAS_VISTA_FINALIZADAS = 30;
 export const HISTORIAL_PAGE_SIZE = 20;

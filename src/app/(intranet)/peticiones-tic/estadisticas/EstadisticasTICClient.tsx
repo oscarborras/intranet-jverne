@@ -18,6 +18,8 @@ export interface PeticionEstadistica {
   tecnico: string | null;
   created_at: string;
   finalizada_at: string | null;
+  /** Finished by its own author: counted as finished but left out of resolution times */
+  cerradaPorAutor: boolean;
 }
 
 interface Props {
@@ -114,7 +116,10 @@ export function EstadisticasTICClient({ peticiones, todayStr }: Props) {
     const finalizadas = rows.filter((r) => r.estado === "finalizada" && r.finalizadaDate && inPeriodo(r.finalizadaDate));
     const pendientes = rows.filter((r) => r.estado === "pendiente").length;
     const enProgreso = rows.filter((r) => r.estado === "en_progreso").length;
-    const medianaDias = median(finalizadas.map((r) => r.dias ?? 0));
+    // Resolution times only count requests finished by someone other than their author
+    const resueltasPorOtro = finalizadas.filter((r) => !r.cerradaPorAutor);
+    const excluidas = finalizadas.length - resueltasPorOtro.length;
+    const medianaDias = median(resueltasPorOtro.map((r) => r.dias ?? 0));
 
     // Created vs finished per month (Madrid calendar)
     const firstMonth = (start ?? rows[0]?.createdDate ?? todayStr).slice(0, 7);
@@ -130,7 +135,7 @@ export function EstadisticasTICClient({ peticiones, todayStr }: Props) {
     }));
 
     const resolucionPorPrioridad = PRIORIDADES.map((p) => {
-      const dias = finalizadas.filter((r) => r.prioridad === p.id).map((r) => r.dias ?? 0);
+      const dias = resueltasPorOtro.filter((r) => r.prioridad === p.id).map((r) => r.dias ?? 0);
       return { label: p.label, value: median(dias), n: dias.length };
     }).filter((r): r is { label: string; value: number; n: number } => r.value !== null);
 
@@ -150,7 +155,7 @@ export function EstadisticasTICClient({ peticiones, todayStr }: Props) {
         ]
       : tecnicosOrdenados;
 
-    return { creadas: creadas.length, finalizadas: finalizadas.length, pendientes, enProgreso, medianaDias, meses, porPrioridad, resolucionPorPrioridad, porTecnico };
+    return { creadas: creadas.length, finalizadas: finalizadas.length, excluidas, pendientes, enProgreso, medianaDias, meses, porPrioridad, resolucionPorPrioridad, porTecnico };
   }, [peticiones, periodo, todayStr]);
 
   const periodoLabel = PERIODOS.find((p) => p.id === periodo)?.label.toLowerCase() ?? "";
@@ -205,7 +210,11 @@ export function EstadisticasTICClient({ peticiones, todayStr }: Props) {
         <StatTile
           label="Tiempo típico de resolución"
           value={stats.medianaDias === null ? "—" : formatDias(stats.medianaDias)}
-          detail="Mediana desde que se crea hasta que se finaliza"
+          detail={
+            stats.excluidas > 0
+              ? `Mediana · sin ${stats.excluidas} ${stats.excluidas === 1 ? "cerrada" : "cerradas"} por su autor`
+              : "Mediana desde que se crea hasta que se finaliza"
+          }
           icon={Timer}
           iconClass="bg-violet-100 text-violet-700"
         />
@@ -248,10 +257,10 @@ export function EstadisticasTICClient({ peticiones, todayStr }: Props) {
 
         <ChartCard
           title="Tiempo típico de resolución por prioridad"
-          subtitle="Mediana de las peticiones finalizadas"
+          subtitle="Mediana de las finalizadas por otra persona distinta a quien las creó"
           ariaLabel={`Gráfico de barras con la mediana del tiempo de resolución por prioridad, ${periodoLabel}`}
           table={{
-            columns: ["Prioridad", "Mediana", "Peticiones finalizadas"],
+            columns: ["Prioridad", "Mediana", "Peticiones contadas"],
             rows: stats.resolucionPorPrioridad.map((r) => [r.label, formatDias(r.value), r.n]),
           }}
         >

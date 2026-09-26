@@ -8,7 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import { KanbanBoard } from "@/components/kanban/KanbanBoard";
 import { PeticionTICModal } from "./PeticionTICModal";
 import { uploadIncidenciaFoto } from "@/lib/uploadIncidenciaFoto";
-import { applyFinalizadaAt, finalizadasColumnInfo, notifyPeticionTICFinalizada } from "@/lib/peticiones";
+import { applyFinalizadaAt, finalizadasColumnInfo, notifyPeticionTICFinalizada, TIC_ESTADO_LABELS } from "@/lib/peticiones";
 import type { PeticionTIC, PeticionTICEstado, PeticionPrioridad } from "@/lib/types";
 import type { KanbanItem, ColumnConfig } from "@/components/kanban/KanbanBoard";
 
@@ -71,9 +71,18 @@ export function PeticionesTICClient({
 
   async function handleStatusChange(id: number, newStatus: PeticionTICEstado) {
     const supabase = createClient();
-    const wasFinalizada = peticiones.find((p) => p.id === id)?.estado === "finalizada";
+    const prevEstado = peticiones.find((p) => p.id === id)?.estado;
     const { error } = await supabase.from("peticiones_tic").update({ estado: newStatus }).eq("id", id);
-    if (!error && newStatus === "finalizada" && !wasFinalizada) notifyPeticionTICFinalizada(id);
+    if (!error && prevEstado && prevEstado !== newStatus) {
+      // Same activity entry as the request window, so the history shows who moved it
+      await supabase.from("peticiones_tic_actividad").insert({
+        peticion_id: id,
+        user_id: userId,
+        tipo: "cambio_estado",
+        contenido: `Estado cambiado de ${TIC_ESTADO_LABELS[prevEstado]} a ${TIC_ESTADO_LABELS[newStatus]}`,
+      });
+      if (newStatus === "finalizada") notifyPeticionTICFinalizada(id);
+    }
     setPeticiones((prev) =>
       prev.map((p) => (p.id === id ? applyFinalizadaAt(p, { ...p, estado: newStatus }) : p))
     );

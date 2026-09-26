@@ -10,7 +10,7 @@ import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { resolveAutorNames } from "@/lib/resolveAutorNames";
 import { VerFotoButton } from "@/components/VerFotoButton";
-import { notifyPeticionTICFinalizada } from "@/lib/peticiones";
+import { notifyPeticionTICFinalizada, TIC_ESTADO_LABELS } from "@/lib/peticiones";
 import type { PeticionTIC, PeticionTICEstado, PeticionTICActividadTipo, PeticionPrioridad } from "@/lib/types";
 
 interface ActivityEntry {
@@ -42,12 +42,7 @@ const PRIORITY_LABELS: Record<string, string> = {
   urgente: "Urgente",
 };
 
-const ESTADO_LABELS: Record<PeticionTICEstado, string> = {
-  pendiente: "Pendiente",
-  en_progreso: "En Progreso",
-  finalizada: "Finalizada",
-  eliminada: "Eliminada",
-};
+const ESTADO_LABELS = TIC_ESTADO_LABELS;
 
 const ACTIVITY_CONFIG: Record<PeticionTICActividadTipo, { icon: LucideIcon; color: string; bg: string }> = {
   creacion:           { icon: Plus,            color: "text-blue-600",   bg: "bg-blue-100"   },
