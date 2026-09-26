@@ -22,6 +22,7 @@ interface Props {
   initialPeticiones: PeticionTIC[];
   canManage: boolean;
   canDelete: boolean;
+  canChangePriority: boolean;
   userId: string;
   myDisplayName: string;
   diasVistaFinalizadas: number;
@@ -35,7 +36,7 @@ interface FormState {
 }
 
 export function PeticionesTICClient({
-  initialPeticiones, canManage, canDelete, userId, myDisplayName, diasVistaFinalizadas, finalizadasAntiguas,
+  initialPeticiones, canManage, canDelete, canChangePriority, userId, myDisplayName, diasVistaFinalizadas, finalizadasAntiguas,
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
@@ -158,6 +159,7 @@ export function PeticionesTICClient({
           peticion={selectedPeticion}
           canManage={canManage}
           canDelete={canDelete}
+          canChangePriority={canChangePriority}
           userId={userId}
           onClose={() => setSelectedPeticion(null)}
           onUpdate={handleUpdate}

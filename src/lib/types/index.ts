@@ -180,6 +180,7 @@ export type PeticionTICActividadTipo =
   | "cambio_estado"
   | "cambio_asignado"
   | "cambio_descripcion"
+  | "cambio_prioridad"
   | "eliminado";
 
 export interface PeticionTICActividad {

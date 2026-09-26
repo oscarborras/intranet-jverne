@@ -29,6 +29,8 @@ export default async function HistorialPeticionesTICPage({ searchParams }: PageP
 
   const canManage = roles.some((r) => ["Admin", "TDE", "Soporte_TIC"].includes(r.nombre));
   const canDelete = roles.some((r) => ["Admin", "TDE"].includes(r.nombre));
+  // Admin and TDE can change the priority of any request, whoever created it
+  const canChangePriority = roles.some((r) => ["Admin", "TDE"].includes(r.nombre));
 
   const from = (page - 1) * HISTORIAL_PAGE_SIZE;
   let query = supabase
@@ -93,7 +95,7 @@ export default async function HistorialPeticionesTICPage({ searchParams }: PageP
           No hay peticiones finalizadas que coincidan
         </p>
       ) : (
-        <HistorialTICClient peticiones={peticiones} canManage={canManage} canDelete={canDelete} userId={user.id} />
+        <HistorialTICClient peticiones={peticiones} canManage={canManage} canDelete={canDelete} canChangePriority={canChangePriority} userId={user.id} />
       )}
 
       <HistorialPaginacion basePath={BASE_PATH} page={page} totalPages={totalPages} params={{ q, desde, hasta }} />

@@ -20,6 +20,8 @@ export default async function PeticionesTICPage() {
   );
 
   const canDelete = roles.some((r) => ["Admin", "TDE"].includes(r.nombre));
+  // Admin and TDE can change the priority of any request, whoever created it
+  const canChangePriority = roles.some((r) => ["Admin", "TDE"].includes(r.nombre));
 
   const { dias, cutoff } = await getFinalizadasCutoff(supabase);
   const visibility = canViewAll ? null : `solo_usuario.eq.false,autor_id.eq.${user.id}`;
@@ -77,6 +79,7 @@ export default async function PeticionesTICPage() {
       initialPeticiones={peticiones}
       canManage={canManage}
       canDelete={canDelete}
+      canChangePriority={canChangePriority}
       userId={user.id}
       myDisplayName={myDisplayName}
       diasVistaFinalizadas={dias}

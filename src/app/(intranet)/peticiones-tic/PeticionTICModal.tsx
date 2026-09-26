@@ -4,13 +4,13 @@ import { useState, useEffect, useCallback } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   X, Monitor, ArrowLeftRight, UserCheck, FileEdit,
-  MessageCircle, Plus, Clock, User, Users, Loader2, Send, Trash2,
+  MessageCircle, Plus, Clock, User, Users, Loader2, Send, Trash2, Flag,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { resolveAutorNames } from "@/lib/resolveAutorNames";
 import { VerFotoButton } from "@/components/VerFotoButton";
-import type { PeticionTIC, PeticionTICEstado, PeticionTICActividadTipo } from "@/lib/types";
+import type { PeticionTIC, PeticionTICEstado, PeticionTICActividadTipo, PeticionPrioridad } from "@/lib/types";
 
 interface ActivityEntry {
   id: number;
@@ -32,6 +32,8 @@ const PRIORITY_CLASSES: Record<string, string> = {
   urgente: "bg-red-100 text-red-700",
 };
 
+const PRIORITY_ORDER: PeticionPrioridad[] = ["baja", "normal", "alta", "urgente"];
+
 const PRIORITY_LABELS: Record<string, string> = {
   baja: "Baja",
   normal: "Normal",
@@ -52,6 +54,7 @@ const ACTIVITY_CONFIG: Record<PeticionTICActividadTipo, { icon: LucideIcon; colo
   cambio_estado:      { icon: ArrowLeftRight,  color: "text-purple-600", bg: "bg-purple-100" },
   cambio_asignado:    { icon: UserCheck,       color: "text-green-600",  bg: "bg-green-100"  },
   cambio_descripcion: { icon: FileEdit,        color: "text-gray-500",   bg: "bg-gray-100"   },
+  cambio_prioridad:   { icon: Flag,            color: "text-orange-600", bg: "bg-orange-100" },
   eliminado:          { icon: Trash2,          color: "text-red-600",    bg: "bg-red-100"    },
 };
 
@@ -59,18 +62,21 @@ interface Props {
   peticion: PeticionTIC;
   canManage: boolean;
   canDelete: boolean;
+  /** Admin and TDE: may change the priority regardless of who created the request */
+  canChangePriority: boolean;
   userId: string;
   onClose: () => void;
   onUpdate: (updated: PeticionTIC) => void;
 }
 
-export function PeticionTICModal({ peticion, canManage, canDelete, userId, onClose, onUpdate }: Props) {
+export function PeticionTICModal({ peticion, canManage, canDelete, canChangePriority, userId, onClose, onUpdate }: Props) {
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
   const [loadingActivity, setLoadingActivity] = useState(true);
   const [users, setUsers] = useState<UserOption[]>([]);
 
   const [editDesc, setEditDesc] = useState(peticion.descripcion);
   const [editEstado, setEditEstado] = useState<PeticionTICEstado>(peticion.estado);
+  const [editPrioridad, setEditPrioridad] = useState<PeticionPrioridad>(peticion.prioridad);
   const [editAsignadoId, setEditAsignadoId] = useState<string>(peticion.asignado_id ?? "");
   const [newObs, setNewObs] = useState("");
   const [saving, setSaving] = useState(false);
@@ -174,6 +180,16 @@ export function PeticionTICModal({ peticion, canManage, canDelete, userId, onClo
       });
     }
 
+    if (canChangePriority && editPrioridad !== peticion.prioridad) {
+      updates.prioridad = editPrioridad;
+      actRecords.push({
+        peticion_id: peticion.id,
+        user_id: userId,
+        tipo: "cambio_prioridad",
+        contenido: `Prioridad cambiada de ${PRIORITY_LABELS[peticion.prioridad]} a ${PRIORITY_LABELS[editPrioridad]}`,
+      });
+    }
+
     const newAsignadoId = editAsignadoId || null;
     if (newAsignadoId !== peticion.asignado_id) {
       updates.asignado_id = newAsignadoId;
@@ -212,6 +228,7 @@ export function PeticionTICModal({ peticion, canManage, canDelete, userId, onClo
       ...peticion,
       descripcion: editDesc,
       estado: editEstado,
+      prioridad: canChangePriority ? editPrioridad : peticion.prioridad,
       asignado_id: newAsignadoId,
       asignado: asignadoUser
         ? { full_name: asignadoUser.full_name }
@@ -422,14 +439,32 @@ export function PeticionTICModal({ peticion, canManage, canDelete, userId, onClo
             {/* Prioridad */}
             <div className="space-y-1.5">
               <p className="text-xs text-gray-500">Prioridad</p>
-              <span
-                className={cn(
-                  "inline-block text-xs px-2.5 py-1 rounded-full font-semibold",
-                  PRIORITY_CLASSES[peticion.prioridad]
-                )}
-              >
-                {PRIORITY_LABELS[peticion.prioridad]}
-              </span>
+              {canChangePriority ? (
+                <select
+                  value={editPrioridad}
+                  onChange={(e) => setEditPrioridad(e.target.value as PeticionPrioridad)}
+                  aria-label="Prioridad de la petición"
+                  className={cn(
+                    "w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500",
+                    PRIORITY_CLASSES[editPrioridad]
+                  )}
+                >
+                  {PRIORITY_ORDER.map((p) => (
+                    <option key={p} value={p} className="bg-white text-gray-700 font-normal">
+                      {PRIORITY_LABELS[p]}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <span
+                  className={cn(
+                    "inline-block text-xs px-2.5 py-1 rounded-full font-semibold",
+                    PRIORITY_CLASSES[peticion.prioridad]
+                  )}
+                >
+                  {PRIORITY_LABELS[peticion.prioridad]}
+                </span>
+              )}
             </div>
 
             {/* Visibilidad */}
@@ -528,7 +563,7 @@ export function PeticionTICModal({ peticion, canManage, canDelete, userId, onClo
             >
               Cerrar
             </button>
-            {canManage && (
+            {(canManage || canChangePriority) && (
               <button
                 onClick={handleSave}
                 disabled={saving}

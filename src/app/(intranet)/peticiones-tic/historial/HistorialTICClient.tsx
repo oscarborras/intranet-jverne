@@ -10,10 +10,11 @@ interface Props {
   peticiones: PeticionTIC[];
   canManage: boolean;
   canDelete: boolean;
+  canChangePriority: boolean;
   userId: string;
 }
 
-export function HistorialTICClient({ peticiones, canManage, canDelete, userId }: Props) {
+export function HistorialTICClient({ peticiones, canManage, canDelete, canChangePriority, userId }: Props) {
   const router = useRouter();
   const [selected, setSelected] = useState<PeticionTIC | null>(null);
 
@@ -43,6 +44,7 @@ export function HistorialTICClient({ peticiones, canManage, canDelete, userId }:
           peticion={selected}
           canManage={canManage}
           canDelete={canDelete}
+          canChangePriority={canChangePriority}
           userId={userId}
           onClose={() => setSelected(null)}
           // A reopened or deleted request leaves the history: reload the list from the server
