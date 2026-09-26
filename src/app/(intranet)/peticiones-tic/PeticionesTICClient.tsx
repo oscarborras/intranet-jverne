@@ -6,6 +6,9 @@ import Link from "next/link";
 import { Monitor, Plus, Users, User, Camera, X, BarChart3 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { KanbanBoard } from "@/components/kanban/KanbanBoard";
+import { KanbanFilters, type AsignadoOption } from "@/components/kanban/KanbanFilters";
+import { useKanbanFilters } from "@/components/kanban/useKanbanFilters";
+import { filterKanbanItems, isKanbanFilterActive } from "@/lib/kanbanFilters";
 import { PeticionTICModal } from "./PeticionTICModal";
 import { uploadIncidenciaFoto } from "@/lib/uploadIncidenciaFoto";
 import { applyFinalizadaAt, finalizadasColumnInfo, notifyPeticionTICFinalizada, TIC_ESTADO_LABELS } from "@/lib/peticiones";
@@ -63,10 +66,29 @@ export function PeticionesTICClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const items: KanbanItem[] = peticiones.map((p) => ({ ...p, tipo: "TIC" as const }));
+  const [filters, setFilters] = useKanbanFilters();
+  const filtrosActivos = isKanbanFilterActive(filters);
+  const enTablero = peticiones.filter((p) => COLUMNS.some((c) => c.key === p.estado));
+  const filtradas = filterKanbanItems(enTablero, filters, userId, (p) => `${p.codigo} ${p.titulo} ${p.descripcion ?? ""}`);
+  const items: KanbanItem[] = filtradas.map((p) => ({ ...p, tipo: "TIC" as const }));
+
+  // Technicians currently assigned to a card on the board
+  const tecnicos = new Map<string, string>();
+  enTablero.forEach((p) => { if (p.asignado_id && p.asignado_id !== userId) tecnicos.set(p.asignado_id, p.asignado?.full_name ?? "—"); });
+  const asignadoOptions: AsignadoOption[] = [
+    ...(canManage ? [{ id: "me", label: "Asignadas a mí" }] : []),
+    { id: "none", label: "Sin asignar" },
+    ...[...tecnicos.entries()].map(([id, label]) => ({ id, label })).sort((a, b) => a.label.localeCompare(b.label)),
+  ];
+
   const recientes = peticiones.filter((p) => p.estado === "finalizada").length;
+  // The history has its own search: pass the typed text on
+  const busqueda = filters.q.trim();
   const columnInfo = {
-    finalizada: finalizadasColumnInfo(diasVistaFinalizadas, recientes, finalizadasAntiguas, "/peticiones-tic/historial"),
+    finalizada: finalizadasColumnInfo(
+      diasVistaFinalizadas, recientes, finalizadasAntiguas,
+      `/peticiones-tic/historial${busqueda ? `?q=${encodeURIComponent(busqueda)}` : ""}`
+    ),
   };
 
   async function handleStatusChange(id: number, newStatus: PeticionTICEstado) {
@@ -158,6 +180,15 @@ export function PeticionesTICClient({
         </div>
       </div>
 
+      <KanbanFilters
+        value={filters}
+        onChange={setFilters}
+        shown={filtradas.length}
+        total={enTablero.length}
+        searchPlaceholder="Buscar por código, título o descripción"
+        asignadoOptions={asignadoOptions}
+      />
+
       {/* Kanban */}
       <KanbanBoard
         columns={COLUMNS}
@@ -165,6 +196,7 @@ export function PeticionesTICClient({
         onStatusChange={handleStatusChange}
         showStatusChange={false}
         columnInfo={columnInfo}
+        emptyMessage={filtrosActivos ? "Ninguna petición coincide con los filtros" : undefined}
         onItemClick={(item) => setSelectedPeticion(item as PeticionTIC)}
       />
 

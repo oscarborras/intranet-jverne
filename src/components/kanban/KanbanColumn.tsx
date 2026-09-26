@@ -14,9 +14,10 @@ interface Props {
   showStatusChange?: boolean;
   canDeleteItem?: (item: KanbanItem) => boolean;
   onDeleteItem?: (item: KanbanItem) => void;
+  emptyMessage?: string;
 }
 
-export function KanbanColumn({ config, info, items, allStatuses, onStatusChange, onItemClick, updating, showStatusChange = true, canDeleteItem, onDeleteItem }: Props) {
+export function KanbanColumn({ config, info, items, allStatuses, onStatusChange, onItemClick, updating, showStatusChange = true, canDeleteItem, onDeleteItem, emptyMessage = "No hay peticiones en esta categoría" }: Props) {
   return (
     <div className="flex-shrink-0 w-72 flex flex-col rounded-xl overflow-hidden bg-gray-100">
       {/* Header */}
@@ -35,7 +36,7 @@ export function KanbanColumn({ config, info, items, allStatuses, onStatusChange,
       {/* Cards */}
       <div className="flex-1 p-2 space-y-2 overflow-y-auto">
         {items.length === 0 ? (
-          <p className="text-center text-gray-400 text-xs py-6">No hay peticiones en esta categoría</p>
+          <p className="text-center text-gray-400 text-xs py-6">{emptyMessage}</p>
         ) : (
           items.map((item) => (
             <KanbanCard

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { todayMadrid } from "@/lib/dates";
 import { getClientIp, isRateLimited } from "@/lib/rateLimit";
+import { matchesAllWords, searchWords } from "@/lib/text";
 
 // Public teacher search for the family appointment form.
 // The full staff list never leaves the server: only a few matches per query.
@@ -12,11 +13,6 @@ const MIN_QUERY_LENGTH = 3;
 const MAX_RESULTS = 5;
 const RATE_LIMIT = 30; // requests per IP and minute
 const RATE_WINDOW_MS = 60_000;
-
-/** Lowercase and strip accents/diacritics: "José Núñez" -> "jose nunez". */
-function normalize(text: string): string {
-  return text.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
-}
 
 export interface ProfesorBusqueda {
   id: string;
@@ -31,9 +27,7 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const words = normalize(req.nextUrl.searchParams.get("q") ?? "")
-    .split(/[\s,]+/)
-    .filter(Boolean);
+  const words = searchWords(req.nextUrl.searchParams.get("q") ?? "");
 
   if (words.join("").length < MIN_QUERY_LENGTH) {
     return NextResponse.json({ profesores: [], hayMas: false });
@@ -53,10 +47,7 @@ export async function GET(req: NextRequest) {
   }
 
   // Every typed word must appear in the name (accent- and case-insensitive)
-  const matches = ((data ?? []) as ProfesorBusqueda[]).filter((p) => {
-    const name = normalize(p.profesor);
-    return words.every((w) => name.includes(w));
-  });
+  const matches = ((data ?? []) as ProfesorBusqueda[]).filter((p) => matchesAllWords(p.profesor, words));
 
   return NextResponse.json({
     profesores: matches.slice(0, MAX_RESULTS),

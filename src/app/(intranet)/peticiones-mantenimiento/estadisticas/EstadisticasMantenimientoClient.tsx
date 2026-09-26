@@ -2,41 +2,44 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, BarChart3, CheckCircle2, Clock3, Inbox, Timer } from "lucide-react";
+import { ArrowLeft, BarChart3, CheckCircle2, ClipboardCheck, Hammer, Inbox, Timer } from "lucide-react";
 import { ChartCard } from "@/components/charts/ChartCard";
 import { GroupedColumnChart } from "@/components/charts/GroupedColumnChart";
 import { HorizontalBarChart } from "@/components/charts/HorizontalBarChart";
-import { StatTile } from "@/components/charts/StatTile";
 import { PeriodoSelector } from "@/components/charts/PeriodoSelector";
+import { StatTile } from "@/components/charts/StatTile";
 import { dateStrMadrid } from "@/lib/dates";
 import {
   COLOR_CREADAS, COLOR_FINALIZADAS, PRIORIDADES_ESTADISTICA as PRIORIDADES,
   diasEntre, formatDias, formatPeticiones, median, periodoLabel as getPeriodoLabel, periodoStart, seriesMensual,
   type Periodo,
 } from "@/lib/estadisticas";
-import type { PeticionPrioridad, PeticionTICEstado } from "@/lib/types";
+import type { PeticionMantenimientoEstado, PeticionPrioridad } from "@/lib/types";
 
-export interface PeticionEstadistica {
+export interface PeticionMntEstadistica {
   id: number;
-  estado: PeticionTICEstado;
+  estado: PeticionMantenimientoEstado;
   prioridad: PeticionPrioridad;
-  /** Assigned technician's name, null when unassigned */
-  tecnico: string | null;
   created_at: string;
   finalizada_at: string | null;
-  /** Finished by its own author: counted as finished but left out of resolution times */
-  cerradaPorAutor: boolean;
 }
 
 interface Props {
-  peticiones: PeticionEstadistica[];
+  peticiones: PeticionMntEstadistica[];
   /** Today in Madrid, computed on the server so both renders agree */
   todayStr: string;
 }
 
-const MAX_TECNICOS = 7;
+// Workflow order of the maintenance board
+const ESTADOS: { id: PeticionMantenimientoEstado; label: string }[] = [
+  { id: "por_validar", label: "Por validar" },
+  { id: "abierta", label: "Abierta" },
+  { id: "en_progreso", label: "En progreso" },
+  { id: "finalizada", label: "Finalizada" },
+  { id: "rechazada", label: "Rechazada" },
+];
 
-export function EstadisticasTICClient({ peticiones, todayStr }: Props) {
+export function EstadisticasMantenimientoClient({ peticiones, todayStr }: Props) {
   const [periodo, setPeriodo] = useState<Periodo>("curso");
 
   const stats = useMemo(() => {
@@ -52,14 +55,11 @@ export function EstadisticasTICClient({ peticiones, todayStr }: Props) {
 
     const creadas = rows.filter((r) => inPeriodo(r.createdDate));
     const finalizadas = rows.filter((r) => r.estado === "finalizada" && r.finalizadaDate && inPeriodo(r.finalizadaDate));
-    const pendientes = rows.filter((r) => r.estado === "pendiente").length;
+    const porValidar = rows.filter((r) => r.estado === "por_validar").length;
+    const abiertas = rows.filter((r) => r.estado === "abierta").length;
     const enProgreso = rows.filter((r) => r.estado === "en_progreso").length;
-    // Resolution times only count requests finished by someone other than their author
-    const resueltasPorOtro = finalizadas.filter((r) => !r.cerradaPorAutor);
-    const excluidas = finalizadas.length - resueltasPorOtro.length;
-    const medianaDias = median(resueltasPorOtro.map((r) => r.dias ?? 0));
+    const medianaDias = median(finalizadas.map((r) => r.dias ?? 0));
 
-    // Created vs finished per month (Madrid calendar)
     const meses = seriesMensual(
       creadas.map((r) => r.createdDate),
       finalizadas.map((r) => r.finalizadaDate as string),
@@ -73,27 +73,17 @@ export function EstadisticasTICClient({ peticiones, todayStr }: Props) {
     }));
 
     const resolucionPorPrioridad = PRIORIDADES.map((p) => {
-      const dias = resueltasPorOtro.filter((r) => r.prioridad === p.id).map((r) => r.dias ?? 0);
+      const dias = finalizadas.filter((r) => r.prioridad === p.id).map((r) => r.dias ?? 0);
       return { label: p.label, value: median(dias), n: dias.length };
     }).filter((r): r is { label: string; value: number; n: number } => r.value !== null);
 
-    // Finished requests per technician: top N, the rest folded into "Otros"
-    const porTecnicoMap = new Map<string, number>();
-    finalizadas.forEach((r) => {
-      const key = r.tecnico ?? "Sin asignar";
-      porTecnicoMap.set(key, (porTecnicoMap.get(key) ?? 0) + 1);
-    });
-    const tecnicosOrdenados = [...porTecnicoMap.entries()]
-      .map(([label, value]) => ({ label, value }))
-      .sort((a, b) => b.value - a.value || a.label.localeCompare(b.label));
-    const porTecnico = tecnicosOrdenados.length > MAX_TECNICOS
-      ? [
-          ...tecnicosOrdenados.slice(0, MAX_TECNICOS),
-          { label: "Otros", value: tecnicosOrdenados.slice(MAX_TECNICOS).reduce((s, t) => s + t.value, 0) },
-        ]
-      : tecnicosOrdenados;
+    // Where the requests created in the period are now
+    const porEstado = ESTADOS.map((e) => ({
+      label: e.label,
+      value: creadas.filter((r) => r.estado === e.id).length,
+    }));
 
-    return { creadas: creadas.length, finalizadas: finalizadas.length, excluidas, pendientes, enProgreso, medianaDias, meses, porPrioridad, resolucionPorPrioridad, porTecnico };
+    return { creadas: creadas.length, finalizadas: finalizadas.length, porValidar, abiertas, enProgreso, medianaDias, meses, porPrioridad, resolucionPorPrioridad, porEstado };
   }, [peticiones, periodo, todayStr]);
 
   const periodoLabel = getPeriodoLabel(periodo);
@@ -105,14 +95,14 @@ export function EstadisticasTICClient({ peticiones, todayStr }: Props) {
     <div className="max-w-6xl mx-auto space-y-5">
       {/* Header */}
       <div className="space-y-3">
-        <Link href="/peticiones-tic" className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors">
-          <ArrowLeft size={16} /> Peticiones TIC
+        <Link href="/peticiones-mantenimiento" className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors">
+          <ArrowLeft size={16} /> Peticiones Mantenimiento
         </Link>
         <div className="flex items-center gap-3">
-          <BarChart3 size={24} className="text-blue-600" />
+          <BarChart3 size={24} className="text-red-500" />
           <div>
-            <h1 className="text-xl font-bold text-gray-900">Estadísticas de peticiones TIC</h1>
-            <p className="text-sm text-gray-500">Actividad, tiempos de resolución y reparto de trabajo</p>
+            <h1 className="text-xl font-bold text-gray-900">Estadísticas de peticiones de mantenimiento</h1>
+            <p className="text-sm text-gray-500">Actividad, validación y tiempos de resolución</p>
           </div>
         </div>
       </div>
@@ -121,24 +111,27 @@ export function EstadisticasTICClient({ peticiones, todayStr }: Props) {
       <PeriodoSelector value={periodo} onChange={setPeriodo} />
 
       {/* KPI row */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
         <StatTile label="Peticiones creadas" value={String(stats.creadas)} detail={periodoLabel} icon={Inbox} iconClass="bg-blue-100 text-blue-700" />
         <StatTile
-          label="Abiertas ahora"
-          value={String(stats.pendientes + stats.enProgreso)}
-          detail={`${stats.pendientes} pendientes · ${stats.enProgreso} en progreso`}
-          icon={Clock3}
+          label="Pendientes de validar"
+          value={String(stats.porValidar)}
+          detail="Esperando revisión de Directiva"
+          icon={ClipboardCheck}
+          iconClass="bg-gray-200 text-gray-700"
+        />
+        <StatTile
+          label="En curso ahora"
+          value={String(stats.abiertas + stats.enProgreso)}
+          detail={`${stats.abiertas} abiertas · ${stats.enProgreso} en progreso`}
+          icon={Hammer}
           iconClass="bg-amber-100 text-amber-700"
         />
         <StatTile label="Peticiones finalizadas" value={String(stats.finalizadas)} detail={periodoLabel} icon={CheckCircle2} iconClass="bg-green-100 text-green-700" />
         <StatTile
           label="Tiempo típico de resolución"
           value={stats.medianaDias === null ? "—" : formatDias(stats.medianaDias)}
-          detail={
-            stats.excluidas > 0
-              ? `Mediana · sin ${stats.excluidas} ${stats.excluidas === 1 ? "cerrada" : "cerradas"} por su autor`
-              : "Mediana desde que se crea hasta que se finaliza"
-          }
+          detail="Mediana desde que se crea hasta que se finaliza"
           icon={Timer}
           iconClass="bg-violet-100 text-violet-700"
         />
@@ -154,7 +147,7 @@ export function EstadisticasTICClient({ peticiones, todayStr }: Props) {
               { label: "Creadas", color: COLOR_CREADAS },
               { label: "Finalizadas", color: COLOR_FINALIZADAS },
             ]}
-            ariaLabel={`Gráfico de columnas con las peticiones creadas y finalizadas por mes, ${periodoLabel}`}
+            ariaLabel={`Gráfico de columnas con las peticiones de mantenimiento creadas y finalizadas por mes, ${periodoLabel}`}
             table={{ columns: ["Mes", "Creadas", "Finalizadas"], rows: stats.meses.map((m) => [m.mes, m.creadas, m.finalizadas]) }}
           >
             <GroupedColumnChart
@@ -171,7 +164,7 @@ export function EstadisticasTICClient({ peticiones, todayStr }: Props) {
 
         <ChartCard
           title="Peticiones creadas por prioridad"
-          ariaLabel={`Gráfico de barras con las peticiones creadas por prioridad, ${periodoLabel}`}
+          ariaLabel={`Gráfico de barras con las peticiones de mantenimiento creadas por prioridad, ${periodoLabel}`}
           table={{ columns: ["Prioridad", "Peticiones"], rows: stats.porPrioridad.map((p) => [p.label, p.value]) }}
         >
           {stats.creadas === 0 ? sinDatos : (
@@ -181,7 +174,7 @@ export function EstadisticasTICClient({ peticiones, todayStr }: Props) {
 
         <ChartCard
           title="Tiempo típico de resolución por prioridad"
-          subtitle="Mediana de las finalizadas por otra persona distinta a quien las creó"
+          subtitle="Mediana de las peticiones finalizadas"
           ariaLabel={`Gráfico de barras con la mediana del tiempo de resolución por prioridad, ${periodoLabel}`}
           table={{
             columns: ["Prioridad", "Mediana", "Peticiones contadas"],
@@ -195,13 +188,13 @@ export function EstadisticasTICClient({ peticiones, todayStr }: Props) {
 
         <div className="lg:col-span-2">
           <ChartCard
-            title="Peticiones finalizadas por técnico"
-            subtitle="Según la persona asignada"
-            ariaLabel={`Gráfico de barras con las peticiones finalizadas por cada técnico, ${periodoLabel}`}
-            table={{ columns: ["Técnico", "Finalizadas"], rows: stats.porTecnico.map((t) => [t.label, t.value]) }}
+            title="Estado actual de las peticiones"
+            subtitle="Situación hoy de las peticiones creadas en el periodo"
+            ariaLabel={`Gráfico de barras con el estado actual de las peticiones de mantenimiento creadas, ${periodoLabel}`}
+            table={{ columns: ["Estado", "Peticiones"], rows: stats.porEstado.map((e) => [e.label, e.value]) }}
           >
-            {stats.porTecnico.length === 0 ? sinDatos : (
-              <HorizontalBarChart data={stats.porTecnico} seriesName="Finalizadas" color={COLOR_FINALIZADAS} valueFormatter={formatPeticiones} labelWidth={170} />
+            {stats.creadas === 0 ? sinDatos : (
+              <HorizontalBarChart data={stats.porEstado} seriesName="Peticiones" color={COLOR_CREADAS} valueFormatter={formatPeticiones} labelWidth={100} />
             )}
           </ChartCard>
         </div>

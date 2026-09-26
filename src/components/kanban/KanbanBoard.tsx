@@ -49,6 +49,8 @@ interface KanbanBoardProps<TStatus extends string> {
   canDeleteItem?: (item: KanbanItem) => boolean;
   onDeleteItem?: (item: KanbanItem) => void;
   columnInfo?: Partial<Record<TStatus, ColumnInfo>>;
+  /** Text for empty columns (e.g. when filters hide every card) */
+  emptyMessage?: string;
 }
 
 export function KanbanBoard<TStatus extends string>({
@@ -60,6 +62,7 @@ export function KanbanBoard<TStatus extends string>({
   canDeleteItem,
   onDeleteItem,
   columnInfo,
+  emptyMessage,
 }: KanbanBoardProps<TStatus>) {
   const [updating, setUpdating] = useState<number | null>(null);
 
@@ -89,6 +92,7 @@ export function KanbanBoard<TStatus extends string>({
             showStatusChange={showStatusChange}
             canDeleteItem={canDeleteItem}
             onDeleteItem={onDeleteItem}
+            emptyMessage={emptyMessage}
           />
         );
       })}

@@ -3,9 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import Link from "next/link";
-import { Wrench, Plus, Camera, X } from "lucide-react";
+import { Wrench, Plus, Camera, X, BarChart3 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { KanbanBoard } from "@/components/kanban/KanbanBoard";
+import { KanbanFilters } from "@/components/kanban/KanbanFilters";
+import { useKanbanFilters } from "@/components/kanban/useKanbanFilters";
+import { filterKanbanItems, isKanbanFilterActive } from "@/lib/kanbanFilters";
 import { VerFotoButton } from "@/components/VerFotoButton";
 import { uploadIncidenciaFoto } from "@/lib/uploadIncidenciaFoto";
 import { applyFinalizadaAt, finalizadasColumnInfo } from "@/lib/peticiones";
@@ -80,10 +83,19 @@ export function PeticionesMantenimientoClient({
     setShowForm(true);
   }
 
-  const items: KanbanItem[] = peticiones.map((p) => ({ ...p, tipo: "MNT" as const }));
+  const [filters, setFilters] = useKanbanFilters();
+  const filtrosActivos = isKanbanFilterActive(filters);
+  const enTablero = peticiones.filter((p) => COLUMNS.some((c) => c.key === p.estado));
+  const filtradas = filterKanbanItems(
+    enTablero, filters, userId,
+    (p) => `${p.codigo} ${p.titulo} ${p.descripcion ?? ""} ${p.ubicacion ?? ""}`
+  );
+  const items: KanbanItem[] = filtradas.map((p) => ({ ...p, tipo: "MNT" as const }));
+  // The history has its own search: pass the typed text on
+  const busqueda = filters.q.trim();
   const recientes = peticiones.filter((p) => p.estado === "finalizada").length;
   const columnInfo = {
-    finalizada: finalizadasColumnInfo(diasVistaFinalizadas, recientes, finalizadasAntiguas, "/peticiones-mantenimiento/historial"),
+    finalizada: finalizadasColumnInfo(diasVistaFinalizadas, recientes, finalizadasAntiguas, `/peticiones-mantenimiento/historial${busqueda ? `?q=${encodeURIComponent(busqueda)}` : ""}`),
   };
 
   async function handleStatusChange(id: number, newStatus: PeticionMantenimientoEstado) {
@@ -156,9 +168,13 @@ export function PeticionesMantenimientoClient({
         </div>
         <div className="flex gap-2">
           {canValidate && (
-            <button className="flex items-center gap-2 bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
-              Reportes
-            </button>
+            <Link
+              href="/peticiones-mantenimiento/estadisticas"
+              className="flex items-center gap-2 bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+            >
+              <BarChart3 size={16} />
+              Estadísticas
+            </Link>
           )}
           <Link
             href="/nueva-incidencia"
@@ -170,10 +186,19 @@ export function PeticionesMantenimientoClient({
         </div>
       </div>
 
+      <KanbanFilters
+        value={filters}
+        onChange={setFilters}
+        shown={filtradas.length}
+        total={enTablero.length}
+        searchPlaceholder="Buscar por código, título, descripción o ubicación"
+      />
+
       {/* Kanban */}
       <KanbanBoard
         columns={COLUMNS}
         items={items}
+        emptyMessage={filtrosActivos ? "Ninguna petición coincide con los filtros" : undefined}
         onStatusChange={handleStatusChange}
         showStatusChange={canValidate}
         canDeleteItem={canDeleteItem}
