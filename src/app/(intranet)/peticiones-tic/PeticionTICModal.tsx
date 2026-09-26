@@ -10,6 +10,7 @@ import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { resolveAutorNames } from "@/lib/resolveAutorNames";
 import { VerFotoButton } from "@/components/VerFotoButton";
+import { notifyPeticionTICFinalizada } from "@/lib/peticiones";
 import type { PeticionTIC, PeticionTICEstado, PeticionTICActividadTipo, PeticionPrioridad } from "@/lib/types";
 
 interface ActivityEntry {
@@ -214,7 +215,9 @@ export function PeticionTICModal({ peticion, canManage, canDelete, canChangePrio
     }
 
     if (Object.keys(updates).length > 0) {
-      await supabase.from("peticiones_tic").update(updates).eq("id", peticion.id);
+      const { error } = await supabase.from("peticiones_tic").update(updates).eq("id", peticion.id);
+      // Email the author when someone else finishes their request (the server checks who)
+      if (!error && updates.estado === "finalizada") notifyPeticionTICFinalizada(peticion.id);
     }
     if (actRecords.length > 0) {
       await supabase.from("peticiones_tic_actividad").insert(actRecords);

@@ -8,7 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import { KanbanBoard } from "@/components/kanban/KanbanBoard";
 import { PeticionTICModal } from "./PeticionTICModal";
 import { uploadIncidenciaFoto } from "@/lib/uploadIncidenciaFoto";
-import { applyFinalizadaAt, finalizadasColumnInfo } from "@/lib/peticiones";
+import { applyFinalizadaAt, finalizadasColumnInfo, notifyPeticionTICFinalizada } from "@/lib/peticiones";
 import type { PeticionTIC, PeticionTICEstado, PeticionPrioridad } from "@/lib/types";
 import type { KanbanItem, ColumnConfig } from "@/components/kanban/KanbanBoard";
 
@@ -71,7 +71,9 @@ export function PeticionesTICClient({
 
   async function handleStatusChange(id: number, newStatus: PeticionTICEstado) {
     const supabase = createClient();
-    await supabase.from("peticiones_tic").update({ estado: newStatus }).eq("id", id);
+    const wasFinalizada = peticiones.find((p) => p.id === id)?.estado === "finalizada";
+    const { error } = await supabase.from("peticiones_tic").update({ estado: newStatus }).eq("id", id);
+    if (!error && newStatus === "finalizada" && !wasFinalizada) notifyPeticionTICFinalizada(id);
     setPeticiones((prev) =>
       prev.map((p) => (p.id === id ? applyFinalizadaAt(p, { ...p, estado: newStatus }) : p))
     );

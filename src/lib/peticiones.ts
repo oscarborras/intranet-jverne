@@ -46,6 +46,16 @@ export function applyFinalizadaAt<T extends { estado: string; finalizada_at: str
   return next;
 }
 
+// Asks the server to email the author of a TIC request that was just finished by someone else.
+// Fire-and-forget: the server re-checks every condition and a failure never blocks the UI.
+export function notifyPeticionTICFinalizada(peticionId: number): void {
+  fetch("/api/peticiones-tic/notificar-finalizada", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ peticionId }),
+  }).catch(() => {});
+}
+
 export function finalizadasColumnInfo(dias: number, recientes: number, antiguas: number, historialHref: string) {
   return {
     subtitle: `Últimos ${dias} días · ${recientes + antiguas} en total`,

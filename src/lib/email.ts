@@ -317,6 +317,44 @@ export async function sendNuevaPeticionTICEmail(p: NuevaPeticionTICParams) {
   });
 }
 
+interface PeticionTICFinalizadaParams {
+  autorEmail: string;
+  autorNombre: string;
+  codigo: string;
+  titulo: string;
+  finalizadaPor: string;
+}
+
+// Sent to the author when someone else marks their TIC request as finished
+export async function sendPeticionTICFinalizadaEmail(p: PeticionTICFinalizadaParams) {
+  const titulo = escapeHtml(p.titulo);
+
+  const body = baseLayout(`
+    <h2 style="margin:0 0 8px;font-size:20px;color:#111827;">Petición TIC finalizada</h2>
+    <p style="margin:0 0 24px;color:#6b7280;font-size:14px;">
+      Hola, ${escapeHtml(p.autorNombre)}. <strong>${escapeHtml(p.finalizadaPor)}</strong> ha marcado como finalizada tu petición TIC.
+    </p>
+    <table cellpadding="0" cellspacing="0" style="width:100%;border-top:1px solid #e5e7eb;padding-top:16px;">
+      ${row("Código", escapeHtml(p.codigo))}
+      ${row("Título", titulo)}
+      ${row("Finalizada por", escapeHtml(p.finalizadaPor))}
+    </table>
+    <p style="margin:24px 0 0;font-size:14px;color:#6b7280;">
+      Si el problema continúa, puedes crear una nueva petición desde la intranet.
+    </p>
+    <a href="${SITE_URL}/peticiones-tic" style="display:inline-block;margin-top:16px;padding:10px 20px;background:#1e40af;color:#fff;border-radius:6px;text-decoration:none;font-size:14px;font-weight:500;">
+      Ver en la intranet →
+    </a>
+  `);
+
+  return resend.emails.send({
+    from: FROM,
+    to: p.autorEmail,
+    subject: `Petición TIC ${p.codigo} finalizada – ${p.titulo}`,
+    html: body,
+  });
+}
+
 interface NuevaPeticionMantenimientoParams {
   recipientEmails: string[];
   codigo: string;
