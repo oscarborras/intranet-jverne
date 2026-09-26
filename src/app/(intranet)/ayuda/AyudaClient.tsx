@@ -699,7 +699,7 @@ function TutorialOrdenanza() {
           <p className="font-medium text-gray-900 text-sm mb-1">Accede a «Citas del día»</p>
           <p className="text-sm text-gray-500 mb-3">En el menú lateral pulsa <strong className="text-gray-700">Citas del día</strong>. En el móvil, abre antes el menú con el botón ☰ de la parte superior.</p>
           <div className="bg-gray-50 rounded-lg border border-gray-100 p-3 text-xs space-y-1 max-w-[200px]">
-            <div className="flex items-center gap-2 text-gray-400 py-1 px-2"><LayoutDashboard size={12} /> Dashboard</div>
+            <div className="flex items-center gap-2 text-gray-400 py-1 px-2"><LayoutDashboard size={12} /> Inicio</div>
             <div className="flex items-center gap-2 text-blue-700 font-semibold bg-blue-50 py-1 px-2 rounded border border-blue-200"><CalendarClock size={12} /> Citas del día</div>
             <div className="flex items-center gap-2 text-gray-400 py-1 px-2"><HelpCircle size={12} /> Ayuda y Tutoriales</div>
           </div>

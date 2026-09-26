@@ -77,9 +77,11 @@ npm run start        # Start production server
 
 See `doc/Install_produccion_frontend.md` for full PM2 setup. Key steps:
 1. Copy `.env_local` via SSH (not in git)
-2. `npm run build`
-3. `pm2 reload intranet` (zero-downtime reload)
-4. `pm2 logs intranet` (view logs)
+2. `git pull`
+3. `npm ci --include=dev` — on the server ALWAYS `npm ci`, NEVER `npm install`: `npm install` can rewrite `package-lock.json` and that local change makes the next `git pull` fail
+4. `npm run build`
+5. `pm2 reload intranet` (zero-downtime reload; the process must have been started with `TZ=Europe/Madrid`)
+6. `pm2 logs intranet` (view logs)
 
 Environment file must be obtained separately — it is never committed.
 

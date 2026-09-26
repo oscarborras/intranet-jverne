@@ -44,7 +44,7 @@ const navGroups: NavGroup[] = [
   {
     title: "MENÚ PRINCIPAL",
     items: [
-      { label: "Dashboard", href: "/dashboard", icon: <LayoutDashboard size={18} /> },
+      { label: "Inicio", href: "/dashboard", icon: <LayoutDashboard size={18} /> },
       { label: "Calendario", href: "/calendario", icon: <Calendar size={18} />, slug: "calendario" },
       { label: "Tablón de Anuncios", href: "/anuncios", icon: <Megaphone size={18} />, slug: "anuncios" },
       { label: "Citas con Familias", href: "/citas-familias", icon: <CalendarClock size={18} />, slug: "citas-familias" },
@@ -148,7 +148,7 @@ export function Sidebar({ userRoles, userName, inactiveModuleSlugs, version }: S
               )}
             >
               <span className="flex-shrink-0"><LayoutDashboard size={18} /></span>
-              <span>Dashboard</span>
+              <span>Inicio</span>
             </Link>
             <Link
               href="/ordenanzas"
