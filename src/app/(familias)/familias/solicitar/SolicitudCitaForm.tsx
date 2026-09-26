@@ -1,20 +1,96 @@
 "use client";
 
 import { useState } from "react";
-import type { CitaFamiliaParentesco } from "@/lib/types";
+import { GraduationCap, MessageSquareText, UserRound, Users, type LucideIcon } from "lucide-react";
+import type { CargoDirectivoClave, CitaFamiliaParentesco } from "@/lib/types";
+import ProfesorSearch, { type ProfesorOption } from "./ProfesorSearch";
 
-interface Profesor {
-  id: string;
-  profesor: string;
+interface CargoOption {
+  cargo: CargoDirectivoClave;
+  nombre: string;
 }
 
 interface Props {
-  profesores: Profesor[];
+  /** Leadership roles with an active holder (role name only) */
+  cargos: CargoOption[];
 }
+
+/** Who the appointment is with: a specific teacher or a leadership role */
+type Destino = "profesor" | CargoDirectivoClave;
 
 const PARENTESCO_OPTIONS: CitaFamiliaParentesco[] = ["padre", "madre", "tutor/a legal", "otro"];
 
-export default function SolicitudCitaForm({ profesores }: Props) {
+interface SectionTheme {
+  border: string;
+  headerBg: string;
+  headerText: string;
+  iconBg: string;
+  bodyBg: string;
+}
+
+const PROFESOR_THEME: SectionTheme = {
+  border: "#ddd6fe",
+  headerBg: "#ede9fe",
+  headerText: "#4c1d95",
+  iconBg: "#6d28d9",
+  bodyBg: "#fbfaff",
+};
+
+const ALUMNO_THEME: SectionTheme = {
+  border: "#bfdbfe",
+  headerBg: "#dbeafe",
+  headerText: "#1e3a8a",
+  iconBg: "#1e40af",
+  bodyBg: "#f8fbff",
+};
+
+const FAMILIAR_THEME: SectionTheme = {
+  border: "#bbf7d0",
+  headerBg: "#dcfce7",
+  headerText: "#14532d",
+  iconBg: "#15803d",
+  bodyBg: "#f7fdf9",
+};
+
+const MOTIVO_THEME: SectionTheme = {
+  border: "#fde68a",
+  headerBg: "#fef3c7",
+  headerText: "#78350f",
+  iconBg: "#b45309",
+  bodyBg: "#fffdf5",
+};
+
+// Form block with a coloured border and a prominent header, so each group stands out at a glance
+function FormSection({ title, subtitle, icon: Icon, theme, children }: {
+  title: string;
+  subtitle: string;
+  icon: LucideIcon;
+  theme: SectionTheme;
+  children: React.ReactNode;
+}) {
+  return (
+    // No overflow:hidden here: it would clip dropdowns inside the section (teacher search).
+    // The rounded corners are applied to the header and body instead.
+    <section style={{ border: `1.5px solid ${theme.border}`, borderRadius: "10px", marginBottom: "20px" }}>
+      <div style={{ background: theme.headerBg, borderBottom: `1.5px solid ${theme.border}`, borderRadius: "9px 9px 0 0", padding: "12px 16px", display: "flex", alignItems: "center", gap: "12px" }}>
+        <span aria-hidden="true" style={{ width: "34px", height: "34px", borderRadius: "8px", background: theme.iconBg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <Icon size={18} color="#fff" />
+        </span>
+        <div>
+          <h2 style={{ margin: 0, fontSize: "15px", fontWeight: 700, color: theme.headerText }}>{title}</h2>
+          <p style={{ margin: "1px 0 0", fontSize: "12px", color: theme.headerText, opacity: 0.75 }}>{subtitle}</p>
+        </div>
+      </div>
+      <div style={{ background: theme.bodyBg, borderRadius: "0 0 9px 9px", padding: "16px 16px 0" }}>
+        {children}
+      </div>
+    </section>
+  );
+}
+
+export default function SolicitudCitaForm({ cargos }: Props) {
+  const [destino, setDestino] = useState<Destino>("profesor");
+  const [profesor, setProfesor] = useState<ProfesorOption | null>(null);
   const [form, setForm] = useState({
     profesor_id: "",
     alumno_nombre: "",
@@ -47,7 +123,8 @@ export default function SolicitudCitaForm({ profesores }: Props) {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.profesor_id || !form.alumno_nombre.trim() || !form.alumno_curso.trim() || !form.familiar_nombre.trim() || !form.familiar_parentesco || !form.familiar_email.trim() || !form.motivo.trim()) {
+    const conProfesor = destino === "profesor";
+    if ((conProfesor && !form.profesor_id) || !form.alumno_nombre.trim() || !form.alumno_curso.trim() || !form.familiar_nombre.trim() || !form.familiar_parentesco || !form.familiar_email.trim() || !form.motivo.trim()) {
       setError("Por favor, complete todos los campos obligatorios.");
       return;
     }
@@ -57,7 +134,9 @@ export default function SolicitudCitaForm({ profesores }: Props) {
       const res = await fetch("/api/citas/solicitar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify(
+          conProfesor ? { ...form, cargo: null } : { ...form, profesor_id: "", cargo: destino }
+        ),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -90,35 +169,62 @@ export default function SolicitudCitaForm({ profesores }: Props) {
         El profesor/a se pondrá en contacto con usted para confirmar la fecha y hora.
       </p>
 
-      <div style={{ marginBottom: "16px" }}>
-        <label style={{ display: "block", fontSize: "13px", fontWeight: 600, color: "#374151", marginBottom: "4px" }}>
-          Profesor/a <span style={{ color: "#dc2626" }}>*</span>
-        </label>
-        <select
-          required
-          value={form.profesor_id}
-          onChange={(e) => setForm((f) => ({ ...f, profesor_id: e.target.value }))}
-          style={{ width: "100%", padding: "10px 12px", border: "1px solid #d1d5db", borderRadius: "6px", fontSize: "14px", background: "#fff", outline: "none" }}
-        >
-          <option value="">Seleccione un profesor/a</option>
-          {profesores.map((p) => (
-            <option key={p.id} value={p.id}>{p.profesor}</option>
-          ))}
-        </select>
-      </div>
+      <FormSection title="¿Con quién desea la cita?" subtitle="Un profesor/a o un cargo del equipo directivo" icon={UserRound} theme={PROFESOR_THEME}>
+        {cargos.length > 0 && (
+          <fieldset style={{ border: "none", margin: "0 0 16px", padding: 0 }}>
+            <legend style={{ fontSize: "13px", fontWeight: 600, color: "#374151", marginBottom: "8px", padding: 0 }}>
+              Cita con <span style={{ color: "#dc2626" }}>*</span>
+            </legend>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "8px" }}>
+              {[{ value: "profesor" as Destino, label: "Un profesor/a" }, ...cargos.map((c) => ({ value: c.cargo as Destino, label: c.nombre }))].map((opt) => {
+                const checked = destino === opt.value;
+                return (
+                  <label
+                    key={opt.value}
+                    style={{ display: "flex", alignItems: "center", gap: "8px", minHeight: "44px", padding: "8px 12px", borderRadius: "8px", cursor: "pointer", fontSize: "14px", fontWeight: checked ? 600 : 500, color: checked ? "#4c1d95" : "#374151", background: checked ? "#ede9fe" : "#fff", border: `1.5px solid ${checked ? "#8b5cf6" : "#d1d5db"}` }}
+                  >
+                    <input
+                      type="radio"
+                      name="destino"
+                      value={opt.value}
+                      checked={checked}
+                      onChange={() => setDestino(opt.value)}
+                      style={{ accentColor: "#6d28d9", width: "16px", height: "16px", margin: 0, flexShrink: 0 }}
+                    />
+                    {opt.label}
+                  </label>
+                );
+              })}
+            </div>
+          </fieldset>
+        )}
 
-      <div style={{ background: "#f9fafb", borderRadius: "6px", padding: "16px", marginBottom: "16px" }}>
-        <p style={{ margin: "0 0 12px", fontSize: "13px", fontWeight: 600, color: "#374151" }}>
-          Datos del alumno/a
-        </p>
+        {destino === "profesor" ? (
+          <div style={{ marginBottom: "16px" }}>
+            <label style={{ display: "block", fontSize: "13px", fontWeight: 600, color: "#374151", marginBottom: "4px" }}>
+              Profesor/a <span style={{ color: "#dc2626" }}>*</span>
+            </label>
+            <ProfesorSearch
+              value={profesor}
+              onChange={(p) => {
+                setProfesor(p);
+                setForm((f) => ({ ...f, profesor_id: p?.id ?? "" }));
+              }}
+            />
+          </div>
+        ) : (
+          <p style={{ margin: "0 0 16px", padding: "10px 12px", borderRadius: "6px", background: "#fff", border: "1px solid #ddd6fe", fontSize: "13px", color: "#4c1d95", lineHeight: 1.5 }}>
+            Su solicitud llegará a la persona que ocupa el cargo de <strong>{cargos.find((c) => c.cargo === destino)?.nombre}</strong>, que se pondrá en contacto con usted.
+          </p>
+        )}
+      </FormSection>
+
+      <FormSection title="Datos del alumno/a" subtitle="Alumno o alumna sobre quien trata la visita" icon={GraduationCap} theme={ALUMNO_THEME}>
         {inp("alumno_nombre", "Nombre y apellidos del alumno/a", true, "text", "Ej: García López, Ana")}
         {inp("alumno_curso", "Curso", true, "text", "Ej: 2º ESO A")}
-      </div>
+      </FormSection>
 
-      <div style={{ background: "#f9fafb", borderRadius: "6px", padding: "16px", marginBottom: "16px" }}>
-        <p style={{ margin: "0 0 12px", fontSize: "13px", fontWeight: 600, color: "#374151" }}>
-          Datos del familiar
-        </p>
+      <FormSection title="Datos del familiar" subtitle="Persona que asistirá a la cita" icon={Users} theme={FAMILIAR_THEME}>
         {inp("familiar_nombre", "Nombre y apellidos", true, "text", "Ej: García Martínez, José")}
         <div style={{ marginBottom: "16px" }}>
           <label style={{ display: "block", fontSize: "13px", fontWeight: 600, color: "#374151", marginBottom: "4px" }}>
@@ -138,21 +244,23 @@ export default function SolicitudCitaForm({ profesores }: Props) {
         </div>
         {inp("familiar_email", "Email de contacto", true, "email", "nombre@ejemplo.com")}
         {inp("familiar_telefono", "Teléfono (opcional)", false, "tel", "Ej: 612 345 678")}
-      </div>
+      </FormSection>
 
-      <div style={{ marginBottom: "24px" }}>
-        <label style={{ display: "block", fontSize: "13px", fontWeight: 600, color: "#374151", marginBottom: "4px" }}>
-          Motivo de la visita <span style={{ color: "#dc2626" }}>*</span>
-        </label>
-        <textarea
-          required
-          rows={3}
-          placeholder="Describa brevemente el motivo de la visita..."
-          value={form.motivo}
-          onChange={(e) => setForm((f) => ({ ...f, motivo: e.target.value }))}
-          style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", border: "1px solid #d1d5db", borderRadius: "6px", fontSize: "14px", outline: "none", resize: "vertical" }}
-        />
-      </div>
+      <FormSection title="Motivo de la visita" subtitle="Tema que desea tratar en la reunión" icon={MessageSquareText} theme={MOTIVO_THEME}>
+        <div style={{ marginBottom: "16px" }}>
+          <label style={{ display: "block", fontSize: "13px", fontWeight: 600, color: "#374151", marginBottom: "4px" }}>
+            Motivo de la visita <span style={{ color: "#dc2626" }}>*</span>
+          </label>
+          <textarea
+            required
+            rows={3}
+            placeholder="Describa brevemente el motivo de la visita..."
+            value={form.motivo}
+            onChange={(e) => setForm((f) => ({ ...f, motivo: e.target.value }))}
+            style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", border: "1px solid #d1d5db", borderRadius: "6px", fontSize: "14px", outline: "none", resize: "vertical" }}
+          />
+        </div>
+      </FormSection>
 
       {error && (
         <div style={{ marginBottom: "16px", padding: "12px", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "6px", color: "#dc2626", fontSize: "14px" }}>

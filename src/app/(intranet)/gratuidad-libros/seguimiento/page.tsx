@@ -1,24 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
 import { SeguimientoClient } from "./SeguimientoClient";
 import type { PrestamoLibro } from "@/lib/types";
 import { nowMadridParts } from "@/lib/dates";
+import { requireRole } from "@/lib/auth";
 
 export default async function SeguimientoPage() {
+  await requireRole(["Admin", "Directiva", "Coord_Gratuidad"], "/gratuidad-libros");
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
-  const { data: rolesData } = await supabase
-    .from("user_roles_intranet")
-    .select("perfiles_intranet!inner(nombre)")
-    .eq("user_id", user.id);
-
-  const roleNames = (rolesData ?? []).map(
-    (r) => (r.perfiles_intranet as unknown as { nombre: string }).nombre
-  );
-  const canManage = roleNames.some((r) => ["Admin", "Directiva", "Coord_Gratuidad"].includes(r));
-  if (!canManage) redirect("/gratuidad-libros");
 
   const now = nowMadridParts();
   const fallbackYear = now.month >= 9 ? now.year : now.year - 1;

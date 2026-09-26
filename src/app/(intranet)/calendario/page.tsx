@@ -3,13 +3,11 @@ import { CalendarioClient } from "./CalendarioClient";
 import { resolveAutorNames } from "@/lib/resolveAutorNames";
 import type { CalendarEvento, TipoEventoIntranet, AsuntoPropios, DiaBloqueadoAsuntos } from "@/lib/types";
 import { todayMadrid, nowMadridParts, monthRange } from "@/lib/dates";
+import { requireAuth } from "@/lib/auth";
 
 export default async function CalendarioPage() {
+  const { user, roleNames } = await requireAuth();
   const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
 
   const { year, month } = nowMadridParts();
   const { firstDay, lastDay } = monthRange(year, month);
@@ -18,23 +16,16 @@ export default async function CalendarioPage() {
   const [
     { data: eventos },
     { data: tiposEvento },
-    { data: userRoles },
     { data: asuntos },
     { data: configRows },
     { data: bloqueos },
   ] = await Promise.all([
     supabase.from("calendar_eventos").select("*").lte("fecha_inicio", lastDay).gte("fecha_fin", firstDay),
     supabase.from("tipos_eventos_intranet").select("*").eq("activo", true).order("orden"),
-    supabase.from("user_roles_intranet").select("perfiles_intranet(nombre)").eq("user_id", user!.id),
     supabase.from("asuntos_propios").select("*").gte("fecha", firstDay).lte("fecha", lastDay),
     supabase.from("config_intranet").select("clave, valor"),
     supabase.from("dias_bloqueados_asuntos").select("*").gte("fecha", firstDay).lte("fecha", lastDay),
   ]);
-
-  const roleNames = (userRoles ?? []).map((ur) => {
-    const p = ur.perfiles_intranet as unknown as { nombre: string } | null;
-    return p?.nombre ?? "";
-  });
 
   const canManageEvents = roleNames.some((r) => ["Admin", "Directiva", "TDE"].includes(r));
   const canManageAsuntos = roleNames.some((r) => ["Admin", "Directiva"].includes(r));
@@ -43,7 +34,7 @@ export default async function CalendarioPage() {
   const autorNames = await resolveAutorNames(supabase, [
     ...(eventos ?? []).map((e) => e.autor_id as string),
     ...(bloqueos ?? []).map((b) => b.created_by as string),
-    user!.id,
+    user.id,
   ]);
   const eventosConAutor = (eventos ?? []).map((e) => ({
     ...e,
@@ -53,7 +44,7 @@ export default async function CalendarioPage() {
     ...b,
     autor: { full_name: autorNames[b.created_by as string] ?? "—" },
   }));
-  const myDisplayName = autorNames[user!.id] ?? "—";
+  const myDisplayName = autorNames[user.id] ?? "—";
 
   const maxAsuntosPropios = parseInt(
     configRows?.find((r) => r.clave === "max_profes_asuntos_propios")?.valor ?? "3"
@@ -73,7 +64,7 @@ export default async function CalendarioPage() {
     <CalendarioClient
       initialEventos={eventosConAutor as CalendarEvento[]}
       tiposEvento={(tiposEvento ?? []) as TipoEventoIntranet[]}
-      userId={user!.id}
+      userId={user.id}
       myDisplayName={myDisplayName}
       canManageEvents={canManageEvents}
       canCreateExtraescolar={canCreateExtraescolar}

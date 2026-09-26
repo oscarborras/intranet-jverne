@@ -3,11 +3,13 @@ import { createClient } from "@/lib/supabase/server";
 import { sendAusenciaRegistradaEmail } from "@/lib/email";
 import { getNotificationEmails, NOTIFICATION_CLAVES } from "@/lib/notifications";
 import { nowMadridParts } from "@/lib/dates";
+import { authorizeApi } from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
+  const auth = await authorizeApi();
+  if (!auth.ok) return auth.response;
+  const { user, roleNames } = auth;
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json() as {
     fecha: string;
@@ -36,12 +38,7 @@ export async function POST(req: NextRequest) {
   // Determine target professor: only Directiva/Admin can set a different profesor_id
   let targetProfesorId = myProfesorId;
   if (body.profesor_id && body.profesor_id !== myProfesorId) {
-    const { data: roleCheck } = await supabase
-      .from("user_roles_intranet")
-      .select("perfiles_intranet!inner(nombre)")
-      .eq("user_id", user.id)
-      .in("perfiles_intranet.nombre", ["Directiva", "Admin"]);
-    if (!roleCheck || roleCheck.length === 0) {
+    if (!roleNames.some((r) => ["Directiva", "Admin"].includes(r))) {
       return NextResponse.json({ error: "No autorizado" }, { status: 403 });
     }
     targetProfesorId = body.profesor_id;

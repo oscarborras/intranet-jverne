@@ -2,15 +2,13 @@ import { createClient } from "@/lib/supabase/server";
 import { ReservaRecursosClient } from "./ReservaRecursosClient";
 import type { Recurso, ReservaRecurso, TramoHorario } from "@/lib/types";
 import { nowMadridParts, monthRange } from "@/lib/dates";
+import { requireAuth } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function ReservaRecursosPage() {
+  const { user, roleNames } = await requireAuth();
   const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
 
   const { year, month } = nowMadridParts();
   const { firstDay, lastDay } = monthRange(year, month);
@@ -25,14 +23,6 @@ export default async function ReservaRecursosPage() {
     supabase.from("tramos_horarios").select("*").order("orden"),
   ]);
 
-  const { data: userRoles } = await supabase
-    .from("user_roles_intranet")
-    .select("perfiles_intranet(nombre)")
-    .eq("user_id", user!.id);
-  const roleNames = (userRoles ?? []).map((ur) => {
-    const p = ur.perfiles_intranet as unknown as { nombre: string } | null;
-    return p?.nombre ?? "";
-  });
   const isAdmin = roleNames.some(r => ["Admin", "TDE"].includes(r));
   const canBulkReserve = roleNames.some(r => ["Admin", "Directiva", "TDE"].includes(r));
 
@@ -48,9 +38,9 @@ export default async function ReservaRecursosPage() {
   }
 
   const currentUserName =
-    user?.user_metadata?.full_name ||
-    user?.user_metadata?.name ||
-    user?.email?.split("@")[0] ||
+    user.user_metadata?.full_name ||
+    user.user_metadata?.name ||
+    user.email?.split("@")[0] ||
     "Yo";
 
   return (
@@ -58,7 +48,7 @@ export default async function ReservaRecursosPage() {
       recursos={(recursos ?? []) as Recurso[]}
       initialReservas={(reservas ?? []) as ReservaRecurso[]}
       tramos={(tramos ?? []) as TramoHorario[]}
-      userId={user!.id}
+      userId={user.id}
       isAdmin={isAdmin}
       canBulkReserve={canBulkReserve}
       userNames={userNames}

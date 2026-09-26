@@ -2,24 +2,30 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendCitaConfirmadaEmail } from "@/lib/email";
+import { authorizeApi } from "@/lib/auth";
+import { nombreConCargo } from "@/lib/cargos";
 
 export async function POST(req: NextRequest) {
+  const auth = await authorizeApi();
+  if (!auth.ok) return auth.response;
+  const { user } = auth;
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-  }
 
   const body = await req.json().catch(() => null);
-  const { citaId, fecha, hora_inicio, lugar } = body as {
+  const { citaId, fecha, hora_inicio, lugar: lugarRaw } = body as {
     citaId: number;
     fecha: string;
     hora_inicio: string;
     lugar: string;
   };
+  // Free text typed by the teacher
+  const lugar = typeof lugarRaw === "string" ? lugarRaw.trim() : "";
 
   if (!citaId || !fecha || !hora_inicio || !lugar) {
     return NextResponse.json({ error: "Faltan campos obligatorios" }, { status: 400 });
+  }
+  if (lugar.length > 100) {
+    return NextResponse.json({ error: "El lugar no puede superar los 100 caracteres" }, { status: 400 });
   }
 
   const admin = createAdminClient();
@@ -50,7 +56,7 @@ export async function POST(req: NextRequest) {
   if (updated.familiar_email && process.env.RESEND_API_KEY) {
     await sendCitaConfirmadaEmail({
       familiarEmail: updated.familiar_email,
-      profesorNombre: profesorRow.profesor,
+      profesorNombre: nombreConCargo(profesorRow.profesor, updated.cargo),
       alumnoNombre: updated.alumno_nombre,
       alumnoCurso: updated.alumno_curso,
       familiar_nombre: updated.familiar_nombre,

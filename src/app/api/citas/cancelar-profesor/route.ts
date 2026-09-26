@@ -2,13 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendCanceladaProfesorEmail } from "@/lib/email";
+import { authorizeApi } from "@/lib/auth";
+import { nombreConCargo } from "@/lib/cargos";
 
 export async function POST(req: NextRequest) {
+  const auth = await authorizeApi();
+  if (!auth.ok) return auth.response;
+  const { user } = auth;
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-  }
 
   const body = await req.json().catch(() => null);
   const { citaId, motivo_cancelacion } = body as { citaId: number; motivo_cancelacion?: string };
@@ -49,7 +50,7 @@ export async function POST(req: NextRequest) {
   if (updated.familiar_email && process.env.RESEND_API_KEY) {
     await sendCanceladaProfesorEmail({
       familiarEmail: updated.familiar_email,
-      profesorNombre: profesorRow.profesor,
+      profesorNombre: nombreConCargo(profesorRow.profesor, updated.cargo),
       alumnoNombre: updated.alumno_nombre,
       fecha: updated.fecha,
       horaInicio: updated.hora_inicio,

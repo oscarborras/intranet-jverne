@@ -1,9 +1,9 @@
-import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import type { CitaFamilia, Perfil } from "@/lib/types";
+import type { CitaFamilia } from "@/lib/types";
 import CitasFamiliasClient from "./CitasFamiliasClient";
 import { todayMadrid } from "@/lib/dates";
+import { requireAuth } from "@/lib/auth";
 
 export interface ProfesorOption {
   id: string;
@@ -11,23 +11,12 @@ export interface ProfesorOption {
 }
 
 export default async function CitasFamiliasPage() {
+  const { user, roles } = await requireAuth();
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
 
   const admin = createAdminClient();
 
-  const [{ data: rolesData }, { data: profesorRow }] = await Promise.all([
-    supabase
-      .from("user_roles_intranet")
-      .select("perfiles_intranet(id, nombre, descripcion, created_at)")
-      .eq("user_id", user.id),
-    admin.from("profesores").select("id").eq("email", user.email!).single(),
-  ]);
-
-  const roles: Perfil[] = (rolesData ?? [])
-    .map((r) => r.perfiles_intranet as unknown as Perfil)
-    .filter(Boolean);
+  const { data: profesorRow } = await admin.from("profesores").select("id").eq("email", user.email!).single();
 
   const isAdmin = roles.some((r) => ["Admin", "Directiva"].includes(r.nombre));
   const profesorId = profesorRow?.id ?? null;

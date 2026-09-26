@@ -1,4 +1,3 @@
-import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
@@ -20,6 +19,8 @@ import { createClient } from "@/lib/supabase/server";
 import type { Anuncio, PeticionTIC, PeticionMantenimiento } from "@/lib/types";
 import { ProximasReservas, type ReservaDashboard } from "./ProximasReservas";
 import { todayMadrid, addDaysToDateStr } from "@/lib/dates";
+import { requireAuth } from "@/lib/auth";
+import { CARGOS_DIRECTIVOS, type CargoDirectivoClave } from "@/lib/types";
 
 const moduleCards = [
   {
@@ -143,13 +144,8 @@ const mntStatusClass: Record<string, string> = {
 };
 
 export default async function DashboardPage() {
+  const { user, roles, roleNames } = await requireAuth();
   const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) redirect("/login");
 
   const userName =
     user.user_metadata?.full_name ||
@@ -159,12 +155,8 @@ export default async function DashboardPage() {
 
   const admin = createAdminClient();
 
-  // Fetch user roles, module config and profesor identity in parallel
-  const [{ data: userRolesData }, { data: modulosData }, { data: configData }, { data: profesorRow }] = await Promise.all([
-    supabase
-      .from("user_roles_intranet")
-      .select("perfil_id, perfiles_intranet(nombre)")
-      .eq("user_id", user.id),
+  // Fetch module config and profesor identity in parallel
+  const [{ data: modulosData }, { data: configData }, { data: profesorRow }] = await Promise.all([
     supabase.from("modulos_config").select("slug, activo, modulo_perfiles(perfil_id)").order("orden"),
     supabase.from("config_intranet").select("clave, valor").in("clave", ["dias_vista_extraescolares", "dias_vista_citas", "mostrar_grid_dashboard", "mostrar_grid_dashboard_movil"]),
     admin.from("profesores").select("id").eq("email", user.email!).single(),
@@ -172,10 +164,8 @@ export default async function DashboardPage() {
 
   const profesorId = profesorRow?.id ?? null;
 
-  const isAdmin = (userRolesData ?? []).some(
-    (r) => (r.perfiles_intranet as unknown as { nombre: string })?.nombre === "Admin"
-  );
-  const userPerfilIds = new Set((userRolesData ?? []).map((r) => r.perfil_id as number).filter(Boolean));
+  const isAdmin = roleNames.includes("Admin");
+  const userPerfilIds = new Set(roles.map((r) => r.id));
 
   function canSee(slug: string): boolean {
     if (isAdmin) return true;
@@ -198,18 +188,10 @@ export default async function DashboardPage() {
   const showCitasFamilias  = canSee("citas-familias");
   const showAusencias      = canSee("ausencias");
 
-  const canSeeGuardiaView = (userRolesData ?? []).some((r) =>
-    ["Admin", "Directiva", "Guardia"].includes(
-      (r.perfiles_intranet as unknown as { nombre: string })?.nombre ?? ""
-    )
-  );
+  const canSeeGuardiaView = roleNames.some((r) => ["Admin", "Directiva", "Guardia"].includes(r));
 
   // Expelled students panel: all teaching staff plus Guardia and Ordenanza
-  const showSanciones = (userRolesData ?? []).some((r) =>
-    ["Admin", "Directiva", "Profesor", "Guardia", "Ordenanza"].includes(
-      (r.perfiles_intranet as unknown as { nombre: string })?.nombre ?? ""
-    )
-  );
+  const showSanciones = roleNames.some((r) => ["Admin", "Directiva", "Profesor", "Guardia", "Ordenanza"].includes(r));
 
   const diasVistaExtraescolares = parseInt(
     (configData ?? []).find((c) => c.clave === "dias_vista_extraescolares")?.valor ?? "20",
@@ -262,7 +244,7 @@ export default async function DashboardPage() {
       ? supabase.from("calendar_eventos").select("id, titulo, descripcion, fecha_inicio, fecha_fin, todo_el_dia, hora_inicio, hora_fin").eq("tipo", "Activ. Extraescolar").gte("fecha_inicio", todayStr).lte("fecha_inicio", limitStr).order("fecha_inicio", { ascending: true })
       : Promise.resolve({ data: [] }),
     showCitasFamilias && profesorId
-      ? supabase.from("citas_familias").select("id, codigo, alumno_nombre, alumno_curso, familiar_nombre, fecha, hora_inicio, lugar, estado").eq("profesor_id", profesorId).in("estado", ["pendiente", "confirmada"]).or(`fecha.lte.${citasLimitStr},fecha.is.null`).order("fecha", { ascending: true, nullsFirst: true }).limit(5)
+      ? supabase.from("citas_familias").select("id, codigo, alumno_nombre, alumno_curso, familiar_nombre, fecha, hora_inicio, lugar, estado, cargo").eq("profesor_id", profesorId).in("estado", ["pendiente", "confirmada"]).or(`fecha.lte.${citasLimitStr},fecha.is.null`).order("fecha", { ascending: true, nullsFirst: true }).limit(5)
       : Promise.resolve({ data: [] }),
     showAusencias && profesorId
       ? supabase.from("ausencias_profesorado").select("id, fecha, tramo_id, tramos_horarios(nombre, orden), cursos(nombre)").eq("profesor_id", profesorId).gte("fecha", todayStr).eq("estado", "activa").order("fecha", { ascending: true }).limit(4)
@@ -357,6 +339,7 @@ export default async function DashboardPage() {
     hora_inicio: string | null;
     lugar: string | null;
     estado: string;
+    cargo: CargoDirectivoClave | null;
   }
   const citasDashboard = (citasResult.data ?? []) as CitaDashboard[];
   const citasPendientesCount = citasDashboard.filter((c) => c.estado === "pendiente").length;
@@ -569,6 +552,9 @@ export default async function DashboardPage() {
                           <p className="text-sm font-medium text-gray-900 truncate">
                             {c.alumno_nombre} <span className="text-gray-400 font-normal">({c.alumno_curso})</span>
                           </p>
+                          {c.cargo && (
+                            <p className="text-xs font-medium text-indigo-600 truncate">{CARGOS_DIRECTIVOS[c.cargo]}</p>
+                          )}
                           <p className="text-xs text-gray-500 truncate">
                             {c.familiar_nombre}
                             {c.hora_inicio && <> · {c.hora_inicio}</>}

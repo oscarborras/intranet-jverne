@@ -1,9 +1,9 @@
-import { redirect } from "next/navigation";
 import type { Metadata } from "next";
-import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import OrdenanzasClient from "./OrdenanzasClient";
 import { todayMadrid } from "@/lib/dates";
+import { requireRole } from "@/lib/auth";
+import type { CargoDirectivoClave } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -12,21 +12,7 @@ export const metadata: Metadata = {
 };
 
 export default async function OrdenanzasPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
-  const { data: rolesData } = await supabase
-    .from("user_roles_intranet")
-    .select("perfiles_intranet(nombre)")
-    .eq("user_id", user.id);
-
-  const roleNames = (rolesData ?? [])
-    .map((r) => (r.perfiles_intranet as unknown as { nombre: string } | null)?.nombre)
-    .filter(Boolean) as string[];
-
-  const allowed = roleNames.some((r) => ["Admin", "Directiva", "Ordenanza"].includes(r));
-  if (!allowed) redirect("/dashboard");
+  await requireRole(["Admin", "Directiva", "Ordenanza"]);
 
   const todayStr = todayMadrid();
 
@@ -35,7 +21,7 @@ export default async function OrdenanzasPage() {
   const [{ data: citasRaw }, { data: profesoresRaw }] = await Promise.all([
     admin
       .from("citas_familias")
-      .select("id, codigo, profesor_id, alumno_nombre, alumno_curso, familiar_nombre, familiar_parentesco, hora_inicio, lugar")
+      .select("id, codigo, profesor_id, alumno_nombre, alumno_curso, familiar_nombre, familiar_parentesco, hora_inicio, lugar, cargo")
       .eq("estado", "confirmada")
       .eq("fecha", todayStr)
       .order("hora_inicio", { ascending: true }),
@@ -59,6 +45,7 @@ export default async function OrdenanzasPage() {
     familiar_parentesco: string;
     hora_inicio: string | null;
     lugar: string | null;
+    cargo: CargoDirectivoClave | null;
   }
 
   const citas: CitaOrdenanza[] = (citasRaw ?? []).map((c) => ({

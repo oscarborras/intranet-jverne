@@ -1,13 +1,22 @@
 "use client";
 
 import { useState } from "react";
-import { Settings, Save, CheckCircle, AlertCircle, SlidersHorizontal, UserX, BookOpen, ChevronDown, Bell } from "lucide-react";
+import { Settings, Save, CheckCircle, AlertCircle, SlidersHorizontal, UserX, BookOpen, ChevronDown, Bell, Landmark } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import type { ConfigIntranet, Perfil } from "@/lib/types";
+import { CARGOS_DIRECTIVOS, type CargoDirectivo, type CargoDirectivoClave, type ConfigIntranet, type Perfil } from "@/lib/types";
+
+interface ProfesorCargoOption {
+  id: string;
+  profesor: string;
+  /** Holder who has left the school: shown so the stale assignment is visible */
+  cesado: boolean;
+}
 
 interface Props {
   config: ConfigIntranet[];
   perfiles: Pick<Perfil, "id" | "nombre">[];
+  cargos: CargoDirectivo[];
+  profesores: ProfesorCargoOption[];
 }
 
 // Display label for each known clave
@@ -94,7 +103,7 @@ function inputToDdmmyyyy(val: string): string {
   return `${d}/${m}/${y}`;
 }
 
-type Tab = "asuntos_propios" | "otros" | "gratuidad_libros" | "notificaciones";
+type Tab = "asuntos_propios" | "otros" | "gratuidad_libros" | "notificaciones" | "cargos";
 
 interface TabAccent {
   header: string;
@@ -130,6 +139,14 @@ const TAB_ACCENTS: Record<Tab, TabAccent> = {
     checked: "border-violet-300 bg-violet-50",
     checkbox: "accent-violet-600",
   },
+  cargos: {
+    header: "bg-indigo-50 border-indigo-100",
+    iconChip: "bg-indigo-100 text-indigo-700",
+    activeTab: "text-indigo-700",
+    cardBorder: "border-l-indigo-400",
+    checked: "border-indigo-300 bg-indigo-50",
+    checkbox: "accent-indigo-600",
+  },
   otros: {
     header: "bg-sky-50 border-sky-100",
     iconChip: "bg-sky-100 text-sky-700",
@@ -140,7 +157,7 @@ const TAB_ACCENTS: Record<Tab, TabAccent> = {
   },
 };
 
-export function ConfiguracionClient({ config, perfiles }: Props) {
+export function ConfiguracionClient({ config, perfiles, cargos, profesores }: Props) {
   // Local state: clave → current valor (in input format for dates)
   const [values, setValues] = useState<Record<string, string>>(() => {
     const init: Record<string, string> = {};
@@ -151,6 +168,11 @@ export function ConfiguracionClient({ config, perfiles }: Props) {
     });
     return init;
   });
+
+  // Leadership role → profesor id ("" = unassigned). savedCargos tracks what is in the DB.
+  const initialCargos = () => Object.fromEntries(cargos.map((c) => [c.cargo, c.profesor_id ?? ""])) as Record<CargoDirectivoClave, string>;
+  const [cargoValues, setCargoValues] = useState<Record<CargoDirectivoClave, string>>(initialCargos);
+  const [savedCargos, setSavedCargos] = useState<Record<CargoDirectivoClave, string>>(initialCargos);
 
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<"idle" | "success" | "error">("idle");
@@ -172,8 +194,18 @@ export function ConfiguracionClient({ config, perfiles }: Props) {
         .eq("clave", row.clave);
     });
 
-    const results = await Promise.all(updates);
+    // Only roles whose holder changed; existing appointments stay with the previous holder
+    const changedCargos = cargos.filter((c) => cargoValues[c.cargo] !== savedCargos[c.cargo]);
+    const cargoUpdates = changedCargos.map((c) =>
+      supabase
+        .from("cargos_directivos")
+        .update({ profesor_id: cargoValues[c.cargo] || null, updated_at: now })
+        .eq("cargo", c.cargo)
+    );
+
+    const results = await Promise.all([...updates, ...cargoUpdates]);
     const hasError = results.some((r) => r.error);
+    if (!hasError) setSavedCargos(cargoValues);
 
     setSaving(false);
     setStatus(hasError ? "error" : "success");
@@ -424,13 +456,55 @@ export function ConfiguracionClient({ config, perfiles }: Props) {
       description: "Perfiles que reciben los emails enviados por cada módulo. Se puede marcar más de un perfil.",
     },
     {
+      id: "cargos" as Tab,
+      label: "Cargos directivos",
+      icon: <Landmark size={15} />,
+      rows: [],
+      description: "Persona que ocupa cada cargo. Las familias pueden pedir cita con el cargo y la solicitud le llega a esa persona. Al cambiarla, las citas ya solicitadas se quedan con quien las recibió.",
+    },
+    {
       id: "otros" as Tab,
       label: "Otros parámetros",
       icon: <SlidersHorizontal size={15} />,
       rows: otherRows,
       description: "Configuración general de la intranet.",
     },
-  ] as { id: Tab; label: string; icon: React.ReactNode; rows: ConfigIntranet[]; description: string }[]).filter((t) => t.rows.length > 0);
+  ] as { id: Tab; label: string; icon: React.ReactNode; rows: ConfigIntranet[]; description: string }[]).filter(
+    (t) => t.rows.length > 0 || (t.id === "cargos" && cargos.length > 0)
+  );
+
+  function renderCargos(accent: TabAccent) {
+    const cardClass = `rounded-lg border border-gray-200 border-l-4 ${accent.cardBorder} bg-gray-50 p-4`;
+    return cargos.map((c) => {
+      const selectId = `cargo-${c.cargo}`;
+      const holder = profesores.find((p) => p.id === cargoValues[c.cargo]);
+      return (
+        <div key={c.cargo} className={cardClass}>
+          <label htmlFor={selectId} className="block text-sm font-semibold text-gray-800 mb-2">
+            {CARGOS_DIRECTIVOS[c.cargo]}
+          </label>
+          <select
+            id={selectId}
+            value={cargoValues[c.cargo]}
+            onChange={(e) => setCargoValues((v) => ({ ...v, [c.cargo]: e.target.value }))}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          >
+            <option value="">Sin asignar (las familias no podrán elegir este cargo)</option>
+            {profesores.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.profesor}{p.cesado ? " (cesado/a)" : ""}
+              </option>
+            ))}
+          </select>
+          {holder?.cesado && (
+            <p className="text-xs text-amber-700 mt-2">
+              Esta persona ya no está en activo: las familias no verán este cargo hasta que asignes a otra.
+            </p>
+          )}
+        </div>
+      );
+    });
+  }
 
   const currentTab = tabs.find((t) => t.id === activeTab) ?? tabs[0];
   const currentAccent = currentTab ? TAB_ACCENTS[currentTab.id] : TAB_ACCENTS.otros;
@@ -449,7 +523,7 @@ export function ConfiguracionClient({ config, perfiles }: Props) {
 
       {/* Tab bar */}
       {tabs.length > 1 && (
-        <div className="flex bg-gray-100 rounded-lg p-1 w-fit max-w-full overflow-x-auto gap-1">
+        <div className="flex flex-wrap bg-gray-100 rounded-lg p-1 w-fit max-w-full gap-1">
           {tabs.map((tab) => (
             <button
               key={tab.id}
@@ -478,7 +552,7 @@ export function ConfiguracionClient({ config, perfiles }: Props) {
             </div>
           </div>
           <div className="p-4 sm:p-6 space-y-3">
-            {renderRows(currentTab.rows, currentAccent)}
+            {currentTab.id === "cargos" ? renderCargos(currentAccent) : renderRows(currentTab.rows, currentAccent)}
           </div>
         </div>
       )}

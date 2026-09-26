@@ -1,20 +1,14 @@
 import Image from "next/image";
-import { createAdminClient } from "@/lib/supabase/admin";
 import SolicitudCitaForm from "./SolicitudCitaForm";
-import { todayMadrid } from "@/lib/dates";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { getCargosDisponibles } from "@/lib/cargos";
 
 export const dynamic = "force-dynamic";
 
+// Teachers are not loaded here: the form searches them through /api/citas/profesores.
+// Leadership roles are listed by role name only (never the person holding them).
 export default async function SolicitudCitaPage() {
-  const admin = createAdminClient();
-
-  const today = todayMadrid();
-
-  const { data: profesores } = await admin
-    .from("profesores")
-    .select("id, profesor")
-    .or(`fecha_cese.is.null,fecha_cese.gt.${today}`)
-    .order("profesor", { ascending: true });
+  const cargos = await getCargosDisponibles(createAdminClient());
 
   return (
     <main style={{ minHeight: "100vh", background: "#f4f4f5", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "32px 16px" }}>
@@ -37,7 +31,7 @@ export default async function SolicitudCitaPage() {
           </div>
         </div>
         <div style={{ background: "#fff", borderRadius: "0 0 8px 8px", padding: "32px 24px" }}>
-          <SolicitudCitaForm profesores={profesores ?? []} />
+          <SolicitudCitaForm cargos={cargos} />
         </div>
       </div>
     </main>

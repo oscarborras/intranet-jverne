@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { todayMadrid } from "@/lib/dates";
+import { authorizeApi } from "@/lib/auth";
 
 const CAMPOS_PERMITIDOS = ["profesor", "puesto", "dni", "email", "fecha_alta", "fecha_cese"] as const;
 type CampoPermitido = (typeof CAMPOS_PERMITIDOS)[number];
@@ -29,21 +30,9 @@ function chunk<T>(arr: T[], size: number): T[][] {
 }
 
 export async function POST(req: NextRequest) {
+  const auth = await authorizeApi(["Admin"]);
+  if (!auth.ok) return auth.response;
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-
-  const { data: rolesData } = await supabase
-    .from("user_roles_intranet")
-    .select("perfiles_intranet!inner(nombre)")
-    .eq("user_id", user.id);
-
-  const roleNames = (rolesData ?? []).map(
-    (r) => (r.perfiles_intranet as unknown as { nombre: string }).nombre
-  );
-  if (!roleNames.includes("Admin")) {
-    return NextResponse.json({ error: "No autorizado" }, { status: 403 });
-  }
 
   const body = await req.json().catch(() => null) as {
     actualizar?: Actualizacion[];

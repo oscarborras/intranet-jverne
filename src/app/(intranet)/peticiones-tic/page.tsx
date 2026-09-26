@@ -2,25 +2,14 @@ import { createClient } from "@/lib/supabase/server";
 import { PeticionesTICClient } from "./PeticionesTICClient";
 import { resolveAutorNames } from "@/lib/resolveAutorNames";
 import { getFinalizadasCutoff } from "@/lib/peticiones";
-import type { PeticionTIC, Perfil } from "@/lib/types";
+import type { PeticionTIC } from "@/lib/types";
+import { requireAuth } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function PeticionesTICPage() {
+  const { user, roles } = await requireAuth();
   const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  const { data: rolesData } = await supabase
-    .from("user_roles_intranet")
-    .select("perfiles_intranet(id, nombre, descripcion, created_at)")
-    .eq("user_id", user!.id);
-
-  const roles: Perfil[] = (rolesData ?? [])
-    .map((r) => r.perfiles_intranet as unknown as Perfil)
-    .filter(Boolean);
 
   const canViewAll = roles.some((r) =>
     ["Admin", "TDE", "Soporte_TIC"].includes(r.nombre)
@@ -33,7 +22,7 @@ export default async function PeticionesTICPage() {
   const canDelete = roles.some((r) => ["Admin", "TDE"].includes(r.nombre));
 
   const { dias, cutoff } = await getFinalizadasCutoff(supabase);
-  const visibility = canViewAll ? null : `solo_usuario.eq.false,autor_id.eq.${user!.id}`;
+  const visibility = canViewAll ? null : `solo_usuario.eq.false,autor_id.eq.${user.id}`;
 
   // Open requests always; finished ones only within the configured window
   let activasQuery = supabase
@@ -70,7 +59,7 @@ export default async function PeticionesTICPage() {
     ...new Set([
       ...peticionesRaw.map((p) => p.autor_id as string),
       ...peticionesRaw.filter((p) => p.asignado_id).map((p) => p.asignado_id as string),
-      user!.id,
+      user.id,
     ]),
   ];
   const userNames = await resolveAutorNames(supabase, uniqueUserIds);
@@ -81,14 +70,14 @@ export default async function PeticionesTICPage() {
     asignado: p.asignado_id ? { full_name: userNames[p.asignado_id] ?? "—" } : undefined,
   })) as PeticionTIC[];
 
-  const myDisplayName = userNames[user!.id] ?? "—";
+  const myDisplayName = userNames[user.id] ?? "—";
 
   return (
     <PeticionesTICClient
       initialPeticiones={peticiones}
       canManage={canManage}
       canDelete={canDelete}
-      userId={user!.id}
+      userId={user.id}
       myDisplayName={myDisplayName}
       diasVistaFinalizadas={dias}
       finalizadasAntiguas={finalizadasAntiguas ?? 0}

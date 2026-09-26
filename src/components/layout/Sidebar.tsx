@@ -162,6 +162,18 @@ export function Sidebar({ userRoles, userName, inactiveModuleSlugs, version }: S
               <span className="flex-shrink-0"><CalendarClock size={18} /></span>
               <span>Citas del día</span>
             </Link>
+            <Link
+              href="/ayuda"
+              className={cn(
+                "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors",
+                pathname.startsWith("/ayuda")
+                  ? "bg-blue-600 text-white font-medium"
+                  : "text-blue-100 hover:bg-blue-800/60"
+              )}
+            >
+              <span className="flex-shrink-0"><HelpCircle size={18} /></span>
+              <span>Ayuda y Tutoriales</span>
+            </Link>
           </>
         ) : navGroups.map((group) => {
           // Hide admin groups from non-admins

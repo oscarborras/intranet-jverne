@@ -36,16 +36,21 @@ Intranet web application for IES Julio Verne school. Named **"Intranet-jv"** in 
 ### Tres clientes obligatorios
 - `lib/supabase/server.ts` → para Server Components, Route Handlers y Server Actions
 - `lib/supabase/client.ts` → para Client Components
-- `middleware.ts` (raíz) → refresca el token en cada request
+- `src/proxy.ts` → refresca el token en cada request (Next 16: `proxy` sustituye a `middleware`; debe estar en `src/`, no en la raíz)
 
 ### Regla getUser() vs getSession()
-- En el servidor: usar SIEMPRE `supabase.auth.getUser()` (verifica con Supabase)
+- En el servidor: usar SIEMPRE `supabase.auth.getUser()` (verifica con Supabase), a través de `src/lib/auth.ts`
 - NUNCA usar `getSession()` en el servidor (no valida el JWT)
 - En Client Components: `getSession()` es aceptable
 
-### Protección de rutas
-- El middleware protege rutas redirigiendo a `/login` si no hay sesión
-- Los Server Components hacen una segunda verificación con `getUser()`
+### Protección de rutas (tres capas)
+1. `src/proxy.ts`: redirección optimista a `/login` (o 401 JSON en `/api/*`). Todo es privado salvo `PUBLIC_PREFIXES` (login, callback OAuth y páginas/API públicas de familias). NO es la barrera de seguridad.
+2. Capa de acceso a datos `src/lib/auth.ts` (`server-only`, memoizada con `cache()`): es la barrera principal.
+   - Páginas: `requireUser()`, `requireAuth()` (usuario + perfiles) o `requireRole([...], fallback)`.
+   - Route Handlers: `const auth = await authorizeApi([...]); if (!auth.ok) return auth.response;`
+   - NUNCA llamar a `supabase.auth.getUser()` ni consultar `user_roles_intranet` para el usuario actual directamente en páginas o rutas, y NUNCA usar `user!`.
+3. RLS en Supabase. Ojo: `createAdminClient()` se salta el RLS, así que solo tras pasar por la capa 2.
+- Al añadir una ruta pública nueva hay que incluirla en `PUBLIC_PREFIXES` del proxy.
 - NUNCA confiar solo en el cliente para proteger rutas
 
 # Requisitos funcionales:

@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { requireUser } from "@/lib/auth";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
 import { MobileNav } from "@/components/layout/MobileNav";
@@ -11,19 +11,8 @@ export default async function IntranetLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const user = await requireUser();
   const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/login");
-  }
-
-  if (user.email?.includes(".alu@")) {
-    redirect("/acceso-denegado");
-  }
 
   const { roles, isAdmin, inactiveModuleSlugs } = await getModuleAccess(supabase, user.id);
 

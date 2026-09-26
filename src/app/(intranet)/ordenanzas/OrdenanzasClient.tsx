@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Search, MapPin, RefreshCw, User } from "lucide-react";
+import { CARGOS_DIRECTIVOS, type CargoDirectivoClave } from "@/lib/types";
 
 interface CitaOrdenanza {
   id: number;
@@ -15,6 +16,7 @@ interface CitaOrdenanza {
   familiar_parentesco: string;
   hora_inicio: string | null;
   lugar: string | null;
+  cargo: CargoDirectivoClave | null;
 }
 
 interface ProfesorEntry {
@@ -145,6 +147,9 @@ export default function OrdenanzasClient({ citas, profesores, todayStr }: Props)
                         <p className="text-gray-500 text-xs mt-0.5">
                           {c.familiar_nombre} · <span className="capitalize">{c.familiar_parentesco}</span>
                         </p>
+                        {c.cargo && (
+                          <p className="text-indigo-600 text-xs font-medium mt-0.5">Cita con {CARGOS_DIRECTIVOS[c.cargo]}</p>
+                        )}
                         {c.lugar && (
                           <p className="text-gray-400 text-xs mt-1 flex items-center gap-1">
                             <MapPin size={11} />

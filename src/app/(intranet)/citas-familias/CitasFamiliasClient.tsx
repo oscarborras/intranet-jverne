@@ -5,6 +5,7 @@ import { Users, Plus, CalendarCheck, Clock, MapPin, User, Phone, Mail, BookOpen,
 import type { CitaFamilia, CitaFamiliaEstado, LUGARES_CITA } from "@/lib/types";
 import { LUGARES_CITA as LUGARES } from "@/lib/types";
 import type { ProfesorOption } from "./page";
+import { CARGOS_DIRECTIVOS } from "@/lib/types";
 
 type Tab = "pendiente" | "confirmada" | "completada" | "cancelada";
 
@@ -72,7 +73,7 @@ export default function CitasFamiliasClient({ initialCitas, userId, currentProfe
   const [activeTab, setActiveTab] = useState<Tab>("pendiente");
   const [saving, setSaving] = useState(false);
   const [registrarId, setRegistrarId] = useState<number | null>(null);
-  const [registrarForm, setRegistrarForm] = useState<RegistrarForm>({ fecha: "", hora_inicio: "", lugar: LUGARES[0] });
+  const [registrarForm, setRegistrarForm] = useState<RegistrarForm>({ fecha: "", hora_inicio: "", lugar: "" });
   const [showNueva, setShowNueva] = useState(false);
   const [nuevaForm, setNuevaForm] = useState<NuevaCitaForm>(EMPTY_NUEVA);
   const [cancelId, setCancelId] = useState<number | null>(null);
@@ -86,23 +87,25 @@ export default function CitasFamiliasClient({ initialCitas, userId, currentProfe
     : citas;
   const filtered = citasFiltradas.filter((c) => c.estado === activeTab);
   const pendienteCount = citasFiltradas.filter((c) => c.estado === "pendiente").length;
+  const confirmadaCount = citasFiltradas.filter((c) => c.estado === "confirmada").length;
 
   const efectiveProfesorId = isAdmin ? (filtroProfesorId || userId) : userId;
 
   async function handleRegistrar(citaId: number) {
-    if (!registrarForm.fecha || !registrarForm.hora_inicio || !registrarForm.lugar) return;
+    const lugar = registrarForm.lugar.trim();
+    if (!registrarForm.fecha || !registrarForm.hora_inicio || !lugar) return;
     setSaving(true);
     try {
       const res = await fetch("/api/citas/confirmar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ citaId, fecha: registrarForm.fecha, hora_inicio: registrarForm.hora_inicio, lugar: registrarForm.lugar }),
+        body: JSON.stringify({ citaId, fecha: registrarForm.fecha, hora_inicio: registrarForm.hora_inicio, lugar }),
       });
       if (!res.ok) throw new Error();
       const { cita } = await res.json();
       setCitas((prev) => prev.map((c) => (c.id === citaId ? { ...c, ...cita } : c)));
       setRegistrarId(null);
-      setRegistrarForm({ fecha: "", hora_inicio: "", lugar: LUGARES[0] });
+      setRegistrarForm({ fecha: "", hora_inicio: "", lugar: "" });
     } catch {
       alert("Error al confirmar la cita. Inténtelo de nuevo.");
     } finally {
@@ -255,6 +258,11 @@ export default function CitasFamiliasClient({ initialCitas, userId, currentProfe
                 {pendienteCount}
               </span>
             )}
+            {tab === "confirmada" && confirmadaCount > 0 && (
+              <span className="ml-1.5 px-1.5 py-0.5 bg-green-100 text-green-700 rounded-full text-xs">
+                {confirmadaCount}
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -284,6 +292,11 @@ export default function CitasFamiliasClient({ initialCitas, userId, currentProfe
                     </span>
                     {cita.cancelada_por && (
                       <span className="text-xs text-gray-400">({cita.cancelada_por})</span>
+                    )}
+                    {cita.cargo && (
+                      <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700">
+                        {CARGOS_DIRECTIVOS[cita.cargo]}
+                      </span>
                     )}
                   </div>
                   <p className="font-semibold text-gray-900">{cita.alumno_nombre} <span className="text-sm font-normal text-gray-500">({cita.alumno_curso})</span></p>
@@ -396,16 +409,15 @@ export default function CitasFamiliasClient({ initialCitas, userId, currentProfe
               </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-600 mb-1">Lugar <span className="text-red-500">*</span></label>
-                <select value={registrarForm.lugar} onChange={(e) => setRegistrarForm((f) => ({ ...f, lugar: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 bg-white">
-                  {LUGARES.map((l) => <option key={l} value={l}>{l}</option>)}
-                </select>
+                <input type="text" value={registrarForm.lugar} onChange={(e) => setRegistrarForm((f) => ({ ...f, lugar: e.target.value }))}
+                  placeholder="Ej: Sala de visitas" maxLength={100}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500" />
               </div>
             </div>
             <div className="flex gap-2 mt-5">
               <button
                 onClick={() => handleRegistrar(registrarId)}
-                disabled={saving || !registrarForm.fecha || !registrarForm.hora_inicio}
+                disabled={saving || !registrarForm.fecha || !registrarForm.hora_inicio || !registrarForm.lugar.trim()}
                 className="flex-1 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50 transition-colors"
               >
                 {saving ? "Guardando..." : "Confirmar cita"}

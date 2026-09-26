@@ -37,6 +37,8 @@ function row(label: string, value: string): string {
 interface NuevaSolicitudParams {
   profesorEmail: string;
   profesorNombre: string;
+  /** Set when the family asked for a leadership role instead of a specific teacher */
+  cargoNombre?: string | null;
   codigo: string;
   alumnoNombre: string;
   alumnoCurso: string;
@@ -50,9 +52,14 @@ interface NuevaSolicitudParams {
 export async function sendNuevaSolicitudEmail(p: NuevaSolicitudParams) {
   const body = baseLayout(`
     <h2 style="margin:0 0 8px;font-size:20px;color:#111827;">Nueva solicitud de cita</h2>
-    <p style="margin:0 0 24px;color:#6b7280;font-size:14px;">Se ha recibido una nueva solicitud de visita para usted.</p>
+    <p style="margin:0 0 24px;color:#6b7280;font-size:14px;">${
+      p.cargoNombre
+        ? `Se ha recibido una nueva solicitud de visita dirigida a <strong>${p.cargoNombre}</strong>, cargo que usted ocupa.`
+        : "Se ha recibido una nueva solicitud de visita para usted."
+    }</p>
     <table cellpadding="0" cellspacing="0" style="width:100%;border-top:1px solid #e5e7eb;padding-top:16px;">
       ${row("Código", p.codigo)}
+      ${p.cargoNombre ? row("Dirigida a", p.cargoNombre) : ""}
       ${row("Alumno/a", `${p.alumnoNombre} (${p.alumnoCurso})`)}
       ${row("Familiar", `${p.familiarNombre} (${p.familiarParentesco})`)}
       ${p.familiarEmail ? row("Email familiar", p.familiarEmail) : ""}
@@ -70,7 +77,7 @@ export async function sendNuevaSolicitudEmail(p: NuevaSolicitudParams) {
   return resend.emails.send({
     from: FROM,
     to: p.profesorEmail,
-    subject: `Nueva solicitud de cita – ${p.alumnoNombre} – ${p.familiarNombre}`,
+    subject: `Nueva solicitud de cita${p.cargoNombre ? ` (${p.cargoNombre})` : ""} – ${p.alumnoNombre} – ${p.familiarNombre}`,
     html: body,
   });
 }

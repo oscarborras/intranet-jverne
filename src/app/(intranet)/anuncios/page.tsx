@@ -1,23 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
 import { AnunciosClient } from "./AnunciosClient";
-import type { Anuncio, Perfil } from "@/lib/types";
+import type { Anuncio } from "@/lib/types";
 import { todayMadrid } from "@/lib/dates";
+import { requireAuth } from "@/lib/auth";
 
 export default async function AnunciosPage() {
+  const { user, roles } = await requireAuth();
   const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  const { data: rolesData } = await supabase
-    .from("user_roles_intranet")
-    .select("perfiles_intranet(id, nombre, descripcion, created_at)")
-    .eq("user_id", user!.id);
-
-  const roles: Perfil[] = (rolesData ?? [])
-    .map((r) => r.perfiles_intranet as unknown as Perfil)
-    .filter(Boolean);
 
   const canManage = roles.some((r) => ["Admin", "Directiva"].includes(r.nombre));
 
@@ -38,7 +27,7 @@ export default async function AnunciosPage() {
     <AnunciosClient
       initialAnuncios={(anunciosData ?? []) as Anuncio[]}
       canManage={canManage}
-      userId={user!.id}
+      userId={user.id}
     />
   );
 }

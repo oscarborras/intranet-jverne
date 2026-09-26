@@ -1,23 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
 import { AusenciasClient } from "./AusenciasClient";
 import type { AusenciaProfesorado, TramoHorario, Curso } from "@/lib/types";
 import { todayMadrid, addDaysToDateStr } from "@/lib/dates";
+import { requireAuth } from "@/lib/auth";
 
 export default async function AusenciasPage() {
+  const { user, roleNames } = await requireAuth();
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
-  // Role check
-  const { data: rolesData } = await supabase
-    .from("user_roles_intranet")
-    .select("perfiles_intranet!inner(nombre)")
-    .eq("user_id", user.id);
-
-  const roleNames = (rolesData ?? []).map(
-    (r) => (r.perfiles_intranet as unknown as { nombre: string }).nombre
-  );
   const canViewGuardia = roleNames.some((r) => ["Admin", "Directiva", "Guardia"].includes(r));
   const canManageAll = roleNames.some((r) => ["Admin", "Directiva"].includes(r));
 

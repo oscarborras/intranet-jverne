@@ -3,13 +3,15 @@ import { createClient } from "@/lib/supabase/server";
 import { sendNuevaPeticionTICEmail } from "@/lib/email";
 import { getNotificationEmails, NOTIFICATION_CLAVES } from "@/lib/notifications";
 import type { PeticionPrioridad } from "@/lib/types";
+import { authorizeApi } from "@/lib/auth";
 
 const PRIORIDADES: PeticionPrioridad[] = ["baja", "normal", "alta", "urgente"];
 
 export async function POST(req: NextRequest) {
+  const auth = await authorizeApi();
+  if (!auth.ok) return auth.response;
+  const { user } = auth;
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json() as {
     titulo: string;

@@ -2,14 +2,13 @@ import Link from "next/link";
 import { AlertCircle, Monitor, Wrench } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getModuleAccess } from "@/lib/modulos";
+import { requireUser } from "@/lib/auth";
 
 export default async function NuevaIncidenciaPage() {
+  const user = await requireUser();
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
 
-  const { isAdmin, inactiveModuleSlugs } = await getModuleAccess(supabase, user!.id);
+  const { isAdmin, inactiveModuleSlugs } = await getModuleAccess(supabase, user.id);
 
   const showTIC = isAdmin || !inactiveModuleSlugs.includes("peticiones-tic");
   const showMantenimiento = isAdmin || !inactiveModuleSlugs.includes("peticiones-mantenimiento");

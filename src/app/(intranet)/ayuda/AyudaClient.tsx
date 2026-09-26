@@ -6,13 +6,14 @@ import {
   CheckCircle2, MapPin, ChevronRight, ArrowLeft, Clock, Camera,
   Mail, X, CalendarCheck, Smartphone, ShieldAlert, Monitor, Wrench,
   BookMarked, FileText, GraduationCap, ExternalLink, RotateCcw, Printer, ClipboardCheck,
+  CalendarClock, LayoutDashboard, RefreshCw, Search,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type ItemId = "carros" | "citas" | "movil" | "prestamos" | "devoluciones" | "revisiones" | "tic" | "mantenimiento";
+type ItemId = "carros" | "citas" | "ordenanza" | "movil" | "prestamos" | "devoluciones" | "revisiones" | "tic" | "mantenimiento";
 type Category = "tutorial" | "protocolo";
-type ModuleId = "carros-portatiles" | "citas-familias" | "gratuidad-libros" | "peticiones-incidencias";
+type ModuleId = "carros-portatiles" | "citas-familias" | "citas-del-dia" | "gratuidad-libros" | "peticiones-incidencias";
 
 interface ItemMeta {
   id: ItemId;
@@ -29,7 +30,9 @@ interface ModuleMeta {
   id: ModuleId;
   // Uno o varios slugs de modulos_config. Con varios, el botón se muestra si
   // al menos uno de ellos está activo para el perfil del usuario.
-  slug: string | string[];
+  slug?: string | string[];
+  // Pages outside modulos_config: the button is shown only to these profiles
+  roles?: string[];
   icon: React.ReactNode;
   title: string;
   description: string;
@@ -54,11 +57,21 @@ const ITEMS: ItemMeta[] = [
     id: "citas",
     category: "tutorial",
     icon: <Users size={22} className="text-white" />,
-    title: "Gestionar citas con familias",
+    title: "Gestionar citas con familias (profesorado)",
     description: "Confirma solicitudes, crea citas directas y cancela visitas.",
     badge: "7 pasos · 2 min",
     headerBg: "bg-red-600",
     headerText: "text-red-600",
+  },
+  {
+    id: "ordenanza",
+    category: "tutorial",
+    icon: <CalendarClock size={22} className="text-white" />,
+    title: "Consultar las citas del día (ordenanzas)",
+    description: "Localiza a qué profesor/a viene a ver cada familia, a qué hora y dónde.",
+    badge: "5 pasos · 1 min",
+    headerBg: "bg-blue-700",
+    headerText: "text-blue-700",
   },
   {
     id: "prestamos",
@@ -140,6 +153,15 @@ const MODULES: ModuleMeta[] = [
     description: "Confirmación y gestión de citas con las familias del alumnado.",
     color: "bg-red-600",
     tutorials: ["citas"],
+  },
+  {
+    id: "citas-del-dia",
+    roles: ["Ordenanza"],
+    icon: <CalendarClock size={22} className="text-white" />,
+    title: "Citas del Día",
+    description: "Consulta en conserjería las citas con familias confirmadas para hoy.",
+    color: "bg-blue-700",
+    tutorials: ["ordenanza"],
   },
   {
     id: "gratuidad-libros",
@@ -442,6 +464,90 @@ function TutorialCitas() {
             <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-600 text-white text-[11px] font-semibold"><Plus size={11} /> Nueva cita</span>
             <span className="text-xs text-gray-400">→ se crea directamente como «Confirmada»</span>
           </div>
+        </div>
+      </li>
+    </ol>
+  );
+}
+
+// ─── Tutorial: Citas del día (ordenanzas) ─────────────────────────────────────
+
+function TutorialOrdenanza() {
+  return (
+    <ol className="divide-y divide-gray-50">
+      <li className="px-6 py-5 flex gap-4">
+        <div className="flex-shrink-0 flex flex-col items-center">
+          <StepNum n={1} accent="blue" /><StepConnector />
+        </div>
+        <div className="flex-1 pb-1">
+          <p className="font-medium text-gray-900 text-sm mb-1">Accede a «Citas del día»</p>
+          <p className="text-sm text-gray-500 mb-3">En el menú lateral pulsa <strong className="text-gray-700">Citas del día</strong>. En el móvil, abre antes el menú con el botón ☰ de la parte superior.</p>
+          <div className="bg-gray-50 rounded-lg border border-gray-100 p-3 text-xs space-y-1 max-w-[200px]">
+            <div className="flex items-center gap-2 text-gray-400 py-1 px-2"><LayoutDashboard size={12} /> Dashboard</div>
+            <div className="flex items-center gap-2 text-blue-700 font-semibold bg-blue-50 py-1 px-2 rounded border border-blue-200"><CalendarClock size={12} /> Citas del día</div>
+            <div className="flex items-center gap-2 text-gray-400 py-1 px-2"><HelpCircle size={12} /> Ayuda y Tutoriales</div>
+          </div>
+        </div>
+      </li>
+
+      <li className="px-6 py-5 flex gap-4">
+        <div className="flex-shrink-0 flex flex-col items-center">
+          <StepNum n={2} accent="blue" /><StepConnector />
+        </div>
+        <div className="flex-1 pb-1">
+          <p className="font-medium text-gray-900 text-sm mb-1">Consulta las citas de hoy</p>
+          <p className="text-sm text-gray-500 mb-3">Solo aparecen las citas <strong className="text-gray-700">confirmadas para hoy</strong>, agrupadas por profesor/a y ordenadas por hora. Arriba verás cuántas hay en total.</p>
+          <span className="inline-block bg-blue-100 text-blue-700 rounded-full px-3 py-1 text-[11px] font-semibold">3 citas hoy</span>
+        </div>
+      </li>
+
+      <li className="px-6 py-5 flex gap-4">
+        <div className="flex-shrink-0 flex flex-col items-center">
+          <StepNum n={3} accent="blue" /><StepConnector />
+        </div>
+        <div className="flex-1 pb-1">
+          <p className="font-medium text-gray-900 text-sm mb-1">Identifica a la familia y a quién viene a ver</p>
+          <p className="text-sm text-gray-500 mb-3">Cada tarjeta indica el <strong className="text-gray-700">profesor/a</strong> en la cabecera y, en cada cita, la <strong className="text-gray-700">hora</strong>, el alumno/a con su curso, el familiar con su parentesco y el <strong className="text-gray-700">lugar</strong> de la reunión.</p>
+          <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden max-w-xs">
+            <div className="bg-blue-900 px-3 py-2 flex items-center gap-2">
+              <User size={12} className="text-blue-300" />
+              <span className="text-white text-[11px] font-semibold flex-1">García López, Ana</span>
+              <span className="bg-white/20 text-white text-[10px] rounded-full px-1.5">1</span>
+            </div>
+            <div className="px-3 py-2.5 flex items-start gap-2.5">
+              <div className="bg-blue-50 rounded px-2 py-1.5 text-blue-700 font-bold text-xs">16:30</div>
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold text-gray-900">Pérez Ruiz, Lucía <span className="font-normal text-gray-400">(2º ESO B)</span></p>
+                <p className="text-[10px] text-gray-500">María Ruiz · Madre</p>
+                <p className="text-[10px] text-gray-400 flex items-center gap-1 mt-0.5"><MapPin size={9} /> Sala de visitas</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </li>
+
+      <li className="px-6 py-5 flex gap-4">
+        <div className="flex-shrink-0 flex flex-col items-center">
+          <StepNum n={4} accent="blue" /><StepConnector />
+        </div>
+        <div className="flex-1 pb-1">
+          <p className="font-medium text-gray-900 text-sm mb-1">Busca por alumno, familiar o profesor</p>
+          <p className="text-sm text-gray-500 mb-3">Cuando llegue una familia, escribe parte del nombre del alumno/a, del familiar o del profesor/a y la lista se filtra al momento.</p>
+          <div className="bg-white rounded-lg border border-gray-200 px-3 py-2 flex items-center gap-2 max-w-xs">
+            <Search size={12} className="text-gray-400" />
+            <span className="text-[11px] text-gray-700">lucía</span>
+          </div>
+        </div>
+      </li>
+
+      <li className="px-6 py-5 flex gap-4">
+        <div className="flex-shrink-0 flex flex-col items-center">
+          <StepNum n={5} accent="blue" />
+        </div>
+        <div className="flex-1 pb-1">
+          <p className="font-medium text-gray-900 text-sm mb-1">La lista se actualiza sola</p>
+          <p className="text-sm text-gray-500 mb-3">La página se refresca automáticamente <strong className="text-gray-700">cada minuto</strong>, así que puedes dejarla abierta toda la jornada. Si quieres ver los cambios al instante, pulsa el botón de actualizar de la cabecera.</p>
+          <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-blue-700"><RefreshCw size={14} className="text-white" /></span>
         </div>
       </li>
     </ol>
@@ -1275,6 +1381,7 @@ function TutorialMantenimiento() {
 const ITEM_CONTENT: Record<ItemId, React.ReactNode> = {
   carros: <TutorialCarros />,
   citas: <TutorialCitas />,
+  ordenanza: <TutorialOrdenanza />,
   prestamos: <TutorialPrestamos />,
   devoluciones: <TutorialDevoluciones />,
   revisiones: <TutorialRevisiones />,
@@ -1302,6 +1409,11 @@ const ITEM_TIPS: Record<ItemId, React.ReactNode> = {
   citas: (
     <p className="text-xs text-amber-800">
       <strong>Enlace para familias:</strong> Comparte <strong>/familias/solicitar</strong> con las familias para que pidan cita desde casa sin necesidad de acceso a la intranet.
+    </p>
+  ),
+  ordenanza: (
+    <p className="text-xs text-amber-800">
+      <strong>¿Una familia no aparece en la lista?</strong> Solo se muestran las citas confirmadas para hoy. Si la cita está pendiente de confirmar, se ha cancelado o es de otro día, no aparecerá: consulta con el profesor/a correspondiente.
     </p>
   ),
   revisiones: (
@@ -1374,9 +1486,10 @@ function ModuleCard({ module, onClick }: { module: ModuleMeta; onClick: () => vo
 
 interface Props {
   inactiveModuleSlugs: string[];
+  roleNames: string[];
 }
 
-export function AyudaClient({ inactiveModuleSlugs }: Props) {
+export function AyudaClient({ inactiveModuleSlugs, roleNames }: Props) {
   const [activeModule, setActiveModule] = useState<ModuleId | null>(null);
   const [activeItem, setActiveItem]     = useState<ItemId | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -1411,8 +1524,13 @@ export function AyudaClient({ inactiveModuleSlugs }: Props) {
     if (win) setTimeout(() => URL.revokeObjectURL(url), 60000);
   }
 
+  // Same rule as the sidebar: Ordenanza users (not Admin/Directiva) only get their role-specific help
+  const isOrdenanza = roleNames.includes("Ordenanza") && !roleNames.some((r) => ["Admin", "Directiva"].includes(r));
+
   const visibleModules  = MODULES.filter((m) => {
-    const slugs = Array.isArray(m.slug) ? m.slug : [m.slug];
+    if (isOrdenanza) return m.roles?.includes("Ordenanza") ?? false;
+    if (m.roles) return m.roles.some((r) => roleNames.includes(r));
+    const slugs = Array.isArray(m.slug) ? m.slug : m.slug ? [m.slug] : [];
     return slugs.some((s) => !inactiveModuleSlugs.includes(s));
   });
   const protocolos      = ITEMS.filter((i) => i.category === "protocolo");
@@ -1480,40 +1598,42 @@ export function AyudaClient({ inactiveModuleSlugs }: Props) {
       {/* ── Home view ─────────────────────────────────────────────────────── */}
       {showHome && (
         <>
-          {/* Web del Claustro + Códigos Ausencias — always visible */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <a
-              href="https://sites.google.com/iesjulioverne.es/webclaustro/inicio?authuser=0"
-              target="_blank"
-              rel="noreferrer"
-              className="flex items-center gap-4 bg-white rounded-xl border border-gray-100 p-4 hover:border-gray-200 hover:shadow-sm transition-all group"
-            >
-              <div className="w-11 h-11 rounded-xl bg-indigo-600 flex items-center justify-center flex-shrink-0">
-                <ExternalLink size={20} className="text-white" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold text-gray-900 text-sm">Web de ayuda del Claustro</p>
-                <p className="text-xs text-gray-500 mt-0.5">Documentación y recursos del claustro de IES Julio Verne</p>
-              </div>
-              <ChevronRight size={16} className="text-gray-300 group-hover:text-gray-500 flex-shrink-0 transition-colors" />
-            </a>
+          {/* Web del Claustro + Códigos Ausencias — teaching staff only */}
+          {!isOrdenanza && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <a
+                href="https://sites.google.com/iesjulioverne.es/webclaustro/inicio?authuser=0"
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-4 bg-white rounded-xl border border-gray-100 p-4 hover:border-gray-200 hover:shadow-sm transition-all group"
+              >
+                <div className="w-11 h-11 rounded-xl bg-indigo-600 flex items-center justify-center flex-shrink-0">
+                  <ExternalLink size={20} className="text-white" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-gray-900 text-sm">Web de ayuda del Claustro</p>
+                  <p className="text-xs text-gray-500 mt-0.5">Documentación y recursos del claustro de IES Julio Verne</p>
+                </div>
+                <ChevronRight size={16} className="text-gray-300 group-hover:text-gray-500 flex-shrink-0 transition-colors" />
+              </a>
 
-            <a
-              href="/documentos/codigos-ausencias.pdf"
-              target="_blank"
-              rel="noreferrer"
-              className="flex items-center gap-4 bg-white rounded-xl border border-gray-100 p-4 hover:border-gray-200 hover:shadow-sm transition-all group"
-            >
-              <div className="w-11 h-11 rounded-xl bg-pink-500 flex items-center justify-center flex-shrink-0">
-                <FileText size={20} className="text-white" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold text-gray-900 text-sm">Códigos Ausencias</p>
-                <p className="text-xs text-gray-500 mt-0.5">Motivos y códigos para la solicitud de permisos y licencias</p>
-              </div>
-              <ChevronRight size={16} className="text-gray-300 group-hover:text-gray-500 flex-shrink-0 transition-colors" />
-            </a>
-          </div>
+              <a
+                href="/documentos/codigos-ausencias.pdf"
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-4 bg-white rounded-xl border border-gray-100 p-4 hover:border-gray-200 hover:shadow-sm transition-all group"
+              >
+                <div className="w-11 h-11 rounded-xl bg-pink-500 flex items-center justify-center flex-shrink-0">
+                  <FileText size={20} className="text-white" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-gray-900 text-sm">Códigos Ausencias</p>
+                  <p className="text-xs text-gray-500 mt-0.5">Motivos y códigos para la solicitud de permisos y licencias</p>
+                </div>
+                <ChevronRight size={16} className="text-gray-300 group-hover:text-gray-500 flex-shrink-0 transition-colors" />
+              </a>
+            </div>
+          )}
 
           <div className="space-y-5">
             {/* Module tutorial buttons — filtered by active modules */}
@@ -1528,15 +1648,17 @@ export function AyudaClient({ inactiveModuleSlugs }: Props) {
               </section>
             )}
 
-            {/* Protocols — always visible */}
-            <section>
-              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2 px-1">Protocolos</p>
-              <div className="grid gap-2">
-                {protocolos.map((item) => (
-                  <ItemCard key={item.id} item={item} onSelect={(id) => { setActiveModule(null); setActiveItem(id); }} />
-                ))}
-              </div>
-            </section>
+            {/* Protocols — hidden for Ordenanza */}
+            {!isOrdenanza && (
+              <section>
+                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2 px-1">Protocolos</p>
+                <div className="grid gap-2">
+                  {protocolos.map((item) => (
+                    <ItemCard key={item.id} item={item} onSelect={(id) => { setActiveModule(null); setActiveItem(id); }} />
+                  ))}
+                </div>
+              </section>
+            )}
           </div>
         </>
       )}

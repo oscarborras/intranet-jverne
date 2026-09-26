@@ -6,7 +6,8 @@ import { HISTORIAL_PAGE_SIZE, isValidDateStr, parsePage, sanitizeSearch } from "
 import { HistorialFiltros } from "@/components/peticiones/HistorialFiltros";
 import { HistorialPaginacion } from "@/components/peticiones/HistorialPaginacion";
 import { HistorialTICClient } from "./HistorialTICClient";
-import type { PeticionTIC, Perfil } from "@/lib/types";
+import type { PeticionTIC } from "@/lib/types";
+import { requireAuth } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -23,19 +24,8 @@ export default async function HistorialPeticionesTICPage({ searchParams }: PageP
   const hasta = isValidDateStr(sp.hasta) ? sp.hasta : "";
   const page = parsePage(sp.page);
 
+  const { user, roles } = await requireAuth();
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  const { data: rolesData } = await supabase
-    .from("user_roles_intranet")
-    .select("perfiles_intranet(id, nombre, descripcion, created_at)")
-    .eq("user_id", user!.id);
-
-  const roles: Perfil[] = (rolesData ?? [])
-    .map((r) => r.perfiles_intranet as unknown as Perfil)
-    .filter(Boolean);
 
   const canManage = roles.some((r) => ["Admin", "TDE", "Soporte_TIC"].includes(r.nombre));
   const canDelete = roles.some((r) => ["Admin", "TDE"].includes(r.nombre));
@@ -49,7 +39,7 @@ export default async function HistorialPeticionesTICPage({ searchParams }: PageP
     .range(from, from + HISTORIAL_PAGE_SIZE - 1);
 
   // Same visibility rule as the kanban
-  if (!canManage) query = query.or(`solo_usuario.eq.false,autor_id.eq.${user!.id}`);
+  if (!canManage) query = query.or(`solo_usuario.eq.false,autor_id.eq.${user.id}`);
   if (q) query = query.or(`titulo.ilike.*${q}*,codigo.ilike.*${q}*,descripcion.ilike.*${q}*`);
   // Timestamps without offset are read in the DB timezone (Europe/Madrid)
   if (desde) query = query.gte("finalizada_at", `${desde}T00:00:00`);
@@ -103,7 +93,7 @@ export default async function HistorialPeticionesTICPage({ searchParams }: PageP
           No hay peticiones finalizadas que coincidan
         </p>
       ) : (
-        <HistorialTICClient peticiones={peticiones} canManage={canManage} canDelete={canDelete} userId={user!.id} />
+        <HistorialTICClient peticiones={peticiones} canManage={canManage} canDelete={canDelete} userId={user.id} />
       )}
 
       <HistorialPaginacion basePath={BASE_PATH} page={page} totalPages={totalPages} params={{ q, desde, hasta }} />

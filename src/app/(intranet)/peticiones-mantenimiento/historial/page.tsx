@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { ArrowLeft, History } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { resolveAutorNames } from "@/lib/resolveAutorNames";
@@ -8,6 +7,7 @@ import { HistorialFiltros } from "@/components/peticiones/HistorialFiltros";
 import { HistorialPaginacion } from "@/components/peticiones/HistorialPaginacion";
 import { HistorialCard } from "@/components/peticiones/HistorialCard";
 import type { PeticionMantenimiento } from "@/lib/types";
+import { requireUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -24,11 +24,8 @@ export default async function HistorialPeticionesMantenimientoPage({ searchParam
   const hasta = isValidDateStr(sp.hasta) ? sp.hasta : "";
   const page = parsePage(sp.page);
 
+  await requireUser();
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
 
   const from = (page - 1) * HISTORIAL_PAGE_SIZE;
   let query = supabase

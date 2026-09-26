@@ -356,6 +356,29 @@ export const LUGARES_CITA = [
 
 export type LugarCita = (typeof LUGARES_CITA)[number];
 
+// Leadership roles families can request an appointment with (table cargos_directivos)
+export const CARGOS_DIRECTIVOS = {
+  direccion: "Director/a",
+  jefatura: "Jefatura de estudios",
+  jefatura_adjunta: "Jefatura adjunta",
+  secretaria: "Secretaría",
+  vicedireccion: "Vicedirección",
+} as const;
+
+export type CargoDirectivoClave = keyof typeof CARGOS_DIRECTIVOS;
+
+export function isCargoDirectivo(value: unknown): value is CargoDirectivoClave {
+  return typeof value === "string" && Object.prototype.hasOwnProperty.call(CARGOS_DIRECTIVOS, value);
+}
+
+export interface CargoDirectivo {
+  cargo: CargoDirectivoClave;
+  nombre: string;
+  profesor_id: string | null;
+  orden: number;
+  updated_at: string;
+}
+
 export interface CitaFamilia {
   id: number;
   codigo: string;
@@ -375,6 +398,8 @@ export interface CitaFamilia {
   cancelada_por: CitaFamiliaCanceladaPor | null;
   motivo_cancelacion: string | null;
   token_familia: string;
+  /** Leadership role the family asked for; null when they chose a specific teacher */
+  cargo: CargoDirectivoClave | null;
   created_at: string;
   updated_at: string;
   profesor?: { full_name: string; email: string };
