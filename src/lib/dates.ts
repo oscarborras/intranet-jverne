@@ -41,3 +41,8 @@ export function monthRange(year: number, month: number): { firstDay: string; las
   const lastDate = new Date(Date.UTC(year, month, 0)).getUTCDate();
   return { firstDay: `${year}-${mm}-01`, lastDay: `${year}-${mm}-${String(lastDate).padStart(2, "0")}` };
 }
+
+/** Madrid calendar date ("YYYY-MM-DD") of an ISO timestamp. */
+export function dateStrMadrid(iso: string): string {
+  return ymdFormatter.format(new Date(iso));
+}

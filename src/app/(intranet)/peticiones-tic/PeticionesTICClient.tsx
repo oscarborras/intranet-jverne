@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import Link from "next/link";
-import { Monitor, Plus, Users, User, Camera, X } from "lucide-react";
+import { Monitor, Plus, Users, User, Camera, X, BarChart3 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { KanbanBoard } from "@/components/kanban/KanbanBoard";
 import { PeticionTICModal } from "./PeticionTICModal";
@@ -131,9 +131,13 @@ export function PeticionesTICClient({
         </div>
         <div className="flex gap-2">
           {canManage && (
-            <button className="flex items-center gap-2 bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
-              Reportes
-            </button>
+            <Link
+              href="/peticiones-tic/estadisticas"
+              className="flex items-center gap-2 bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+            >
+              <BarChart3 size={16} />
+              Estadísticas
+            </Link>
           )}
           <Link
             href="/nueva-incidencia"
