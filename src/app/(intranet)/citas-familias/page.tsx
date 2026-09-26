@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { CitaFamilia, Perfil } from "@/lib/types";
 import CitasFamiliasClient from "./CitasFamiliasClient";
+import { todayMadrid } from "@/lib/dates";
 
 export interface ProfesorOption {
   id: string;
@@ -40,7 +41,7 @@ export default async function CitasFamiliasPage() {
     query = query.eq("profesor_id", profesorId);
   }
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayMadrid();
 
   const [{ data: citasRaw }, profesoresResult] = await Promise.all([
     query,

@@ -9,6 +9,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import type { AusenciaProfesorado, TramoHorario, Curso } from "@/lib/types";
+import { todayMadrid } from "@/lib/dates";
 
 interface Profesor {
   id: string;
@@ -36,13 +37,8 @@ interface Props {
 
 type Tab = "mis" | "guardia";
 
-function localDateISO(): string {
-  const d = new Date();
-  return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, "0"), String(d.getDate()).padStart(2, "0")].join("-");
-}
-
 const EMPTY_FORM = {
-  fecha: localDateISO(),
+  fecha: todayMadrid(),
   tramo_id: "",
   curso_id: "",
   profesor_id: "",
@@ -171,7 +167,7 @@ function GuardiaView({ initial, initialFecha, tramos, refreshKey }: { initial: A
     loadFecha(f);
   }
 
-  const isToday = fecha === localDateISO();
+  const isToday = fecha === todayMadrid();
 
   const currentTramo = tramos.find((t) => {
     const now = new Date();
@@ -392,7 +388,7 @@ export function AusenciasClient({
   const [pageSize, setPageSize] = useState(10);
   const [page, setPage] = useState(1);
 
-  const today = localDateISO();
+  const today = todayMadrid();
 
   function resetForm() {
     setForm(EMPTY_FORM);

@@ -5,17 +5,13 @@ import Link from "next/link";
 import { ArrowLeft, Search, X, Upload, MailX } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ProfesorDbRow } from "@/lib/import/profesores";
+import { todayMadrid } from "@/lib/dates";
 
 interface Props {
   profesores: ProfesorDbRow[];
 }
 
 type Filtro = "activos" | "cesados" | "todos";
-
-function localDateISO(): string {
-  const d = new Date();
-  return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, "0"), String(d.getDate()).padStart(2, "0")].join("-");
-}
 
 function formatFecha(iso: string | null): string {
   if (!iso) return "—";
@@ -28,7 +24,7 @@ export function ConsultarProfesoresClient({ profesores }: Props) {
   const [soloSinEmail, setSoloSinEmail] = useState(false);
   const [busqueda, setBusqueda] = useState("");
 
-  const hoy = localDateISO();
+  const hoy = todayMadrid();
   const esActivo = (p: ProfesorDbRow) => p.fecha_cese === null || p.fecha_cese > hoy;
 
   const listado = useMemo(() => {

@@ -14,10 +14,12 @@ import {
   Users,
   UserX,
   BookMarked,
+  ShieldAlert,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import type { Anuncio, PeticionTIC, PeticionMantenimiento } from "@/lib/types";
 import { ProximasReservas, type ReservaDashboard } from "./ProximasReservas";
+import { todayMadrid, addDaysToDateStr } from "@/lib/dates";
 
 const moduleCards = [
   {
@@ -202,6 +204,13 @@ export default async function DashboardPage() {
     )
   );
 
+  // Expelled students panel: all teaching staff plus Guardia and Ordenanza
+  const showSanciones = (userRolesData ?? []).some((r) =>
+    ["Admin", "Directiva", "Profesor", "Guardia", "Ordenanza"].includes(
+      (r.perfiles_intranet as unknown as { nombre: string })?.nombre ?? ""
+    )
+  );
+
   const diasVistaExtraescolares = parseInt(
     (configData ?? []).find((c) => c.clave === "dias_vista_extraescolares")?.valor ?? "20",
     10
@@ -213,15 +222,9 @@ export default async function DashboardPage() {
   const mostrarGridDashboard = ((configData ?? []).find((c) => c.clave === "mostrar_grid_dashboard")?.valor ?? "true") !== "false";
   const mostrarGridMovil = ((configData ?? []).find((c) => c.clave === "mostrar_grid_dashboard_movil")?.valor ?? "true") !== "false";
 
-  const _now = new Date();
-  const todayStr = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, "0")}-${String(_now.getDate()).padStart(2, "0")}`;
-  const _limitDate = new Date(_now);
-  _limitDate.setDate(_limitDate.getDate() + diasVistaExtraescolares);
-  const limitStr = `${_limitDate.getFullYear()}-${String(_limitDate.getMonth() + 1).padStart(2, "0")}-${String(_limitDate.getDate()).padStart(2, "0")}`;
-
-  const _citasLimitDate = new Date(_now);
-  _citasLimitDate.setDate(_citasLimitDate.getDate() + diasVistaCitas);
-  const citasLimitStr = `${_citasLimitDate.getFullYear()}-${String(_citasLimitDate.getMonth() + 1).padStart(2, "0")}-${String(_citasLimitDate.getDate()).padStart(2, "0")}`;
+  const todayStr = todayMadrid();
+  const limitStr = addDaysToDateStr(todayStr, diasVistaExtraescolares);
+  const citasLimitStr = addDaysToDateStr(todayStr, diasVistaCitas);
 
   // Fetch only data for active modules
   const [
@@ -235,6 +238,7 @@ export default async function DashboardPage() {
     citasResult,
     ausenciasProximasResult,
     ausenciasHoyResult,
+    sancionesResult,
   ] = await Promise.all([
     showAnuncios
       ? supabase.from("anuncios").select("id, titulo, prioridad, created_at, autor_id").or(`visible_hasta.is.null,visible_hasta.gte.${todayStr}`).order("created_at", { ascending: false }).limit(3)
@@ -265,6 +269,9 @@ export default async function DashboardPage() {
       : Promise.resolve({ data: [] }),
     showAusencias && canSeeGuardiaView
       ? supabase.from("ausencias_profesorado").select("id").eq("fecha", todayStr).eq("estado", "activa")
+      : Promise.resolve({ data: [] }),
+    showSanciones
+      ? supabase.from("v_sanciones_detalladas").select("id, alumno, unidad, fecha_inicio, fecha_fin").gte("fecha_fin", todayStr).order("fecha_inicio", { ascending: true }).order("alumno", { ascending: true })
       : Promise.resolve({ data: [] }),
   ]);
 
@@ -363,6 +370,21 @@ export default async function DashboardPage() {
   const misAusenciasProximas = (ausenciasProximasResult.data ?? []) as unknown as AusenciaDashboard[];
   const ausenciasHoyCount = (ausenciasHoyResult.data ?? []).length;
 
+  interface SancionDashboard {
+    id: string;
+    alumno: string;
+    unidad: string | null;
+    fecha_inicio: string;
+    fecha_fin: string;
+  }
+  const sancionesVigentes = (sancionesResult.data ?? []) as SancionDashboard[];
+  const sancionesEnCursoCount = sancionesVigentes.filter((s) => s.fecha_inicio <= todayStr).length;
+  // "YYYY-MM-DD" -> "DD/MM/YY" without going through Date (no timezone shifts)
+  const formatFechaCorta = (fecha: string) => {
+    const [y, m, d] = fecha.split("-");
+    return `${d}/${m}/${y.slice(2)}`;
+  };
+
   interface EventoExtraescolar {
     id: number;
     titulo: string;
@@ -417,6 +439,67 @@ export default async function DashboardPage() {
       */}
       {(() => {
         const widgets: React.ReactNode[] = [];
+
+        if (showSanciones) {
+          widgets.push(
+            <div key="sanciones" className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+              <div className="bg-rose-600 px-5 py-3 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <ShieldAlert size={16} className="text-white flex-shrink-0" />
+                  <h3 className="text-white font-semibold text-sm truncate">Alumnado Expulsado — En Curso y Próximas</h3>
+                </div>
+                {sancionesEnCursoCount > 0 && (
+                  <span className="bg-white/25 text-white text-xs font-bold px-2.5 py-0.5 rounded-full flex-shrink-0">
+                    {sancionesEnCursoCount} en curso
+                  </span>
+                )}
+              </div>
+              {sancionesVigentes.length === 0 ? (
+                <p className="text-center text-gray-400 text-sm py-8">No hay expulsiones en curso ni próximas</p>
+              ) : (
+                <>
+                  <div className="hidden sm:grid grid-cols-[1fr_auto_auto_auto] gap-x-4 px-5 py-2 bg-gray-50 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
+                    <span>Alumno/a</span>
+                    <span className="w-16 text-center">Inicio</span>
+                    <span className="w-16 text-center">Fin</span>
+                    <span className="w-20 text-center">Estado</span>
+                  </div>
+                  <ul className="divide-y divide-gray-50">
+                    {sancionesVigentes.map((s) => {
+                      const enCurso = s.fecha_inicio <= todayStr;
+                      return (
+                        <li
+                          key={s.id}
+                          className="px-5 py-3 grid grid-cols-[1fr_auto] sm:grid-cols-[1fr_auto_auto_auto] items-center gap-x-4 gap-y-1"
+                        >
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-gray-900 truncate">{s.alumno}</p>
+                            {s.unidad && <p className="text-xs font-medium text-blue-600 truncate">{s.unidad}</p>}
+                          </div>
+                          <span className="hidden sm:block w-16 text-center text-sm text-gray-600 tabular-nums">
+                            {formatFechaCorta(s.fecha_inicio)}
+                          </span>
+                          <span className="hidden sm:block w-16 text-center text-sm text-gray-600 tabular-nums">
+                            {formatFechaCorta(s.fecha_fin)}
+                          </span>
+                          <span className="sm:w-20 flex justify-end sm:justify-center">
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap ${enCurso ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"}`}>
+                              {enCurso ? "En curso" : "Próxima"}
+                            </span>
+                          </span>
+                          {/* Mobile: dates on their own line below the name */}
+                          <p className="sm:hidden col-span-2 text-xs text-gray-500 tabular-nums">
+                            {formatFechaCorta(s.fecha_inicio)} → {formatFechaCorta(s.fecha_fin)}
+                          </p>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </>
+              )}
+            </div>
+          );
+        }
 
         if (showAnuncios) {
           widgets.push(

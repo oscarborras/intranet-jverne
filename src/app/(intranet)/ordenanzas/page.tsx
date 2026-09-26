@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import OrdenanzasClient from "./OrdenanzasClient";
+import { todayMadrid } from "@/lib/dates";
 
 export const dynamic = "force-dynamic";
 
@@ -27,8 +28,7 @@ export default async function OrdenanzasPage() {
   const allowed = roleNames.some((r) => ["Admin", "Directiva", "Ordenanza"].includes(r));
   if (!allowed) redirect("/dashboard");
 
-  const now = new Date();
-  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  const todayStr = todayMadrid();
 
   const admin = createAdminClient();
 

@@ -4,6 +4,7 @@ import { CatalogoLibrosClient } from "./CatalogoLibrosClient";
 
 export const metadata = { title: "Inventario de libros" };
 import type { LibroCatalogo, PrestamoLibro } from "@/lib/types";
+import { nowMadridParts } from "@/lib/dates";
 
 export default async function CatalogoLibrosPage() {
   const supabase = await createClient();
@@ -22,8 +23,8 @@ export default async function CatalogoLibrosPage() {
 
   if (!canManage) redirect("/gratuidad-libros");
 
-  const now = new Date();
-  const fallbackYear = now.getMonth() >= 8 ? now.getFullYear() : now.getFullYear() - 1;
+  const now = nowMadridParts();
+  const fallbackYear = now.month >= 9 ? now.year : now.year - 1;
   const fallbackCurso = `${fallbackYear}-${fallbackYear + 1}`;
 
   const { data: cursoConfigData } = await supabase

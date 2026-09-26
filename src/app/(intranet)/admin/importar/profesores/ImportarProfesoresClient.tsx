@@ -12,6 +12,7 @@ import {
   parseProfesoresCsv, calcularDiff, CsvFormatError, ETIQUETA_CAMPO,
   type ProfesorDbRow, type DiffImportacion, type CampoImportable,
 } from "@/lib/import/profesores";
+import { todayMadrid } from "@/lib/dates";
 
 interface Props {
   profesores: ProfesorDbRow[];
@@ -32,11 +33,6 @@ interface Resultado {
   insertados: number;
   bajas: number;
   errores: string[];
-}
-
-function localDateISO(): string {
-  const d = new Date();
-  return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, "0"), String(d.getDate()).padStart(2, "0")].join("-");
 }
 
 function formatFecha(iso: string | null): string {
@@ -99,7 +95,7 @@ export function ImportarProfesoresClient({ profesores, ultimaImportacion }: Prop
     try {
       const texto = await leerTexto(file);
       const filas = parseProfesoresCsv(texto);
-      const d = calcularDiff(filas, profesores, localDateISO());
+      const d = calcularDiff(filas, profesores, todayMadrid());
       setDiff(d);
       setSelActualizar(new Set(d.actualizar.map((f) => f.id)));
       setSelNuevos(new Set(d.nuevos.map((f) => f.clave)));
@@ -123,7 +119,7 @@ export function ImportarProfesoresClient({ profesores, ultimaImportacion }: Prop
 
   // The Séneca account is not the intranet login, so every new professor needs one typed by hand.
   // Los cesados/inactivos no necesitan acceso a la intranet, así que no se piden aquí.
-  const hoy = localDateISO();
+  const hoy = todayMadrid();
   const esActivo = (p: ProfesorDbRow) => p.fecha_cese === null || p.fecha_cese > hoy;
   const faltanEmail = diff
     ? [

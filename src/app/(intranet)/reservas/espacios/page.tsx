@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { ReservaEspaciosClient } from "./ReservaEspaciosClient";
 import type { Espacio, ReservaEspacio, TramoHorario } from "@/lib/types";
+import { nowMadridParts, monthRange } from "@/lib/dates";
 
 export const dynamic = "force-dynamic";
 
@@ -11,11 +12,8 @@ export default async function ReservaEspaciosPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const today = new Date();
-  const year = today.getFullYear();
-  const month = today.getMonth() + 1;
-  const firstDay = `${year}-${String(month).padStart(2, "0")}-01`;
-  const lastDay = `${year}-${String(month).padStart(2, "0")}-${String(new Date(year, month, 0).getDate()).padStart(2, "0")}`;
+  const { year, month } = nowMadridParts();
+  const { firstDay, lastDay } = monthRange(year, month);
 
   const [{ data: espacios }, { data: reservas }, { data: tramos }, { data: horarioTardeRows }] = await Promise.all([
     supabase.from("espacios").select("*").eq("activo", true).order("id"),

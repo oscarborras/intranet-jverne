@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { todayMadrid } from "@/lib/dates";
 
 const CAMPOS_PERMITIDOS = [
   "alumno", "estado_matricula", "nie", "unidad",
@@ -23,11 +24,6 @@ function limpiarPatch(patch: Record<string, unknown>): Partial<Record<CampoPermi
     else if (typeof valor === "string") out[campo] = valor.trim() || null;
   }
   return out;
-}
-
-function localDateISO(): string {
-  const d = new Date();
-  return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, "0"), String(d.getDate()).padStart(2, "0")].join("-");
 }
 
 // PostgREST recibe el filtro .in() en la URL: con muchos ids de golpe supera el
@@ -134,7 +130,7 @@ export async function POST(req: NextRequest) {
 
   await admin
     .from("config_intranet")
-    .update({ valor: localDateISO(), updated_at: new Date().toISOString() })
+    .update({ valor: todayMadrid(), updated_at: new Date().toISOString() })
     .eq("clave", "ultima_importacion_alumnos");
 
   return NextResponse.json({

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendNuevaSolicitudEmail } from "@/lib/email";
+import { nowMadridParts } from "@/lib/dates";
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
@@ -47,7 +48,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Error al crear la solicitud" }, { status: 500 });
   }
 
-  const year = new Date().getFullYear();
+  const { year } = nowMadridParts();
   const codigo = `CF-${year}-${String(inserted.id).padStart(4, "0")}`;
 
   await admin.from("citas_familias").update({ codigo }).eq("id", inserted.id);

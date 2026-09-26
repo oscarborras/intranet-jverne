@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { CalendarioClient } from "./CalendarioClient";
 import { resolveAutorNames } from "@/lib/resolveAutorNames";
 import type { CalendarEvento, TipoEventoIntranet, AsuntoPropios, DiaBloqueadoAsuntos } from "@/lib/types";
+import { todayMadrid, nowMadridParts, monthRange } from "@/lib/dates";
 
 export default async function CalendarioPage() {
   const supabase = await createClient();
@@ -10,12 +11,9 @@ export default async function CalendarioPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth() + 1;
-  const firstDay = `${year}-${String(month).padStart(2, "0")}-01`;
-  const lastDay = `${year}-${String(month).padStart(2, "0")}-${String(new Date(year, month, 0).getDate()).padStart(2, "0")}`;
-  const todayStr = `${year}-${String(month).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  const { year, month } = nowMadridParts();
+  const { firstDay, lastDay } = monthRange(year, month);
+  const todayStr = todayMadrid();
 
   const [
     { data: eventos },

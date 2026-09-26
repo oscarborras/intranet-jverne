@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { sendAusenciaRegistradaEmail } from "@/lib/email";
 import { getNotificationEmails, NOTIFICATION_CLAVES } from "@/lib/notifications";
+import { nowMadridParts } from "@/lib/dates";
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
@@ -70,7 +71,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: error?.message ?? "Error al crear ausencia" }, { status: 500 });
   }
 
-  const year = new Date().getFullYear();
+  const { year } = nowMadridParts();
   const codigo = `AUS-${year}-${String(ausencia.id).padStart(4, "0")}`;
   await supabase.from("ausencias_profesorado").update({ codigo }).eq("id", ausencia.id);
 

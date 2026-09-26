@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { AnunciosClient } from "./AnunciosClient";
 import type { Anuncio, Perfil } from "@/lib/types";
+import { todayMadrid } from "@/lib/dates";
 
 export default async function AnunciosPage() {
   const supabase = await createClient();
@@ -20,8 +21,7 @@ export default async function AnunciosPage() {
 
   const canManage = roles.some((r) => ["Admin", "Directiva"].includes(r.nombre));
 
-  const _now = new Date();
-  const todayStr = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, "0")}-${String(_now.getDate()).padStart(2, "0")}`;
+  const todayStr = todayMadrid();
 
   // Managers see all announcements (including expired) to allow editing/deletion.
   // Regular users only see announcements that have not yet expired.

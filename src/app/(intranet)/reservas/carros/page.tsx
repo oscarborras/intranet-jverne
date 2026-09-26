@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { ReservaCarrosClient } from "./ReservaCarrosClient";
 import type { Carro, ReservaCarro, TramoHorario } from "@/lib/types";
+import { nowMadridParts, monthRange } from "@/lib/dates";
 
 export const dynamic = "force-dynamic";
 
@@ -11,11 +12,8 @@ export default async function ReservaCarrosPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const today = new Date();
-  const year = today.getFullYear();
-  const month = today.getMonth() + 1;
-  const firstDay = `${year}-${String(month).padStart(2, "0")}-01`;
-  const lastDay = `${year}-${String(month).padStart(2, "0")}-${String(new Date(year, month, 0).getDate()).padStart(2, "0")}`;
+  const { year, month } = nowMadridParts();
+  const { firstDay, lastDay } = monthRange(year, month);
 
   const [{ data: carros }, { data: reservas }, { data: tramos }] = await Promise.all([
     supabase.from("carros").select("*").eq("activo", true).order("id"),

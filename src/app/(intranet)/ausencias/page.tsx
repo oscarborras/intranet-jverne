@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { AusenciasClient } from "./AusenciasClient";
 import type { AusenciaProfesorado, TramoHorario, Curso } from "@/lib/types";
+import { todayMadrid, addDaysToDateStr } from "@/lib/dates";
 
 export default async function AusenciasPage() {
   const supabase = await createClient();
@@ -21,9 +22,7 @@ export default async function AusenciasPage() {
   const canManageAll = roleNames.some((r) => ["Admin", "Directiva"].includes(r));
 
   // Fetch supporting data for the form
-  const _since = new Date();
-  _since.setDate(_since.getDate() - 60);
-  const sinceStr = `${_since.getFullYear()}-${String(_since.getMonth() + 1).padStart(2, "0")}-${String(_since.getDate()).padStart(2, "0")}`;
+  const sinceStr = addDaysToDateStr(todayMadrid(), -60);
 
   const [{ data: tramos }, { data: cursos }, { data: myProfesorRow }] = await Promise.all([
     supabase.from("tramos_horarios").select("*").order("orden"),
@@ -52,7 +51,7 @@ export default async function AusenciasPage() {
   // Fetch today's absences for guardia view
   let guardiaAusencias: AusenciaProfesorado[] = [];
   if (canViewGuardia) {
-    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Madrid" }).format(new Date());
+    const today = todayMadrid();
     const { data: rawGuardia } = await supabase
       .from("ausencias_profesorado")
       .select("*, tramos_horarios(id, nombre, hora_inicio, hora_fin, es_recreo, orden), cursos(id, nombre, email_tutor)")
@@ -79,7 +78,7 @@ export default async function AusenciasPage() {
   // Fetch active professors for Directiva/Admin selector
   let profesores: { id: string; full_name: string }[] = [];
   if (canManageAll) {
-    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Madrid" }).format(new Date());
+    const today = todayMadrid();
     const { data: profData } = await supabase
       .from("profesores")
       .select("id, profesor")

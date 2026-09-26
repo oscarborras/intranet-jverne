@@ -1,13 +1,14 @@
 import Image from "next/image";
 import { createAdminClient } from "@/lib/supabase/admin";
 import SolicitudCitaForm from "./SolicitudCitaForm";
+import { todayMadrid } from "@/lib/dates";
 
 export const dynamic = "force-dynamic";
 
 export default async function SolicitudCitaPage() {
   const admin = createAdminClient();
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayMadrid();
 
   const { data: profesores } = await admin
     .from("profesores")
