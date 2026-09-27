@@ -5,7 +5,8 @@ import { authorizeApi } from "@/lib/auth";
 export async function PATCH(req: NextRequest) {
   const auth = await authorizeApi();
   if (!auth.ok) return auth.response;
-  const { user } = auth;
+  const { user, roleNames } = auth;
+  const canManageAll = roleNames.some((r) => ["Admin", "Directiva"].includes(r));
   const supabase = await createClient();
 
   const body = await req.json() as {
@@ -30,9 +31,9 @@ export async function PATCH(req: NextRequest) {
     .ilike("email", user.email!)
     .single();
   const myProfesorId = myProfesorRow?.id;
-  if (!myProfesorId) return NextResponse.json({ error: "Profesor no encontrado" }, { status: 403 });
+  if (!myProfesorId && !canManageAll) return NextResponse.json({ error: "Profesor no encontrado" }, { status: 403 });
 
-  const { error } = await supabase
+  let query = supabase
     .from("ausencias_profesorado")
     .update({
       fecha: body.fecha,
@@ -46,10 +47,17 @@ export async function PATCH(req: NextRequest) {
       updated_at: new Date().toISOString(),
     })
     .eq("id", body.id)
-    .eq("profesor_id", myProfesorId)
     .eq("estado", "activa");
 
+  // Directiva/Admin can modify any absence; everyone else only their own
+  if (!canManageAll) query = query.eq("profesor_id", myProfesorId);
+
+  const { data: updated, error } = await query.select("id");
+
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (!updated || updated.length === 0) {
+    return NextResponse.json({ error: "Ausencia no encontrada o no autorizada" }, { status: 404 });
+  }
 
   return NextResponse.json({ success: true });
 }

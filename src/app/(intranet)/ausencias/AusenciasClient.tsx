@@ -110,13 +110,48 @@ function DownloadButton({ path, nombre }: { path: string; nombre: string }) {
 
 // ─── Guardia view ─────────────────────────────────────────────────────────────
 
-function GuardiaView({ initial, initialFecha, tramos, refreshKey }: { initial: AusenciaProfesorado[]; initialFecha: string; tramos: TramoHorario[]; refreshKey: number }) {
+interface GuardiaViewProps {
+  initial: AusenciaProfesorado[];
+  initialFecha: string;
+  tramos: TramoHorario[];
+  refreshKey: number;
+  canManage: boolean;
+  onEdit: (a: AusenciaProfesorado) => void;
+  onCancel: (a: AusenciaProfesorado) => void;
+  cancellingId: number | null;
+}
+
+function GuardiaActions({ a, onEdit, onCancel, cancellingId }: { a: AusenciaProfesorado; onEdit: (a: AusenciaProfesorado) => void; onCancel: (a: AusenciaProfesorado) => void; cancellingId: number | null }) {
+  return (
+    <div className="flex items-center gap-1">
+      <button
+        onClick={() => onEdit(a)}
+        className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
+        title="Modificar ausencia"
+        aria-label="Modificar ausencia"
+      >
+        <Edit2 size={15} />
+      </button>
+      <button
+        onClick={() => onCancel(a)}
+        disabled={cancellingId === a.id}
+        className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+        title="Cancelar ausencia"
+        aria-label="Cancelar ausencia"
+      >
+        {cancellingId === a.id ? <Loader2 size={15} className="animate-spin" /> : <X size={15} />}
+      </button>
+    </div>
+  );
+}
+
+function GuardiaView({ initial, initialFecha, tramos, refreshKey, canManage, onEdit, onCancel, cancellingId }: GuardiaViewProps) {
   const [fecha, setFecha] = useState(initialFecha);
+  const fechaRef = useRef(initialFecha);
   const [ausencias, setAusencias] = useState(initial);
   const [loading, setLoading] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const [filterMode, setFilterMode] = useState<"all" | "current">("all");
-  const isFirstRender = useRef(true);
 
   const loadFecha = useCallback(async (f: string) => {
     setLoading(true);
@@ -155,13 +190,14 @@ function GuardiaView({ initial, initialFecha, tramos, refreshKey }: { initial: A
     return () => clearInterval(id);
   }, [fecha, loadFecha]);
 
-  // Refresh when parent signals a new absence was created
+  // This view is remounted on every tab switch, so `initial` (server data) may be stale.
+  // Reload whenever the parent signals a change (on mount too, if any change happened).
   useEffect(() => {
-    if (isFirstRender.current) { isFirstRender.current = false; return; }
-    loadFecha(fecha);
-  }, [refreshKey, fecha, loadFecha]);
+    if (refreshKey > 0) loadFecha(fechaRef.current);
+  }, [refreshKey, loadFecha]);
 
   function handleFechaChange(f: string) {
+    fechaRef.current = f;
     setFecha(f);
     setFilterMode("all");
     loadFecha(f);
@@ -278,6 +314,7 @@ function GuardiaView({ initial, initialFecha, tramos, refreshKey }: { initial: A
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Aula</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Tareas para el alumnado</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Adjunto</th>
+                  {canManage && <th className="px-4 py-3"><span className="sr-only">Acciones</span></th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -310,6 +347,11 @@ function GuardiaView({ initial, initialFecha, tramos, refreshKey }: { initial: A
                         : <span className="text-gray-300 text-sm">—</span>
                       }
                     </td>
+                    {canManage && (
+                      <td className="px-4 py-3">
+                        <GuardiaActions a={a} onEdit={onEdit} onCancel={onCancel} cancellingId={cancellingId} />
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -320,7 +362,10 @@ function GuardiaView({ initial, initialFecha, tramos, refreshKey }: { initial: A
           <div className="md:hidden divide-y divide-gray-50">
             {displayedAusencias.map((a) => (
               <div key={a.id} className="p-4 space-y-2">
-                <p className="font-semibold text-gray-900 text-sm">{a.profesor?.full_name ?? "—"}</p>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="font-semibold text-gray-900 text-sm">{a.profesor?.full_name ?? "—"}</p>
+                  {canManage && <GuardiaActions a={a} onEdit={onEdit} onCancel={onCancel} cancellingId={cancellingId} />}
+                </div>
                 <div className="flex flex-wrap gap-2 text-xs">
                   <span className="flex items-center gap-1 bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">
                     <Clock size={11} /> {a.tramos_horarios?.nombre}
@@ -383,6 +428,7 @@ export function AusenciasClient({
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [guardiaRefreshKey, setGuardiaRefreshKey] = useState(0);
   const [editing, setEditing] = useState<AusenciaProfesorado | null>(null);
+  const [editReturnTab, setEditReturnTab] = useState<Tab>("mis");
   const [removeAdjunto, setRemoveAdjunto] = useState(false);
   const [filtroTiempo, setFiltroTiempo] = useState<"futuras" | "pasadas">("futuras");
   const [pageSize, setPageSize] = useState(10);
@@ -418,8 +464,16 @@ export function AusenciasClient({
     }));
   }
 
-  function openEdit(a: AusenciaProfesorado) {
+  function closeForm() {
+    setShowForm(false);
+    resetForm();
+    if (editing) setActiveTab(editReturnTab);
+  }
+
+  function openEdit(a: AusenciaProfesorado, returnTab: Tab = "mis") {
     setEditing(a);
+    setEditReturnTab(returnTab);
+    setActiveTab("mis");
     setForm({
       fecha: a.fecha,
       tramo_id: String(a.tramo_id),
@@ -512,9 +566,9 @@ export function AusenciasClient({
       cursos: curso,
       updated_at: new Date().toISOString(),
     } : a));
+    setGuardiaRefreshKey((k) => k + 1);
 
-    resetForm();
-    setShowForm(false);
+    closeForm();
     setSaving(false);
   }
 
@@ -620,13 +674,20 @@ export function AusenciasClient({
   }
 
   function applyCreadas(creadas: AusenciaProfesorado[], targetProfesorId: string) {
+    setGuardiaRefreshKey((k) => k + 1);
     if (targetProfesorId === myProfesorId) {
       setMisAusencias((prev) => [...creadas, ...prev]);
       setActiveTab("mis");
     } else {
-      setGuardiaRefreshKey((k) => k + 1);
       setActiveTab("guardia");
     }
+  }
+
+  async function handleCancelFromGuardia(a: AusenciaProfesorado) {
+    const nombre = a.profesor?.full_name ?? "este profesor/a";
+    const tramo = a.tramos_horarios?.nombre ?? `tramo ${a.tramo_id}`;
+    if (!window.confirm(`¿Cancelar la ausencia de ${nombre} (${formatFecha(a.fecha)}, ${tramo})?`)) return;
+    await handleCancel(a.id);
   }
 
   async function handleCancel(id: number) {
@@ -640,6 +701,7 @@ export function AusenciasClient({
       setMisAusencias((prev) =>
         prev.map((a) => (a.id === id ? { ...a, estado: "cancelada" as const } : a))
       );
+      setGuardiaRefreshKey((k) => k + 1);
     }
     setCancellingId(null);
   }
@@ -712,7 +774,16 @@ export function AusenciasClient({
 
       {/* ── Vista Guardia ── */}
       {activeTab === "guardia" && guardiaAusencias !== null && (
-        <GuardiaView initial={guardiaAusencias} initialFecha={today} tramos={tramos} refreshKey={guardiaRefreshKey} />
+        <GuardiaView
+          initial={guardiaAusencias}
+          initialFecha={today}
+          tramos={tramos}
+          refreshKey={guardiaRefreshKey}
+          canManage={canManageAll}
+          onEdit={(a) => openEdit(a, "guardia")}
+          onCancel={handleCancelFromGuardia}
+          cancellingId={cancellingId}
+        />
       )}
 
       {/* ── Mis Ausencias ── */}
@@ -727,9 +798,12 @@ export function AusenciasClient({
                   {editing ? <Edit2 size={16} className="text-white" /> : <Plus size={16} className="text-white" />}
                   <h2 className="text-white font-semibold text-sm">
                     {editing ? "Modificar ausencia" : "Registrar nueva ausencia"}
+                    {editing && editing.profesor_id !== myProfesorId && editing.profesor?.full_name && (
+                      <span className="font-normal"> · {editing.profesor.full_name}</span>
+                    )}
                   </h2>
                 </div>
-                <button onClick={() => { setShowForm(false); resetForm(); }}>
+                <button onClick={closeForm} aria-label="Cerrar formulario">
                   <X size={18} className="text-white/80 hover:text-white" />
                 </button>
               </div>
@@ -1031,7 +1105,7 @@ export function AusenciasClient({
 
                 <div className="flex justify-end gap-2 pt-1">
                   <button
-                    onClick={() => { setShowForm(false); resetForm(); }}
+                    onClick={closeForm}
                     className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
                   >
                     Cancelar
