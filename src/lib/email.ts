@@ -171,20 +171,25 @@ export async function sendCanceladaProfesorEmail(p: CancelProfesorParams) {
 
 // ─── Ausencias ────────────────────────────────────────────────────────────────
 
-interface AusenciaRegistradaParams {
-  recipientEmails: string[];
-  profesorNombre: string;
+export interface AusenciaRegistradaTramo {
   codigo: string;
-  fecha: string;
   tramoNombre: string;
   cursoNombre: string | null;
   aula: string | null;
   tareas: string | null;
+}
+
+interface AusenciaRegistradaParams {
+  recipientEmails: string[];
+  profesorNombre: string;
+  fecha: string;
   observaciones: string | null;
+  /** All absences registered for this teacher and date in a single submission */
+  tramos: AusenciaRegistradaTramo[];
 }
 
 export async function sendAusenciaRegistradaEmail(p: AusenciaRegistradaParams) {
-  if (p.recipientEmails.length === 0) return;
+  if (p.recipientEmails.length === 0 || p.tramos.length === 0) return;
 
   const fechaFormateada = new Date(p.fecha + "T00:00:00").toLocaleDateString("es-ES", {
     weekday: "long",
@@ -192,22 +197,30 @@ export async function sendAusenciaRegistradaEmail(p: AusenciaRegistradaParams) {
     month: "long",
     day: "numeric",
   });
+  const profesor = escapeHtml(p.profesorNombre);
+  const multiple = p.tramos.length > 1;
+
+  const tramosHtml = p.tramos.map((t) => `
+    <table cellpadding="0" cellspacing="0" style="width:100%;border-top:1px solid #e5e7eb;padding-top:12px;margin-top:12px;">
+      ${row("Tramo", `<strong>${escapeHtml(t.tramoNombre)}</strong>`)}
+      ${row("Código", escapeHtml(t.codigo))}
+      ${t.cursoNombre ? row("Curso / Grupo", escapeHtml(t.cursoNombre)) : ""}
+      ${t.aula ? row("Aula", escapeHtml(t.aula)) : ""}
+      ${t.tareas ? row("Tareas", escapeHtml(t.tareas).replace(/\n/g, "<br>")) : ""}
+    </table>
+  `).join("");
 
   const body = baseLayout(`
-    <h2 style="margin:0 0 8px;font-size:20px;color:#111827;">Nueva ausencia registrada</h2>
-    <p style="margin:0 0 24px;color:#6b7280;font-size:14px;">
-      <strong>${p.profesorNombre}</strong> ha registrado una ausencia para el ${fechaFormateada}.
+    <h2 style="margin:0 0 8px;font-size:20px;color:#111827;">${multiple ? "Nuevas ausencias registradas" : "Nueva ausencia registrada"}</h2>
+    <p style="margin:0 0 16px;color:#6b7280;font-size:14px;">
+      <strong>${profesor}</strong> ha registrado ${multiple ? `ausencias en ${p.tramos.length} tramos` : "una ausencia"} para el ${fechaFormateada}.
     </p>
     <table cellpadding="0" cellspacing="0" style="width:100%;border-top:1px solid #e5e7eb;padding-top:16px;">
-      ${row("Código", p.codigo)}
-      ${row("Profesor/a", p.profesorNombre)}
+      ${row("Profesor/a", profesor)}
       ${row("Fecha", fechaFormateada)}
-      ${row("Tramo", p.tramoNombre)}
-      ${p.cursoNombre ? row("Curso / Grupo", p.cursoNombre) : ""}
-      ${p.aula ? row("Aula", p.aula) : ""}
-      ${p.tareas ? row("Tareas", p.tareas) : ""}
-      ${p.observaciones ? row("Observaciones", p.observaciones) : ""}
+      ${p.observaciones ? row("Observaciones", escapeHtml(p.observaciones).replace(/\n/g, "<br>")) : ""}
     </table>
+    ${tramosHtml}
     <a href="${SITE_URL}/ausencias" style="display:inline-block;margin-top:24px;padding:10px 20px;background:#1e40af;color:#fff;border-radius:6px;text-decoration:none;font-size:14px;font-weight:500;">
       Ver en la intranet →
     </a>
@@ -216,7 +229,7 @@ export async function sendAusenciaRegistradaEmail(p: AusenciaRegistradaParams) {
   return resend.emails.send({
     from: FROM,
     to: p.recipientEmails,
-    subject: `Ausencia registrada – ${p.profesorNombre} – ${fechaFormateada}`,
+    subject: `${multiple ? "Ausencias registradas" : "Ausencia registrada"} – ${p.profesorNombre} – ${fechaFormateada}`,
     html: body,
   });
 }

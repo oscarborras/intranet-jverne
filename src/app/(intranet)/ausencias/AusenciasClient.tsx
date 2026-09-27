@@ -598,7 +598,17 @@ export function AusenciasClient({
 
     const targetProfesorId = canManageAll && form.profesor_id ? form.profesor_id : (myProfesorId ?? userId);
     const supabase = createClient();
-    const creadas: AusenciaProfesorado[] = [];
+    // Upload every attachment first, then create all slots in a single request
+    // so the server sends one notification email for the whole day
+    const tramosPayload: {
+      tramo_id: number;
+      curso_id: number;
+      aula: string | null;
+      tareas: string | null;
+      adjunto_path: string | null;
+      adjunto_nombre: string | null;
+    }[] = [];
+    const uploadedPaths: string[] = [];
 
     for (const tramoId of tramoIds) {
       const sel = tramosSeleccionados[tramoId];
@@ -611,61 +621,72 @@ export function AusenciasClient({
         const storagePath = `${userId}/${Date.now()}-${tramoId}-${safeName}`;
         const { error: uploadError } = await supabase.storage.from("ausencias").upload(storagePath, sel.adjunto);
         if (uploadError) {
+          if (uploadedPaths.length > 0) await supabase.storage.from("ausencias").remove(uploadedPaths);
           setFormError(`Error al subir el fichero de "${tramoNombre}". Inténtalo de nuevo.`);
           setSaving(false);
-          if (creadas.length > 0) applyCreadas(creadas, targetProfesorId);
           return;
         }
+        uploadedPaths.push(storagePath);
         adjunto_path = storagePath;
         adjunto_nombre = sel.adjunto.name;
       }
 
-      const res = await fetch("/api/ausencias/crear", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fecha: form.fecha,
-          tramo_id: tramoId,
-          curso_id: Number(sel.curso_id),
-          aula: sel.aula || null,
-          tareas: sel.tareas || null,
-          observaciones: form.observaciones || null,
-          adjunto_path,
-          adjunto_nombre,
-          profesor_id: targetProfesorId,
-        }),
-      });
-
-      const json = await res.json() as { success?: boolean; id?: number; codigo?: string; error?: string };
-
-      if (!res.ok || !json.success) {
-        setFormError(`Error al registrar "${tramoNombre}": ${json.error ?? "error desconocido"}.`);
-        setSaving(false);
-        if (creadas.length > 0) applyCreadas(creadas, targetProfesorId);
-        return;
-      }
-
-      const tramo = tramos.find((t) => t.id === tramoId);
-      const curso = cursos.find((c) => c.id === Number(sel.curso_id)) ?? null;
-      creadas.push({
-        id: json.id!,
-        codigo: json.codigo ?? null,
-        profesor_id: targetProfesorId,
-        fecha: form.fecha,
+      tramosPayload.push({
         tramo_id: tramoId,
         curso_id: Number(sel.curso_id),
         aula: sel.aula || null,
         tareas: sel.tareas || null,
-        observaciones: form.observaciones || null,
         adjunto_path,
         adjunto_nombre,
-        estado: "activa",
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        tramos_horarios: tramo,
-        cursos: curso,
       });
     }
+
+    const res = await fetch("/api/ausencias/crear", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        fecha: form.fecha,
+        observaciones: form.observaciones || null,
+        profesor_id: targetProfesorId,
+        tramos: tramosPayload,
+      }),
+    });
+
+    const json = await res.json() as {
+      success?: boolean;
+      creadas?: { id: number; codigo: string; tramo_id: number }[];
+      error?: string;
+    };
+
+    if (!res.ok || !json.success || !json.creadas) {
+      if (uploadedPaths.length > 0) await supabase.storage.from("ausencias").remove(uploadedPaths);
+      setFormError(`Error al registrar la ausencia: ${json.error ?? "error desconocido"}.`);
+      setSaving(false);
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const creadas: AusenciaProfesorado[] = json.creadas.map((c) => {
+      const t = tramosPayload.find((p) => p.tramo_id === c.tramo_id)!;
+      return {
+        id: c.id,
+        codigo: c.codigo,
+        profesor_id: targetProfesorId,
+        fecha: form.fecha,
+        tramo_id: t.tramo_id,
+        curso_id: t.curso_id,
+        aula: t.aula,
+        tareas: t.tareas,
+        observaciones: form.observaciones || null,
+        adjunto_path: t.adjunto_path,
+        adjunto_nombre: t.adjunto_nombre,
+        estado: "activa",
+        created_at: now,
+        updated_at: now,
+        tramos_horarios: tramos.find((tr) => tr.id === t.tramo_id),
+        cursos: cursos.find((cu) => cu.id === t.curso_id) ?? null,
+      };
+    });
 
     applyCreadas(creadas, targetProfesorId);
     resetForm();
