@@ -8,7 +8,6 @@ import {
   Megaphone,
   Monitor,
   Wrench,
-  PlusCircle,
   Building2,
   BookOpen,
   Laptop,
@@ -19,6 +18,7 @@ import {
   Settings,
   CalendarClock,
   UserX,
+  Clock,
   BookMarked,
   Upload,
 } from "lucide-react";
@@ -32,6 +32,7 @@ interface NavItem {
   icon: React.ReactNode;
   roles?: string[];
   slug?: string; // matches modulos_config.slug — hidden when inactive (unless admin)
+  urlKey?: string; // embedded external web: hidden until Configuración → URLs sets externalUrls[key]
 }
 
 interface NavGroup {
@@ -49,12 +50,12 @@ const navGroups: NavGroup[] = [
       { label: "Tablón de Anuncios", href: "/anuncios", icon: <Megaphone size={18} />, slug: "anuncios" },
       { label: "Citas con Familias", href: "/citas-familias", icon: <CalendarClock size={18} />, slug: "citas-familias" },
       { label: "Ausencias", href: "/ausencias", icon: <UserX size={18} />, slug: "ausencias" },
+      { label: "Horarios", href: "/horarios", icon: <Clock size={18} />, urlKey: "horarios" },
     ],
   },
   {
     title: "PETICIONES",
     items: [
-      { label: "Nueva incidencia", href: "/nueva-incidencia", icon: <PlusCircle size={18} /> },
       { label: "Peticiones TIC", href: "/peticiones-tic", icon: <Monitor size={18} />, slug: "peticiones-tic" },
       { label: "Peticiones Mantenimiento", href: "/peticiones-mantenimiento", icon: <Wrench size={18} />, slug: "peticiones-mantenimiento" },
     ],
@@ -96,10 +97,12 @@ interface SidebarProps {
   userRoles: Perfil[];
   userName: string;
   inactiveModuleSlugs: string[];
+  /** Configuración → URLs, keyed without the "url_" prefix */
+  externalUrls: Record<string, string>;
   version: string;
 }
 
-export function Sidebar({ userRoles, userName, inactiveModuleSlugs, version }: SidebarProps) {
+export function Sidebar({ userRoles, userName, inactiveModuleSlugs, externalUrls, version }: SidebarProps) {
   const pathname = usePathname();
   const roleNames = userRoles.map((r) => r.nombre);
   const isAdmin = roleNames.includes("Admin");
@@ -202,6 +205,9 @@ export function Sidebar({ userRoles, userName, inactiveModuleSlugs, version }: S
                       return null;
                     }
                     if (item.slug && !isAdmin && inactiveModuleSlugs.includes(item.slug)) {
+                      return null;
+                    }
+                    if (item.urlKey && !externalUrls[item.urlKey]) {
                       return null;
                     }
                     const active = isActive(item.href);

@@ -9,6 +9,7 @@ import { NextResponse } from "next/server";
 import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import type { Perfil } from "@/lib/types";
+import { EXTERNO_ENTRAR, isTecnicoExterno } from "@/lib/externo";
 
 export interface AuthContext {
   user: User;
@@ -52,6 +53,9 @@ export async function requireUser(): Promise<User> {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   if (isStudentAccount(user)) redirect("/acceso-denegado");
+  // External technicians only use their portal, never the intranet. They can still hold a
+  // Supabase session if they signed in before being listed: convert it instead of looping.
+  if (await isTecnicoExterno(user.email)) redirect(EXTERNO_ENTRAR);
   return user;
 }
 
@@ -81,6 +85,9 @@ export async function authorizeApi(allowed?: string[]): Promise<ApiAuthResult> {
   const user = await getCurrentUser();
   if (!user || isStudentAccount(user)) {
     return { ok: false, response: NextResponse.json({ error: "No autorizado" }, { status: 401 }) };
+  }
+  if (await isTecnicoExterno(user.email)) {
+    return { ok: false, response: NextResponse.json({ error: "No autorizado" }, { status: 403 }) };
   }
   const roles = await getUserRoles(user.id);
   const roleNames = roles.map((r) => r.nombre);

@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Settings, Save, CheckCircle, AlertCircle, SlidersHorizontal, UserX, BookOpen, ChevronDown, Bell, Landmark } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Settings, Save, CheckCircle, AlertCircle, SlidersHorizontal, UserX, BookOpen, ChevronDown, Bell, Landmark, Link2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { CARGOS_DIRECTIVOS, type CargoDirectivo, type CargoDirectivoClave, type ConfigIntranet, type Perfil } from "@/lib/types";
 
@@ -34,7 +35,12 @@ const LABELS: Record<string, string> = {
   dias_vista_finalizadas:        "Días visibles de peticiones finalizadas",
   horario_tarde_inicio:          "Inicio del horario de tarde (reservas de espacios)",
   horario_tarde_fin:             "Fin del horario de tarde (reservas de espacios)",
+  url_horarios:                  "Horarios",
+  tecnicos_externos_mantenimiento: "Técnicos externos de mantenimiento (emails del centro separados por comas; solo acceden al portal de mantenimiento)",
 };
+
+// Claves under the "URLs" tab: external webs embedded from the side menu (see lib/externalUrls.ts)
+const isUrlClave = (clave: string) => clave.startsWith("url_");
 
 // Claves that store a time of day as HH:MM
 const TIME_CLAVES = new Set(["horario_tarde_inicio", "horario_tarde_fin"]);
@@ -103,7 +109,7 @@ function inputToDdmmyyyy(val: string): string {
   return `${d}/${m}/${y}`;
 }
 
-type Tab = "asuntos_propios" | "otros" | "gratuidad_libros" | "notificaciones" | "cargos";
+type Tab = "asuntos_propios" | "otros" | "gratuidad_libros" | "notificaciones" | "cargos" | "urls";
 
 interface TabAccent {
   header: string;
@@ -147,6 +153,14 @@ const TAB_ACCENTS: Record<Tab, TabAccent> = {
     checked: "border-indigo-300 bg-indigo-50",
     checkbox: "accent-indigo-600",
   },
+  urls: {
+    header: "bg-teal-50 border-teal-100",
+    iconChip: "bg-teal-100 text-teal-700",
+    activeTab: "text-teal-700",
+    cardBorder: "border-l-teal-400",
+    checked: "border-teal-300 bg-teal-50",
+    checkbox: "accent-teal-600",
+  },
   otros: {
     header: "bg-sky-50 border-sky-100",
     iconChip: "bg-sky-100 text-sky-700",
@@ -158,6 +172,7 @@ const TAB_ACCENTS: Record<Tab, TabAccent> = {
 };
 
 export function ConfiguracionClient({ config, perfiles, cargos, profesores }: Props) {
+  const router = useRouter();
   // Local state: clave → current valor (in input format for dates)
   const [values, setValues] = useState<Record<string, string>>(() => {
     const init: Record<string, string> = {};
@@ -205,7 +220,11 @@ export function ConfiguracionClient({ config, perfiles, cargos, profesores }: Pr
 
     const results = await Promise.all([...updates, ...cargoUpdates]);
     const hasError = results.some((r) => r.error);
-    if (!hasError) setSavedCargos(cargoValues);
+    if (!hasError) {
+      setSavedCargos(cargoValues);
+      // Re-render the layout so the side menu picks up changed URLs
+      router.refresh();
+    }
 
     setSaving(false);
     setStatus(hasError ? "error" : "success");
@@ -220,11 +239,13 @@ export function ConfiguracionClient({ config, perfiles, cargos, profesores }: Pr
     .sort((a, b) => ASUNTOS_ORDER.indexOf(a.clave) - ASUNTOS_ORDER.indexOf(b.clave));
   const gratuidadRows = config.filter((r) => GRATUIDAD_CLAVES.has(r.clave));
   const notificacionRows = config.filter((r) => NOTIFICACION_CLAVES.has(r.clave));
+  const urlRows = config.filter((r) => isUrlClave(r.clave));
   const otherRows = config.filter(
     (r) =>
       !asuntosRows.includes(r) &&
       !gratuidadRows.includes(r) &&
       !notificacionRows.includes(r) &&
+      !urlRows.includes(r) &&
       !HIDDEN_CLAVES.has(r.clave)
   );
 
@@ -390,6 +411,20 @@ export function ConfiguracionClient({ config, perfiles, cargos, profesores }: Pr
               setValues((v) => ({ ...v, [row.clave]: e.target.value }))
             }
           />
+        ) : isUrlClave(row.clave) ? (
+          <input
+            type="url"
+            inputMode="url"
+            placeholder="https://..."
+            pattern="https://.*"
+            title="La dirección debe empezar por https://"
+            aria-label={label}
+            className="w-full min-h-11 bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            value={values[row.clave] ?? ""}
+            onChange={(e) =>
+              setValues((v) => ({ ...v, [row.clave]: e.target.value }))
+            }
+          />
         ) : (
           <input
             type="text"
@@ -461,6 +496,13 @@ export function ConfiguracionClient({ config, perfiles, cargos, profesores }: Pr
       icon: <Landmark size={15} />,
       rows: [],
       description: "Persona que ocupa cada cargo. Las familias pueden pedir cita con el cargo y la solicitud le llega a esa persona. Al cambiarla, las citas ya solicitadas se quedan con quien las recibió.",
+    },
+    {
+      id: "urls" as Tab,
+      label: "URLs",
+      icon: <Link2 size={15} />,
+      rows: urlRows,
+      description: "Webs externas que se ven dentro de la intranet desde el menú lateral. La dirección debe empezar por https://; deja el campo vacío para ocultar la opción.",
     },
     {
       id: "otros" as Tab,

@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies, headers } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
+import { EXTERNO_HOME, iniciarSesionExterna, isTecnicoExterno } from "@/lib/externo";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -41,6 +42,12 @@ export async function GET(request: NextRequest) {
           await createAdminClient().auth.admin.deleteUser(user.id);
         }
         return NextResponse.redirect(`${origin}/acceso-denegado`);
+      }
+      // External maintenance technician: replace the Supabase session with the portal's own
+      // httpOnly cookie, so their browser never holds a database token
+      if (user?.email && (await isTecnicoExterno(user.email))) {
+        await iniciarSesionExterna(supabase, { ...user, email: user.email });
+        return NextResponse.redirect(`${origin}${EXTERNO_HOME}`);
       }
       return NextResponse.redirect(`${origin}${next}`);
     }

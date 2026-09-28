@@ -14,7 +14,6 @@ import {
   Megaphone,
   Monitor,
   Wrench,
-  PlusCircle,
   Building2,
   BookOpen,
   Laptop,
@@ -24,6 +23,7 @@ import {
   Settings,
   CalendarClock,
   UserX,
+  Clock,
   BookMarked,
   Upload,
 } from "lucide-react";
@@ -36,6 +36,8 @@ interface HeaderProps {
   userEmail: string;
   userRoles: Perfil[];
   inactiveModuleSlugs: string[];
+  /** Configuración → URLs, keyed without the "url_" prefix */
+  externalUrls: Record<string, string>;
   version: string;
 }
 
@@ -45,6 +47,7 @@ interface NavItem {
   icon: React.ReactNode;
   roles?: string[];
   slug?: string;
+  urlKey?: string; // embedded external web: hidden until Configuración → URLs sets externalUrls[key]
 }
 
 interface NavGroup {
@@ -62,12 +65,12 @@ const navGroups: NavGroup[] = [
       { label: "Tablón de Anuncios", href: "/anuncios", icon: <Megaphone size={18} />, slug: "anuncios" },
       { label: "Citas con Familias", href: "/citas-familias", icon: <CalendarClock size={18} />, slug: "citas-familias" },
       { label: "Ausencias", href: "/ausencias", icon: <UserX size={18} />, slug: "ausencias" },
+      { label: "Horarios", href: "/horarios", icon: <Clock size={18} />, urlKey: "horarios" },
     ],
   },
   {
     title: "PETICIONES",
     items: [
-      { label: "Nueva incidencia", href: "/nueva-incidencia", icon: <PlusCircle size={18} /> },
       { label: "Peticiones TIC", href: "/peticiones-tic", icon: <Monitor size={18} />, slug: "peticiones-tic" },
       { label: "Peticiones Mantenimiento", href: "/peticiones-mantenimiento", icon: <Wrench size={18} />, slug: "peticiones-mantenimiento" },
     ],
@@ -105,7 +108,7 @@ const navGroups: NavGroup[] = [
   },
 ];
 
-export function Header({ userName, userEmail, userRoles, inactiveModuleSlugs, version }: HeaderProps) {
+export function Header({ userName, userEmail, userRoles, inactiveModuleSlugs, externalUrls, version }: HeaderProps) {
   const router = useRouter();
   const pathname = usePathname();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -292,7 +295,8 @@ export function Header({ userName, userEmail, userRoles, inactiveModuleSlugs, ve
                 const visibleItems = group.items.filter(
                   (item) =>
                     (!item.roles || item.roles.some((r) => roleNames.includes(r)) || isAdmin) &&
-                    (!item.slug || isAdmin || !inactiveModuleSlugs.includes(item.slug))
+                    (!item.slug || isAdmin || !inactiveModuleSlugs.includes(item.slug)) &&
+                    (!item.urlKey || Boolean(externalUrls[item.urlKey]))
                 );
                 if (visibleItems.length === 0) return null;
                 return (

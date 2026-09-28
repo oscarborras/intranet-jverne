@@ -3,11 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import Link from "next/link";
-import { Wrench, Plus, Camera, X, BarChart3 } from "lucide-react";
+import { Wrench, Plus, Camera, X, BarChart3, MessageSquare } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { KanbanBoard } from "@/components/kanban/KanbanBoard";
 import { KanbanFilters } from "@/components/kanban/KanbanFilters";
 import { useKanbanFilters } from "@/components/kanban/useKanbanFilters";
+import { useAutoRefresh } from "@/lib/useAutoRefresh";
 import { filterKanbanItems, isKanbanFilterActive } from "@/lib/kanbanFilters";
 import { VerFotoButton } from "@/components/VerFotoButton";
 import { uploadIncidenciaFoto } from "@/lib/uploadIncidenciaFoto";
@@ -25,7 +26,6 @@ const COLUMNS: ColumnConfig<PeticionMantenimientoEstado>[] = [
 interface Props {
   initialPeticiones: PeticionMantenimiento[];
   canValidate: boolean;
-  isAdmin: boolean;
   userId: string;
   myDisplayName: string;
   diasVistaFinalizadas: number;
@@ -41,19 +41,42 @@ interface FormState {
 
 const EMPTY_FORM: FormState = { titulo: "", descripcion: "", ubicacion: "", prioridad: "normal" };
 
+// Notes written by external technicians from their portal (read-only here)
+interface NotaMantenimiento {
+  id: number;
+  autor_nombre: string;
+  contenido: string;
+  created_at: string;
+}
+
+const notaDateFormatter = new Intl.DateTimeFormat("es-ES", {
+  day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Madrid",
+});
+
 export function PeticionesMantenimientoClient({
-  initialPeticiones, canValidate, isAdmin, userId, myDisplayName, diasVistaFinalizadas, finalizadasAntiguas,
+  initialPeticiones, canValidate, userId, myDisplayName, diasVistaFinalizadas, finalizadasAntiguas,
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [peticiones, setPeticiones] = useState<PeticionMantenimiento[]>(initialPeticiones);
+
+  // Keep the board current (e.g. changes made by the external technician from the portal):
+  // refresh the server data every minute and when coming back to the tab, then adopt it
+  useAutoRefresh();
+  useEffect(() => {
+    setPeticiones(initialPeticiones);
+  }, [initialPeticiones]);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<PeticionMantenimiento | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [foto, setFoto] = useState<File | null>(null);
   const fotoInputRef = useRef<HTMLInputElement>(null);
   const [saving, setSaving] = useState(false);
+  const [notas, setNotas] = useState<NotaMantenimiento[]>([]);
+  const [formError, setFormError] = useState<string | null>(null);
+  // Status chosen in the edit modal (only shown to Admin/Directiva)
+  const [estado, setEstado] = useState<PeticionMantenimientoEstado>("por_validar");
 
   useEffect(() => {
     if (searchParams.get("nueva") === "1") {
@@ -66,6 +89,7 @@ export function PeticionesMantenimientoClient({
   }, []);
 
   function closeForm() {
+    setFormError(null);
     setShowForm(false);
     setEditing(null);
     setForm(EMPTY_FORM);
@@ -74,13 +98,21 @@ export function PeticionesMantenimientoClient({
   }
 
   function canEditItem(item: KanbanItem): boolean {
-    return isAdmin || item.autor_id === userId;
+    return canValidate || item.autor_id === userId;
   }
 
   function openEdit(item: PeticionMantenimiento) {
     setEditing(item);
     setForm({ titulo: item.titulo, descripcion: item.descripcion, ubicacion: item.ubicacion, prioridad: item.prioridad });
+    setEstado(item.estado);
+    setNotas([]);
     setShowForm(true);
+    createClient()
+      .from("peticiones_mantenimiento_notas")
+      .select("id, autor_nombre, contenido, created_at")
+      .eq("peticion_id", item.id)
+      .order("created_at", { ascending: true })
+      .then(({ data }) => setNotas((data ?? []) as NotaMantenimiento[]));
   }
 
   const [filters, setFilters] = useKanbanFilters();
@@ -119,7 +151,12 @@ export function PeticionesMantenimientoClient({
   }
 
   async function handleSave() {
-    if (!form.titulo.trim() || !form.ubicacion.trim()) return;
+    // Both fields are required by the API: say so instead of silently ignoring the click
+    if (!form.titulo.trim() || !form.ubicacion.trim()) {
+      setFormError("El título y la ubicación son obligatorios.");
+      return;
+    }
+    setFormError(null);
     setSaving(true);
     const supabase = createClient();
 
@@ -129,15 +166,25 @@ export function PeticionesMantenimientoClient({
     }
 
     if (editing) {
-      const { data } = await supabase
+      // Same side effects as moving the card on the board
+      const estadoUpdate: Partial<PeticionMantenimiento> = {};
+      if (canValidate && estado !== editing.estado) {
+        estadoUpdate.estado = estado;
+        if (estado === "abierta") estadoUpdate.validado_por = userId;
+      }
+      const { data, error } = await supabase
         .from("peticiones_mantenimiento")
-        .update({ ...form, ...(fotoUpdate ?? {}) })
+        .update({ ...form, ...(fotoUpdate ?? {}), ...estadoUpdate })
         .eq("id", editing.id)
         .select()
         .single();
-      if (data) {
-        setPeticiones((prev) => prev.map((p) => (p.id === editing.id ? { ...p, ...(data as PeticionMantenimiento) } : p)));
+      if (error || !data) {
+        setFormError("No se han podido guardar los cambios. Inténtalo de nuevo.");
+        setSaving(false);
+        return;
       }
+      // The returned row already carries finalizada_at, set by the DB trigger
+      setPeticiones((prev) => prev.map((p) => (p.id === editing.id ? { ...p, ...(data as PeticionMantenimiento) } : p)));
     } else {
       // Created server-side so the configured profiles get the email notification
       const res = await fetch("/api/peticiones-mantenimiento/crear", {
@@ -145,10 +192,15 @@ export function PeticionesMantenimientoClient({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...form, foto_path: fotoUpdate?.foto_path ?? null, foto_nombre: fotoUpdate?.foto_nombre ?? null }),
       });
-      if (res.ok) {
-        const { peticion } = (await res.json()) as { peticion: PeticionMantenimiento };
-        setPeticiones((prev) => [{ ...peticion, autor: { full_name: myDisplayName } }, ...prev]);
+      if (!res.ok) {
+        // Keep the form open with what was typed, and show why it failed
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        setFormError(data.error ?? "No se ha podido crear la petición. Inténtalo de nuevo.");
+        setSaving(false);
+        return;
       }
+      const { peticion } = (await res.json()) as { peticion: PeticionMantenimiento };
+      setPeticiones((prev) => [{ ...peticion, autor: { full_name: myDisplayName } }, ...prev]);
     }
 
     setSaving(false);
@@ -218,7 +270,7 @@ export function PeticionesMantenimientoClient({
             </div>
             <div className="px-6 py-4 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Título</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Título <span className="text-red-500">*</span></label>
                 <input
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   value={form.titulo}
@@ -227,7 +279,7 @@ export function PeticionesMantenimientoClient({
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Ubicación</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Ubicación <span className="text-red-500">*</span></label>
                 <input
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   value={form.ubicacion}
@@ -258,6 +310,21 @@ export function PeticionesMantenimientoClient({
                   <option value="urgente">Urgente</option>
                 </select>
               </div>
+              {editing && canValidate && (
+                <div>
+                  <label htmlFor="estado-mantenimiento" className="block text-sm font-medium text-gray-700 mb-1">Estado</label>
+                  <select
+                    id="estado-mantenimiento"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    value={estado}
+                    onChange={(e) => setEstado(e.target.value as PeticionMantenimientoEstado)}
+                  >
+                    {COLUMNS.map((c) => (
+                      <option key={c.key} value={c.key}>{c.label}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Foto <span className="text-gray-400 font-normal">(opcional)</span>
@@ -291,7 +358,27 @@ export function PeticionesMantenimientoClient({
                   )}
                 </div>
               </div>
+              {editing && notas.length > 0 && (
+                <div className="border-t border-gray-100 pt-3">
+                  <p className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-1.5">
+                    <MessageSquare size={14} className="text-gray-400" /> Notas del técnico externo
+                  </p>
+                  <ul className="space-y-2 max-h-48 overflow-y-auto">
+                    {notas.map((n) => (
+                      <li key={n.id} className="bg-gray-50 rounded-lg px-3 py-2">
+                        <p className="text-sm text-gray-800 whitespace-pre-line">{n.contenido}</p>
+                        <p className="text-[11px] text-gray-400 mt-1">{n.autor_nombre} · {notaDateFormatter.format(new Date(n.created_at))}</p>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
+            {formError && (
+              <p role="alert" className="mx-6 mb-3 text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+                {formError}
+              </p>
+            )}
             <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
               <button onClick={closeForm} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Cancelar</button>
               <button

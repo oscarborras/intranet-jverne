@@ -13,6 +13,9 @@ const PUBLIC_PREFIXES = [
   "/api/citas/solicitar",
   "/api/citas/profesores",
   "/api/citas/cancelar-familia",
+  // External maintenance portal: no Supabase session, its own signed cookie (checked in src/lib/externo.ts)
+  "/externo",
+  "/api/externo",
 ];
 
 function isPublicPath(pathname: string): boolean {

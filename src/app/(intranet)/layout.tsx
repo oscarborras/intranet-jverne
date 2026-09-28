@@ -4,6 +4,7 @@ import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
 import { MobileNav } from "@/components/layout/MobileNav";
 import { getModuleAccess } from "@/lib/modulos";
+import { getExternalUrls } from "@/lib/externalUrls";
 import { version } from "../../../package.json";
 
 export default async function IntranetLayout({
@@ -14,7 +15,10 @@ export default async function IntranetLayout({
   const user = await requireUser();
   const supabase = await createClient();
 
-  const { roles, isAdmin, inactiveModuleSlugs } = await getModuleAccess(supabase, user.id);
+  const [{ roles, isAdmin, inactiveModuleSlugs }, externalUrls] = await Promise.all([
+    getModuleAccess(supabase, user.id),
+    getExternalUrls(),
+  ]);
 
   const userName =
     user.user_metadata?.full_name ||
@@ -26,7 +30,7 @@ export default async function IntranetLayout({
     <div className="flex h-screen overflow-hidden bg-gray-50">
       {/* Sidebar — hidden on mobile */}
       <div className="hidden md:flex flex-shrink-0">
-        <Sidebar userRoles={roles} userName={userName} inactiveModuleSlugs={inactiveModuleSlugs} version={version} />
+        <Sidebar userRoles={roles} userName={userName} inactiveModuleSlugs={inactiveModuleSlugs} externalUrls={externalUrls} version={version} />
       </div>
 
       {/* Main content */}
@@ -36,6 +40,7 @@ export default async function IntranetLayout({
           userEmail={user.email ?? ""}
           userRoles={roles}
           inactiveModuleSlugs={inactiveModuleSlugs}
+          externalUrls={externalUrls}
           version={version}
         />
 
