@@ -106,7 +106,7 @@ export async function sendCitaConfirmadaEmail(p: CitaConfirmadaParams) {
   const body = baseLayout(`
     <h2 style="margin:0 0 8px;font-size:20px;color:#111827;">Cita confirmada</h2>
     <p style="margin:0 0 24px;color:#6b7280;font-size:14px;">
-      Su solicitud de visita con <strong>${p.profesorNombre}</strong> ha sido confirmada.
+      Su cita con <strong>${p.profesorNombre}</strong> ha quedado confirmada.
     </p>
     <table cellpadding="0" cellspacing="0" style="width:100%;border-top:1px solid #e5e7eb;padding-top:16px;">
       ${row("Alumno/a", `${p.alumnoNombre} (${p.alumnoCurso})`)}

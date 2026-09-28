@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { GraduationCap, MessageSquareText, UserRound, Users, type LucideIcon } from "lucide-react";
-import type { CargoDirectivoClave, CitaFamiliaParentesco } from "@/lib/types";
+import { GraduationCap, MessageSquareText, TriangleAlert, UserRound, Users } from "lucide-react";
+import type { CargoDirectivoClave, CitaFamilia, CitaFamiliaParentesco } from "@/lib/types";
 import ProfesorSearch, { type ProfesorOption } from "./ProfesorSearch";
+import { ALUMNO_THEME, FAMILIAR_THEME, FormSection, MOTIVO_THEME, PARENTESCO_OPTIONS, PROFESOR_THEME } from "./CitaFormSection";
 
 interface CargoOption {
   cargo: CargoDirectivoClave;
@@ -13,82 +14,21 @@ interface CargoOption {
 interface Props {
   /** Leadership roles with an active holder (role name only) */
   cargos: CargoOption[];
+  /** Called with the new request so the list can show it without reloading */
+  onCreated: (cita: CitaFamilia) => void;
+  onClose: () => void;
+}
+
+interface SolicitarResponse {
+  cita?: Omit<CitaFamilia, "profesor">;
+  profesorNombre?: string;
+  error?: string;
 }
 
 /** Who the appointment is with: a specific teacher or a leadership role */
 type Destino = "profesor" | CargoDirectivoClave;
 
-const PARENTESCO_OPTIONS: CitaFamiliaParentesco[] = ["padre", "madre", "tutor/a legal", "otro"];
-
-interface SectionTheme {
-  border: string;
-  headerBg: string;
-  headerText: string;
-  iconBg: string;
-  bodyBg: string;
-}
-
-const PROFESOR_THEME: SectionTheme = {
-  border: "#ddd6fe",
-  headerBg: "#ede9fe",
-  headerText: "#4c1d95",
-  iconBg: "#6d28d9",
-  bodyBg: "#fbfaff",
-};
-
-const ALUMNO_THEME: SectionTheme = {
-  border: "#bfdbfe",
-  headerBg: "#dbeafe",
-  headerText: "#1e3a8a",
-  iconBg: "#1e40af",
-  bodyBg: "#f8fbff",
-};
-
-const FAMILIAR_THEME: SectionTheme = {
-  border: "#bbf7d0",
-  headerBg: "#dcfce7",
-  headerText: "#14532d",
-  iconBg: "#15803d",
-  bodyBg: "#f7fdf9",
-};
-
-const MOTIVO_THEME: SectionTheme = {
-  border: "#fde68a",
-  headerBg: "#fef3c7",
-  headerText: "#78350f",
-  iconBg: "#b45309",
-  bodyBg: "#fffdf5",
-};
-
-// Form block with a coloured border and a prominent header, so each group stands out at a glance
-function FormSection({ title, subtitle, icon: Icon, theme, children }: {
-  title: string;
-  subtitle: string;
-  icon: LucideIcon;
-  theme: SectionTheme;
-  children: React.ReactNode;
-}) {
-  return (
-    // No overflow:hidden here: it would clip dropdowns inside the section (teacher search).
-    // The rounded corners are applied to the header and body instead.
-    <section style={{ border: `1.5px solid ${theme.border}`, borderRadius: "10px", marginBottom: "20px" }}>
-      <div style={{ background: theme.headerBg, borderBottom: `1.5px solid ${theme.border}`, borderRadius: "9px 9px 0 0", padding: "12px 16px", display: "flex", alignItems: "center", gap: "12px" }}>
-        <span aria-hidden="true" style={{ width: "34px", height: "34px", borderRadius: "8px", background: theme.iconBg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-          <Icon size={18} color="#fff" />
-        </span>
-        <div>
-          <h2 style={{ margin: 0, fontSize: "15px", fontWeight: 700, color: theme.headerText }}>{title}</h2>
-          <p style={{ margin: "1px 0 0", fontSize: "12px", color: theme.headerText, opacity: 0.75 }}>{subtitle}</p>
-        </div>
-      </div>
-      <div style={{ background: theme.bodyBg, borderRadius: "0 0 9px 9px", padding: "16px 16px 0" }}>
-        {children}
-      </div>
-    </section>
-  );
-}
-
-export default function SolicitudCitaForm({ cargos }: Props) {
+export default function SolicitudCitaForm({ cargos, onCreated, onClose }: Props) {
   const [destino, setDestino] = useState<Destino>("profesor");
   const [profesor, setProfesor] = useState<ProfesorOption | null>(null);
   const [form, setForm] = useState({
@@ -138,10 +78,9 @@ export default function SolicitudCitaForm({ cargos }: Props) {
           conProfesor ? { ...form, cargo: null } : { ...form, profesor_id: "", cargo: destino }
         ),
       });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error ?? "Error al enviar la solicitud");
-      }
+      const data = (await res.json().catch(() => ({}))) as SolicitarResponse;
+      if (!res.ok) throw new Error(data.error ?? "Error al enviar la solicitud");
+      if (data.cita) onCreated({ ...data.cita, profesor: { full_name: data.profesorNombre ?? "—", email: "" } });
       setSuccess(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error desconocido");
@@ -154,22 +93,41 @@ export default function SolicitudCitaForm({ cargos }: Props) {
     return (
       <div style={{ textAlign: "center", padding: "24px 0" }}>
         <div style={{ fontSize: "48px", marginBottom: "16px" }}>✅</div>
-        <h2 style={{ margin: "0 0 8px", fontSize: "20px", color: "#111827" }}>Solicitud enviada</h2>
-        <p style={{ margin: 0, color: "#6b7280", fontSize: "14px", lineHeight: 1.6 }}>
-          Hemos recibido su solicitud. El profesor/a se pondrá en contacto con usted para acordar la fecha y hora de la visita.
+        <h2 style={{ margin: "0 0 8px", fontSize: "20px", color: "#111827" }}>Cita derivada</h2>
+        <p style={{ margin: "0 0 24px", color: "#6b7280", fontSize: "14px", lineHeight: 1.6 }}>
+          La solicitud se ha registrado como pendiente. El profesor/a o cargo destinatario ha recibido un aviso y se pondrá en contacto con la familia para acordar la fecha y hora de la visita.
         </p>
+        <button
+          type="button"
+          onClick={onClose}
+          style={{ width: "100%", minHeight: "44px", padding: "12px", background: "#1e40af", color: "#fff", border: "none", borderRadius: "6px", fontSize: "15px", fontWeight: 600, cursor: "pointer" }}
+        >
+          Cerrar
+        </button>
       </div>
     );
   }
 
   return (
     <form onSubmit={handleSubmit} noValidate>
+      {/* Reminder for the tutor: referrals are the exception, not the norm */}
+      <div role="note" style={{ display: "flex", gap: "12px", alignItems: "flex-start", margin: "0 0 20px", padding: "12px 14px", background: "#fffbeb", border: "1.5px solid #fcd34d", borderLeft: "5px solid #d97706", borderRadius: "8px" }}>
+        <TriangleAlert size={20} color="#b45309" aria-hidden="true" style={{ flexShrink: 0, marginTop: "1px" }} />
+        <div>
+          <p style={{ margin: "0 0 2px", fontSize: "14px", fontWeight: 700, color: "#78350f" }}>Antes de derivar la cita</p>
+          <p style={{ margin: 0, fontSize: "13px", color: "#92400e", lineHeight: 1.5 }}>
+            Deriva una cita solo en casos justificados que se salgan de las competencias de la tutoría.
+            Lo habitual es que el tutor/a atienda a la familia.
+          </p>
+        </div>
+      </div>
+
       <p style={{ margin: "0 0 24px", color: "#6b7280", fontSize: "14px", lineHeight: 1.6 }}>
-        Rellene el formulario para solicitar una cita de visita con el profesorado.
-        El profesor/a se pondrá en contacto con usted para confirmar la fecha y hora.
+        Registre la solicitud de cita de una familia con un profesor/a o con el equipo directivo.
+        La persona destinataria recibirá un aviso y se pondrá en contacto con la familia para confirmar la fecha y hora.
       </p>
 
-      <FormSection title="¿Con quién desea la cita?" subtitle="Un profesor/a o un cargo del equipo directivo" icon={UserRound} theme={PROFESOR_THEME}>
+      <FormSection title="¿Con quién desea la cita la familia?" subtitle="Un profesor/a o un cargo del equipo directivo" icon={UserRound} theme={PROFESOR_THEME}>
         {cargos.length > 0 && (
           <fieldset style={{ border: "none", margin: "0 0 16px", padding: 0 }}>
             <legend style={{ fontSize: "13px", fontWeight: 600, color: "#374151", marginBottom: "8px", padding: 0 }}>
@@ -214,7 +172,7 @@ export default function SolicitudCitaForm({ cargos }: Props) {
           </div>
         ) : (
           <p style={{ margin: "0 0 16px", padding: "10px 12px", borderRadius: "6px", background: "#fff", border: "1px solid #ddd6fe", fontSize: "13px", color: "#4c1d95", lineHeight: 1.5 }}>
-            Su solicitud llegará a la persona que ocupa el cargo de <strong>{cargos.find((c) => c.cargo === destino)?.nombre}</strong>, que se pondrá en contacto con usted.
+            La solicitud llegará a la persona que ocupa el cargo de <strong>{cargos.find((c) => c.cargo === destino)?.nombre}</strong>, que se pondrá en contacto con la familia.
           </p>
         )}
       </FormSection>
@@ -246,7 +204,7 @@ export default function SolicitudCitaForm({ cargos }: Props) {
         {inp("familiar_telefono", "Teléfono (opcional)", false, "tel", "Ej: 612 345 678")}
       </FormSection>
 
-      <FormSection title="Motivo de la visita" subtitle="Tema que desea tratar en la reunión" icon={MessageSquareText} theme={MOTIVO_THEME}>
+      <FormSection title="Motivo de la visita" subtitle="Tema que la familia desea tratar en la reunión" icon={MessageSquareText} theme={MOTIVO_THEME}>
         <div style={{ marginBottom: "16px" }}>
           <label style={{ display: "block", fontSize: "13px", fontWeight: 600, color: "#374151", marginBottom: "4px" }}>
             Motivo de la visita <span style={{ color: "#dc2626" }}>*</span>
@@ -268,13 +226,23 @@ export default function SolicitudCitaForm({ cargos }: Props) {
         </div>
       )}
 
-      <button
-        type="submit"
-        disabled={saving}
-        style={{ width: "100%", padding: "12px", background: saving ? "#9ca3af" : "#1e40af", color: "#fff", border: "none", borderRadius: "6px", fontSize: "15px", fontWeight: 600, cursor: saving ? "not-allowed" : "pointer" }}
-      >
-        {saving ? "Enviando..." : "Enviar solicitud"}
-      </button>
+      <div style={{ display: "flex", gap: "8px" }}>
+        <button
+          type="submit"
+          disabled={saving}
+          style={{ flex: 1, minHeight: "44px", padding: "12px", background: saving ? "#9ca3af" : "#1e40af", color: "#fff", border: "none", borderRadius: "6px", fontSize: "15px", fontWeight: 600, cursor: saving ? "not-allowed" : "pointer" }}
+        >
+          {saving ? "Derivando..." : "Derivar cita"}
+        </button>
+        <button
+          type="button"
+          onClick={onClose}
+          disabled={saving}
+          style={{ flex: 1, minHeight: "44px", padding: "12px", background: "#f3f4f6", color: "#374151", border: "none", borderRadius: "6px", fontSize: "15px", fontWeight: 600, cursor: saving ? "not-allowed" : "pointer" }}
+        >
+          Cancelar
+        </button>
+      </div>
     </form>
   );
 }

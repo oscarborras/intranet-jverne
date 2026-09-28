@@ -4,6 +4,8 @@ import type { CitaFamilia } from "@/lib/types";
 import CitasFamiliasClient from "./CitasFamiliasClient";
 import { todayMadrid } from "@/lib/dates";
 import { requireAuth } from "@/lib/auth";
+import { canAccessModule } from "@/lib/modulos";
+import { getCargosDisponibles } from "@/lib/cargos";
 
 export interface ProfesorOption {
   id: string;
@@ -32,7 +34,7 @@ export default async function CitasFamiliasPage() {
 
   const today = todayMadrid();
 
-  const [{ data: citasRaw }, profesoresResult] = await Promise.all([
+  const [{ data: citasRaw }, profesoresResult, canSolicitar] = await Promise.all([
     query,
     isAdmin
       ? admin
@@ -41,7 +43,11 @@ export default async function CitasFamiliasPage() {
           .or(`fecha_cese.is.null,fecha_cese.gt.${today}`)
           .order("profesor", { ascending: true })
       : Promise.resolve({ data: null }),
+    canAccessModule(supabase, user.id, "citas-familias"),
   ]);
+
+  // Leadership roles for the "Derivar cita" form (role name only, never the holder)
+  const cargos = canSolicitar ? await getCargosDisponibles(admin) : [];
 
   // Resolve professor names from profesores table
   const profesorIds = [...new Set((citasRaw ?? []).map((c) => c.profesor_id as string))];
@@ -71,6 +77,8 @@ export default async function CitasFamiliasPage() {
       currentProfesorId={profesorId}
       isAdmin={isAdmin}
       profesores={isAdmin ? profesores : []}
+      canSolicitar={canSolicitar}
+      cargos={cargos}
     />
   );
 }

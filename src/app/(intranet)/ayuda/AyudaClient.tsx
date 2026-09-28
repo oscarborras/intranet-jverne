@@ -459,9 +459,9 @@ function TutorialCitas() {
         </div>
         <div className="flex-1">
           <p className="font-medium text-gray-900 text-sm mb-1">¿Prefieres crear la cita tú directamente?</p>
-          <p className="text-sm text-gray-500 mb-3">Usa <strong className="text-gray-700">+ Nueva cita</strong> para crearla ya confirmada sin esperar solicitud de la familia.</p>
+          <p className="text-sm text-gray-500 mb-3">Usa <strong className="text-gray-700">+ Registrar mi cita</strong> para apuntar una cita tuya ya acordada: se crea confirmada sin esperar solicitud y, si indicas su email, la familia recibe la fecha, hora y lugar.</p>
           <div className="flex items-center gap-2">
-            <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-600 text-white text-[11px] font-semibold"><Plus size={11} /> Nueva cita</span>
+            <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-600 text-white text-[11px] font-semibold"><Plus size={11} /> Registrar mi cita</span>
             <span className="text-xs text-gray-400">→ se crea directamente como «Confirmada»</span>
           </div>
         </div>
@@ -1408,7 +1408,7 @@ const ITEM_TIPS: Record<ItemId, React.ReactNode> = {
   ),
   citas: (
     <p className="text-xs text-amber-800">
-      <strong>Enlace para familias:</strong> Comparte <strong>/familias/solicitar</strong> con las familias para que pidan cita desde casa sin necesidad de acceso a la intranet.
+      <strong>¿Una familia quiere una cita con otro profesor/a o con Dirección?</strong> Pulsa <strong>Derivar cita</strong> y rellena sus datos: la solicitud llega como pendiente al profesor/a o cargo elegido, que recibe un aviso por email.
     </p>
   ),
   ordenanza: (

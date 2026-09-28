@@ -27,7 +27,7 @@ function typedLength(q: string): number {
   return q.replace(/[\s,]+/g, "").length;
 }
 
-// Teacher picker that queries the server as the family types, so the full staff
+// Teacher picker that queries the server as the user types, so the full staff
 // list is never sent to the browser.
 export default function ProfesorSearch({ value, onChange }: Props) {
   const listId = useId();

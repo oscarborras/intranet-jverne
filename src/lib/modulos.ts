@@ -23,3 +23,9 @@ export async function getModuleAccess(supabase: SupabaseClient, userId: string) 
 
   return { roles, isAdmin, inactiveModuleSlugs };
 }
+
+/** Whether the user may use a module (Admin sees every active module, like the sidebar). */
+export async function canAccessModule(supabase: SupabaseClient, userId: string, slug: string): Promise<boolean> {
+  const { isAdmin, inactiveModuleSlugs } = await getModuleAccess(supabase, userId);
+  return isAdmin || !inactiveModuleSlugs.includes(slug);
+}

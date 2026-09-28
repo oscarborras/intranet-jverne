@@ -9,9 +9,7 @@ import { NextResponse, type NextRequest } from "next/server";
 const PUBLIC_PREFIXES = [
   "/login",
   "/auth/callback",
-  "/familias", // public appointment request / cancellation pages for families
-  "/api/citas/solicitar",
-  "/api/citas/profesores",
+  "/familias/cancelar", // public appointment cancellation page for families (link in their email)
   "/api/citas/cancelar-familia",
   // External maintenance portal: no Supabase session, its own signed cookie (checked in src/lib/externo.ts)
   "/externo",

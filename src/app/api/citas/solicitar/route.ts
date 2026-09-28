@@ -1,11 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
+import { authorizeApi } from "@/lib/auth";
+import { canAccessModule } from "@/lib/modulos";
 import { sendNuevaSolicitudEmail } from "@/lib/email";
 import { nowMadridParts, todayMadrid } from "@/lib/dates";
 import { getTitularCargo } from "@/lib/cargos";
 import { CARGOS_DIRECTIVOS, isCargoDirectivo, type CargoDirectivoClave } from "@/lib/types";
 
+// Appointment requests are registered by staff on behalf of the family
+// (only users whose profiles have the "citas-familias" module enabled).
 export async function POST(req: NextRequest) {
+  const auth = await authorizeApi();
+  if (!auth.ok) return auth.response;
+  if (!(await canAccessModule(await createClient(), auth.user.id, "citas-familias"))) {
+    return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+  }
+
   const body = await req.json().catch(() => null);
   if (!body) {
     return NextResponse.json({ error: "Cuerpo de solicitud inválido" }, { status: 400 });
@@ -23,7 +34,7 @@ export async function POST(req: NextRequest) {
     motivo,
   } = body as Record<string, string>;
 
-  // The family picks either a specific teacher or a leadership role, never both
+  // The request goes to either a specific teacher or a leadership role, never both
   const cargo: CargoDirectivoClave | null = isCargoDirectivo(cargoRaw) ? cargoRaw : null;
   if (cargoRaw && !cargo) {
     return NextResponse.json({ error: "El cargo seleccionado no es válido" }, { status: 400 });
@@ -47,7 +58,7 @@ export async function POST(req: NextRequest) {
       );
     }
   } else {
-    // The id comes from the public search: accept only active teachers
+    // Accept only active teachers
     const today = todayMadrid();
     const { data } = await admin
       .from("profesores")
@@ -76,7 +87,7 @@ export async function POST(req: NextRequest) {
       motivo: motivo.trim(),
       estado: "pendiente",
     })
-    .select("id, token_familia")
+    .select("id")
     .single();
 
   if (insertError || !inserted) {
@@ -87,7 +98,12 @@ export async function POST(req: NextRequest) {
   const { year } = nowMadridParts();
   const codigo = `CF-${year}-${String(inserted.id).padStart(4, "0")}`;
 
-  await admin.from("citas_familias").update({ codigo }).eq("id", inserted.id);
+  const { data: cita } = await admin
+    .from("citas_familias")
+    .update({ codigo })
+    .eq("id", inserted.id)
+    .select("*")
+    .single();
 
   if (destinatario.email && process.env.RESEND_API_KEY) {
     await sendNuevaSolicitudEmail({
@@ -105,5 +121,5 @@ export async function POST(req: NextRequest) {
     }).catch(console.error);
   }
 
-  return NextResponse.json({ success: true, codigo });
+  return NextResponse.json({ success: true, codigo, cita, profesorNombre: destinatario.profesor });
 }

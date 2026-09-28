@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
+import { authorizeApi } from "@/lib/auth";
+import { canAccessModule } from "@/lib/modulos";
 import { todayMadrid } from "@/lib/dates";
 import { getClientIp, isRateLimited } from "@/lib/rateLimit";
 import { matchesAllWords, searchWords } from "@/lib/text";
 
-// Public teacher search for the family appointment form.
+// Teacher search for the appointment request form (staff with the "citas-familias" module).
 // The full staff list never leaves the server: only a few matches per query.
 
 export const dynamic = "force-dynamic";
@@ -20,6 +23,12 @@ export interface ProfesorBusqueda {
 }
 
 export async function GET(req: NextRequest) {
+  const auth = await authorizeApi();
+  if (!auth.ok) return auth.response;
+  if (!(await canAccessModule(await createClient(), auth.user.id, "citas-familias"))) {
+    return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+  }
+
   if (isRateLimited(`profesores:${getClientIp(req)}`, RATE_LIMIT, RATE_WINDOW_MS)) {
     return NextResponse.json(
       { error: "Demasiadas búsquedas. Espere un minuto y vuelva a intentarlo." },

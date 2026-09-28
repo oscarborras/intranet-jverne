@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Users, Plus, CalendarCheck, Clock, MapPin, User, Phone, Mail, BookOpen, X, Check, ChevronDown } from "lucide-react";
-import type { CitaFamilia, CitaFamiliaEstado, LUGARES_CITA } from "@/lib/types";
-import { LUGARES_CITA as LUGARES } from "@/lib/types";
+import { Users, Plus, Forward, CalendarCheck, Clock, MapPin, User, Phone, Mail, BookOpen, X, Check, ChevronDown } from "lucide-react";
+import type { CitaFamilia, CitaFamiliaEstado } from "@/lib/types";
 import type { ProfesorOption } from "./page";
-import { CARGOS_DIRECTIVOS } from "@/lib/types";
+import { CARGOS_DIRECTIVOS, type CargoDirectivoClave } from "@/lib/types";
+import SolicitudCitaForm from "./SolicitudCitaForm";
+import RegistrarCitaForm, { type RegistrarCitaData } from "./RegistrarCitaForm";
 
 type Tab = "pendiente" | "confirmada" | "completada" | "cancelada";
 
@@ -29,6 +30,10 @@ interface Props {
   currentProfesorId: string | null;
   isAdmin: boolean;
   profesores: ProfesorOption[];
+  /** User's profiles have the "citas-familias" module enabled */
+  canSolicitar: boolean;
+  /** Leadership roles with an active holder, for the request form */
+  cargos: { cargo: CargoDirectivoClave; nombre: string }[];
 }
 
 interface RegistrarForm {
@@ -37,45 +42,19 @@ interface RegistrarForm {
   lugar: string;
 }
 
-interface NuevaCitaForm {
-  alumno_nombre: string;
-  alumno_curso: string;
-  familiar_nombre: string;
-  familiar_parentesco: string;
-  familiar_email: string;
-  familiar_telefono: string;
-  motivo: string;
-  fecha: string;
-  hora_inicio: string;
-  lugar: string;
-}
-
-const EMPTY_NUEVA: NuevaCitaForm = {
-  alumno_nombre: "",
-  alumno_curso: "",
-  familiar_nombre: "",
-  familiar_parentesco: "padre",
-  familiar_email: "",
-  familiar_telefono: "",
-  motivo: "",
-  fecha: "",
-  hora_inicio: "",
-  lugar: LUGARES[0],
-};
-
 function formatFecha(fecha: string | null): string {
   if (!fecha) return "—";
   return new Date(fecha + "T00:00:00").toLocaleDateString("es-ES", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
 }
 
-export default function CitasFamiliasClient({ initialCitas, userId, currentProfesorId, isAdmin, profesores }: Props) {
+export default function CitasFamiliasClient({ initialCitas, userId, currentProfesorId, isAdmin, profesores, canSolicitar, cargos }: Props) {
   const [citas, setCitas] = useState<CitaFamilia[]>(initialCitas);
   const [activeTab, setActiveTab] = useState<Tab>("pendiente");
   const [saving, setSaving] = useState(false);
   const [registrarId, setRegistrarId] = useState<number | null>(null);
   const [registrarForm, setRegistrarForm] = useState<RegistrarForm>({ fecha: "", hora_inicio: "", lugar: "" });
   const [showNueva, setShowNueva] = useState(false);
-  const [nuevaForm, setNuevaForm] = useState<NuevaCitaForm>(EMPTY_NUEVA);
+  const [showSolicitar, setShowSolicitar] = useState(false);
   const [cancelId, setCancelId] = useState<number | null>(null);
   const [cancelMotivo, setCancelMotivo] = useState("");
   const [selectedCita, setSelectedCita] = useState<CitaFamilia | null>(null);
@@ -147,52 +126,25 @@ export default function CitasFamiliasClient({ initialCitas, userId, currentProfe
     }
   }
 
-  async function handleNuevaCita() {
-    if (!nuevaForm.alumno_nombre.trim() || !nuevaForm.alumno_curso.trim() || !nuevaForm.familiar_nombre.trim() || !nuevaForm.fecha || !nuevaForm.hora_inicio) {
-      alert("Complete los campos obligatorios.");
-      return;
-    }
-    setSaving(true);
-    try {
-      const { createClient } = await import("@/lib/supabase/client");
-      const supabase = createClient();
-      const { data: inserted } = await supabase
-        .from("citas_familias")
-        .insert({
-          codigo: "CF-TEMP",
-          profesor_id: efectiveProfesorId,
-          alumno_nombre: nuevaForm.alumno_nombre.trim(),
-          alumno_curso: nuevaForm.alumno_curso.trim(),
-          familiar_nombre: nuevaForm.familiar_nombre.trim(),
-          familiar_parentesco: nuevaForm.familiar_parentesco,
-          familiar_email: nuevaForm.familiar_email.trim() || null,
-          familiar_telefono: nuevaForm.familiar_telefono.trim() || null,
-          motivo: nuevaForm.motivo.trim() || null,
-          fecha: nuevaForm.fecha,
-          hora_inicio: nuevaForm.hora_inicio,
-          lugar: nuevaForm.lugar,
-          estado: "confirmada",
-        })
-        .select("id, token_familia")
-        .single();
-      if (inserted) {
-        const year = new Date().getFullYear();
-        const codigo = `CF-${year}-${String(inserted.id).padStart(4, "0")}`;
-        await supabase.from("citas_familias").update({ codigo }).eq("id", inserted.id);
-        const { data: full } = await supabase.from("citas_familias").select("*").eq("id", inserted.id).single();
-        if (full) {
-          const profesorNombre = profesores.find((p) => p.id === efectiveProfesorId)?.nombre ?? "—";
-          setCitas((prev) => [{ ...full, codigo, profesor: { full_name: profesorNombre, email: "" } }, ...prev]);
-        }
-      }
-      setShowNueva(false);
-      setNuevaForm(EMPTY_NUEVA);
-      setActiveTab("confirmada");
-    } catch {
-      alert("Error al crear la cita.");
-    } finally {
-      setSaving(false);
-    }
+  async function handleNuevaCita(data: RegistrarCitaData) {
+    const res = await fetch("/api/citas/registrar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...data, profesor_id: isAdmin ? efectiveProfesorId : undefined }),
+    });
+    const json = (await res.json().catch(() => ({}))) as { cita?: Omit<CitaFamilia, "profesor">; profesorNombre?: string; error?: string };
+    if (!res.ok || !json.cita) throw new Error(json.error ?? "Error al registrar la cita. Inténtelo de nuevo.");
+    const cita = json.cita;
+    setCitas((prev) => [{ ...cita, profesor: { full_name: json.profesorNombre ?? "—", email: "" } }, ...prev]);
+    setShowNueva(false);
+    setActiveTab("confirmada");
+  }
+
+  function handleSolicitudCreada(cita: CitaFamilia) {
+    // Only list it if this user can see it (admins see all, teachers only their own)
+    if (!isAdmin && cita.profesor_id !== currentProfesorId) return;
+    setCitas((prev) => [cita, ...prev]);
+    setActiveTab("pendiente");
   }
 
   return (
@@ -208,13 +160,26 @@ export default function CitasFamiliasClient({ initialCitas, userId, currentProfe
             <p className="text-sm text-gray-500">Gestión de visitas y reuniones</p>
           </div>
         </div>
-        <button
-          onClick={() => setShowNueva(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-red-700 text-white rounded-lg text-sm font-medium hover:bg-red-800 transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          <span className="hidden sm:inline">Nueva cita</span>
-        </button>
+        <div className="flex items-center gap-2">
+          {canSolicitar && (
+            <button
+              onClick={() => setShowSolicitar(true)}
+              aria-label="Derivar cita a otro profesor/a o cargo directivo"
+              className="flex items-center gap-2 px-4 py-2 min-h-[44px] bg-blue-700 text-white rounded-lg text-sm font-medium hover:bg-blue-800 transition-colors"
+            >
+              <Forward className="w-4 h-4" />
+              <span className="hidden sm:inline">Derivar cita</span>
+            </button>
+          )}
+          <button
+            onClick={() => setShowNueva(true)}
+            aria-label="Registrar mi cita con una familia"
+            className="flex items-center gap-2 px-4 py-2 min-h-[44px] bg-red-700 text-white rounded-lg text-sm font-medium hover:bg-red-800 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            <span className="hidden sm:inline">Registrar mi cita</span>
+          </button>
+        </div>
       </div>
 
       {/* Selector de profesor (solo admin/directiva) */}
@@ -456,78 +421,39 @@ export default function CitasFamiliasClient({ initialCitas, userId, currentProfe
         </div>
       )}
 
-      {/* Modal: Nueva cita directa */}
-      {showNueva && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 my-4">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="font-bold text-gray-900">Nueva cita</h2>
-              <button onClick={() => setShowNueva(false)} className="text-gray-400 hover:text-gray-600">
+      {/* Modal: Derivar cita — refer a family to another teacher or leadership role */}
+      {showSolicitar && canSolicitar && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-start justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-xl my-4">
+            <div className="flex items-center justify-between px-6 py-4 bg-blue-800 rounded-t-xl">
+              <h2 className="font-bold text-white">Derivar cita a otro profesor/a o cargo directivo</h2>
+              <button onClick={() => setShowSolicitar(false)} aria-label="Cerrar" className="p-2 -m-2 text-blue-100 hover:text-white">
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="space-y-3">
-              {([
-                ["alumno_nombre", "Alumno/a (nombre y apellidos)", true],
-                ["alumno_curso", "Curso", true, "text", "Ej: 2º ESO A"],
-                ["familiar_nombre", "Nombre del familiar", true],
-              ] as [keyof NuevaCitaForm, string, boolean, string?, string?][]).map(([field, label, req, type = "text", ph = ""]) => (
-                <div key={field}>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">{label}{req && <span className="text-red-500"> *</span>}</label>
-                  <input type={type} placeholder={ph} value={nuevaForm[field] as string}
-                    onChange={(e) => setNuevaForm((f) => ({ ...f, [field]: e.target.value }))}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500" />
-                </div>
-              ))}
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1">Parentesco</label>
-                <select value={nuevaForm.familiar_parentesco} onChange={(e) => setNuevaForm((f) => ({ ...f, familiar_parentesco: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 bg-white">
-                  {["padre", "madre", "tutor/a legal", "otro"].map((p) => <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1">Email familiar</label>
-                <input type="email" value={nuevaForm.familiar_email} onChange={(e) => setNuevaForm((f) => ({ ...f, familiar_email: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500" />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1">Teléfono</label>
-                <input type="tel" value={nuevaForm.familiar_telefono} onChange={(e) => setNuevaForm((f) => ({ ...f, familiar_telefono: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500" />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1">Fecha <span className="text-red-500">*</span></label>
-                <input type="date" value={nuevaForm.fecha} onChange={(e) => setNuevaForm((f) => ({ ...f, fecha: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500" />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1">Hora <span className="text-red-500">*</span></label>
-                <input type="time" value={nuevaForm.hora_inicio} onChange={(e) => setNuevaForm((f) => ({ ...f, hora_inicio: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500" />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1">Lugar</label>
-                <select value={nuevaForm.lugar} onChange={(e) => setNuevaForm((f) => ({ ...f, lugar: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 bg-white">
-                  {LUGARES.map((l) => <option key={l} value={l}>{l}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1">Motivo (opcional)</label>
-                <textarea rows={2} value={nuevaForm.motivo} onChange={(e) => setNuevaForm((f) => ({ ...f, motivo: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
-              </div>
+            <div className="p-4 sm:p-6">
+              <SolicitudCitaForm
+                cargos={cargos}
+                onCreated={handleSolicitudCreada}
+                onClose={() => setShowSolicitar(false)}
+              />
             </div>
-            <div className="flex gap-2 mt-5">
-              <button onClick={handleNuevaCita} disabled={saving}
-                className="flex-1 py-2 bg-red-700 text-white rounded-lg text-sm font-medium hover:bg-red-800 disabled:opacity-50 transition-colors">
-                {saving ? "Guardando..." : "Crear cita"}
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Registrar mi cita — the user's own appointment, created as confirmed */}
+      {showNueva && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-start justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-xl my-4">
+            <div className="flex items-center justify-between px-6 py-4 bg-red-800 rounded-t-xl">
+              <h2 className="font-bold text-white">Registrar mi cita con una familia</h2>
+              <button onClick={() => setShowNueva(false)} aria-label="Cerrar" className="p-2 -m-2 text-red-100 hover:text-white">
+                <X className="w-5 h-5" />
               </button>
-              <button onClick={() => setShowNueva(false)}
-                className="flex-1 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors">
-                Cancelar
-              </button>
+            </div>
+            <div className="p-4 sm:p-6">
+              <RegistrarCitaForm onSubmit={handleNuevaCita} onClose={() => setShowNueva(false)} />
             </div>
           </div>
         </div>
