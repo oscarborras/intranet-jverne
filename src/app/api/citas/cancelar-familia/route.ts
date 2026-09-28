@@ -2,9 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendCanceladaFamiliaEmail } from "@/lib/email";
 
+const MOTIVO_MAX = 500;
+
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   const token = body?.token as string | undefined;
+  // Optional reason typed by the family (public form: trim and cap its length)
+  const motivo = typeof body?.motivo === "string" ? body.motivo.trim().slice(0, MOTIVO_MAX) || null : null;
 
   if (!token) {
     return NextResponse.json({ error: "Token no proporcionado" }, { status: 400 });
@@ -28,7 +32,7 @@ export async function POST(req: NextRequest) {
 
   const { error: updateError } = await supabase
     .from("citas_familias")
-    .update({ estado: "cancelada", cancelada_por: "familia" })
+    .update({ estado: "cancelada", cancelada_por: "familia", motivo_cancelacion: motivo })
     .eq("id", cita.id);
 
   if (updateError) {
@@ -49,6 +53,7 @@ export async function POST(req: NextRequest) {
       familiarNombre: cita.familiar_nombre,
       fecha: cita.fecha,
       horaInicio: cita.hora_inicio,
+      motivo,
     }).catch(console.error);
   }
 

@@ -13,8 +13,18 @@ function baseLayout(content: string): string {
   <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:24px 0;">
     <tr><td align="center">
       <table width="560" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:8px;overflow:hidden;max-width:100%;">
-        <tr><td style="background:#1e40af;padding:20px 32px;">
-          <p style="margin:0;color:#fff;font-size:18px;font-weight:700;">IES Julio Verne · Bitácora</p>
+        <tr><td style="background:#1e40af;padding:16px 32px;">
+          <!-- Table layout: the only way to align image and text in every email client -->
+          <table cellpadding="0" cellspacing="0" role="presentation">
+            <tr>
+              <td style="padding-right:14px;vertical-align:middle;">
+                <img src="${SITE_URL}/logo-email.jpg" width="48" height="48" alt="Logo IES Julio Verne" style="display:block;border:0;border-radius:50%;background:#fff;" />
+              </td>
+              <td style="vertical-align:middle;">
+                <p style="margin:0;color:#fff;font-size:18px;font-weight:700;">IES Julio Verne · Bitácora</p>
+              </td>
+            </tr>
+          </table>
         </td></tr>
         <tr><td style="padding:32px;">${content}</td></tr>
         <tr><td style="background:#f4f4f5;padding:16px 32px;">
@@ -56,18 +66,18 @@ export async function sendNuevaSolicitudEmail(p: NuevaSolicitudParams) {
     <h2 style="margin:0 0 8px;font-size:20px;color:#111827;">Nueva solicitud de cita</h2>
     <p style="margin:0 0 24px;color:#6b7280;font-size:14px;">${
       p.cargoNombre
-        ? `Se ha recibido una nueva solicitud de visita dirigida a <strong>${p.cargoNombre}</strong>, cargo que usted ocupa.`
+        ? `Se ha recibido una nueva solicitud de visita dirigida a <strong>${escapeHtml(p.cargoNombre)}</strong>, cargo que usted ocupa.`
         : "Se ha recibido una nueva solicitud de visita para usted."
     }</p>
     <table cellpadding="0" cellspacing="0" style="width:100%;border-top:1px solid #e5e7eb;padding-top:16px;">
-      ${row("Código", p.codigo)}
-      ${p.derivadaPor ? row("Derivada por", p.derivadaPor) : ""}
-      ${p.cargoNombre ? row("Dirigida a", p.cargoNombre) : ""}
-      ${row("Alumno/a", `${p.alumnoNombre} (${p.alumnoCurso})`)}
-      ${row("Familiar", `${p.familiarNombre} (${p.familiarParentesco})`)}
-      ${p.familiarEmail ? row("Email familiar", p.familiarEmail) : ""}
-      ${p.familiarTelefono ? row("Teléfono", p.familiarTelefono) : ""}
-      ${p.motivo ? row("Motivo", p.motivo) : ""}
+      ${row("Código", escapeHtml(p.codigo))}
+      ${p.derivadaPor ? row("Derivada por", escapeHtml(p.derivadaPor)) : ""}
+      ${p.cargoNombre ? row("Dirigida a", escapeHtml(p.cargoNombre)) : ""}
+      ${row("Alumno/a", `${escapeHtml(p.alumnoNombre)} (${escapeHtml(p.alumnoCurso)})`)}
+      ${row("Familiar", `${escapeHtml(p.familiarNombre)} (${escapeHtml(p.familiarParentesco)})`)}
+      ${p.familiarEmail ? row("Email familiar", escapeHtml(p.familiarEmail)) : ""}
+      ${p.familiarTelefono ? row("Teléfono", escapeHtml(p.familiarTelefono)) : ""}
+      ${p.motivo ? row("Motivo", multiline(p.motivo)) : ""}
     </table>
     <p style="margin:24px 0 0;font-size:14px;color:#6b7280;">
       Acceda a la intranet para gestionar esta solicitud.
@@ -100,7 +110,8 @@ interface CitaConfirmadaParams {
 }
 
 export async function sendCitaConfirmadaEmail(p: CitaConfirmadaParams) {
-  const cancelUrl = `${SITE_URL}/familias/cancelar/${p.tokenFamilia}`;
+  const cancelUrl = `${SITE_URL}/familias/cancelar/${encodeURIComponent(p.tokenFamilia)}`;
+  const profesor = escapeHtml(p.profesorNombre);
   const fechaFormateada = new Date(p.fecha + "T00:00:00").toLocaleDateString("es-ES", {
     weekday: "long",
     year: "numeric",
@@ -112,15 +123,15 @@ export async function sendCitaConfirmadaEmail(p: CitaConfirmadaParams) {
     <h2 style="margin:0 0 8px;font-size:20px;color:#111827;">${p.modificada ? "Cita modificada" : "Cita confirmada"}</h2>
     <p style="margin:0 0 24px;color:#6b7280;font-size:14px;">
       ${p.modificada
-        ? `Su cita con <strong>${p.profesorNombre}</strong> ha cambiado. Estos son los nuevos datos:`
-        : `Su cita con <strong>${p.profesorNombre}</strong> ha quedado confirmada.`}
+        ? `Su cita con <strong>${profesor}</strong> ha cambiado. Estos son los nuevos datos:`
+        : `Su cita con <strong>${profesor}</strong> ha quedado confirmada.`}
     </p>
     <table cellpadding="0" cellspacing="0" style="width:100%;border-top:1px solid #e5e7eb;padding-top:16px;">
-      ${row("Alumno/a", `${p.alumnoNombre} (${p.alumnoCurso})`)}
+      ${row("Alumno/a", `${escapeHtml(p.alumnoNombre)} (${escapeHtml(p.alumnoCurso)})`)}
       ${row("Fecha", fechaFormateada)}
-      ${row("Hora", p.horaInicio)}
-      ${row("Lugar", p.lugar)}
-      ${row("Profesor/a", p.profesorNombre)}
+      ${row("Hora", escapeHtml(formatHora(p.horaInicio)))}
+      ${row("Lugar", escapeHtml(p.lugar))}
+      ${row("Profesor/a", profesor)}
     </table>
     <p style="margin:24px 0 8px;font-size:14px;color:#6b7280;">
       Si no puede asistir, puede cancelar la cita haciendo clic en el siguiente enlace:
@@ -133,7 +144,7 @@ export async function sendCitaConfirmadaEmail(p: CitaConfirmadaParams) {
   return resend.emails.send({
     from: FROM,
     to: p.familiarEmail,
-    subject: `${p.modificada ? "Cita modificada" : "Cita confirmada"} – ${fechaFormateada} ${p.horaInicio} – ${p.lugar}`,
+    subject: `${p.modificada ? "Cita modificada" : "Cita confirmada"} – ${fechaFormateada} ${formatHora(p.horaInicio)} – ${p.lugar}`,
     html: body,
   });
 }
@@ -155,16 +166,16 @@ export async function sendCanceladaProfesorEmail(p: CancelProfesorParams) {
   const body = baseLayout(`
     <h2 style="margin:0 0 8px;font-size:20px;color:#111827;">Cita cancelada</h2>
     <p style="margin:0 0 24px;color:#6b7280;font-size:14px;">
-      Lamentamos informarle que <strong>${p.profesorNombre}</strong> ha cancelado la siguiente cita.
+      Lamentamos informarle que <strong>${escapeHtml(p.profesorNombre)}</strong> ha cancelado la siguiente cita.
     </p>
     <table cellpadding="0" cellspacing="0" style="width:100%;border-top:1px solid #e5e7eb;padding-top:16px;">
-      ${row("Alumno/a", p.alumnoNombre)}
+      ${row("Alumno/a", escapeHtml(p.alumnoNombre))}
       ${fechaStr ? row("Fecha", fechaStr) : ""}
-      ${p.horaInicio ? row("Hora", p.horaInicio) : ""}
-      ${p.motivo ? row("Motivo", p.motivo) : ""}
+      ${p.horaInicio ? row("Hora", escapeHtml(formatHora(p.horaInicio))) : ""}
+      ${p.motivo ? row("Motivo", multiline(p.motivo)) : ""}
     </table>
     <p style="margin:24px 0 0;font-size:14px;color:#6b7280;">
-      Puede ponerse en contacto con el centro para solicitar una nueva cita si lo necesita.
+      Puede ponerse en contacto con el tutor de su hijo/a para solicitar una nueva cita si lo necesita.
     </p>
   `);
 
@@ -247,6 +258,8 @@ interface CancelFamiliaParams {
   familiarNombre: string;
   fecha: string | null;
   horaInicio: string | null;
+  /** Optional reason typed by the family */
+  motivo?: string | null;
 }
 
 export async function sendCanceladaFamiliaEmail(p: CancelFamiliaParams) {
@@ -257,13 +270,14 @@ export async function sendCanceladaFamiliaEmail(p: CancelFamiliaParams) {
   const body = baseLayout(`
     <h2 style="margin:0 0 8px;font-size:20px;color:#111827;">Cita cancelada por la familia</h2>
     <p style="margin:0 0 24px;color:#6b7280;font-size:14px;">
-      La familia de <strong>${p.alumnoNombre}</strong> ha cancelado la siguiente cita.
+      La familia de <strong>${escapeHtml(p.alumnoNombre)}</strong> ha cancelado la siguiente cita.
     </p>
     <table cellpadding="0" cellspacing="0" style="width:100%;border-top:1px solid #e5e7eb;padding-top:16px;">
-      ${row("Alumno/a", p.alumnoNombre)}
-      ${row("Familiar", p.familiarNombre)}
+      ${row("Alumno/a", escapeHtml(p.alumnoNombre))}
+      ${row("Familiar", escapeHtml(p.familiarNombre))}
       ${fechaStr ? row("Fecha cancelada", fechaStr) : ""}
-      ${p.horaInicio ? row("Hora", p.horaInicio) : ""}
+      ${p.horaInicio ? row("Hora", escapeHtml(formatHora(p.horaInicio))) : ""}
+      ${p.motivo ? row("Motivo", multiline(p.motivo)) : ""}
     </table>
   `);
 
@@ -273,6 +287,16 @@ export async function sendCanceladaFamiliaEmail(p: CancelFamiliaParams) {
     subject: `Cita cancelada por la familia – ${p.alumnoNombre}`,
     html: body,
   });
+}
+
+// Postgres "time" columns come back as HH:MM:SS; emails show HH:MM
+function formatHora(hora: string): string {
+  return hora.slice(0, 5);
+}
+
+// Multi-line user text: escaped, with line breaks kept
+function multiline(text: string): string {
+  return escapeHtml(text).replace(/\n/g, "<br>");
 }
 
 // Escapes user-typed text before interpolating it into email HTML

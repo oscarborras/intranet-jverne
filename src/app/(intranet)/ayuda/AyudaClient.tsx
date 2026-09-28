@@ -3,10 +3,10 @@
 import { useState, useRef } from "react";
 import {
   HelpCircle, Laptop, Users, User, CalendarDays, Plus, PlusCircle, BookOpen,
-  CheckCircle2, MapPin, ChevronRight, ArrowLeft, Clock, Camera,
+  CheckCircle2, MapPin, ChevronRight, ArrowLeft, Camera,
   Mail, X, Smartphone, ShieldAlert, Monitor, Wrench,
   BookMarked, FileText, GraduationCap, ExternalLink, RotateCcw, Printer, ClipboardCheck,
-  CalendarClock, LayoutDashboard, RefreshCw, Search,
+  CalendarClock, LayoutDashboard, RefreshCw, Search, Forward, Pencil,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -58,8 +58,8 @@ const ITEMS: ItemMeta[] = [
     category: "tutorial",
     icon: <Users size={22} className="text-white" />,
     title: "Gestionar citas con familias (profesorado)",
-    description: "Confirma solicitudes, crea citas directas y cancela visitas.",
-    badge: "7 pasos · 2 min",
+    description: "Registra tus citas, deriva casos justificados, confirma, modifica y cancela visitas.",
+    badge: "9 pasos · 3 min",
     headerBg: "bg-red-600",
     headerText: "text-red-600",
   },
@@ -150,7 +150,7 @@ const MODULES: ModuleMeta[] = [
     slug: "citas-familias",
     icon: <Users size={22} className="text-white" />,
     title: "Citas con Familias",
-    description: "Confirmación y gestión de citas con las familias del alumnado.",
+    description: "Registro, derivación y gestión de citas con las familias del alumnado.",
     color: "bg-red-600",
     tutorials: ["citas"],
   },
@@ -340,12 +340,12 @@ function TutorialCitas() {
         </div>
         <div className="flex-1 pb-1">
           <p className="font-medium text-gray-900 text-sm mb-1">Accede a «Citas con Familias»</p>
-          <p className="text-sm text-gray-500 mb-3">En el menú lateral pulsa <strong className="text-gray-700">Citas con Familias</strong>. Verás tus solicitudes agrupadas por estado.</p>
-          <div className="bg-gray-50 rounded-lg border border-gray-100 p-3 text-xs space-y-1 max-w-[200px]">
-            <div className="flex items-center gap-2 text-gray-400 py-1 px-2"><CalendarDays size={12} /> Calendario</div>
-            <div className="flex items-center gap-2 text-red-700 font-semibold bg-red-50 py-1 px-2 rounded border border-red-200"><Users size={12} /> Citas con Familias</div>
-            <div className="flex items-center gap-2 text-gray-400 py-1 px-2"><BookOpen size={12} /> Anuncios</div>
+          <p className="text-sm text-gray-500 mb-3">En el menú lateral pulsa <strong className="text-gray-700">Citas con Familias</strong>. Arriba a la derecha tienes dos botones: <strong className="text-gray-700">Derivar cita</strong> y <strong className="text-gray-700">Registrar mi cita</strong>.</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-700 text-white text-[11px] font-semibold"><Forward size={11} /> Derivar cita</span>
+            <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-700 text-white text-[11px] font-semibold"><Plus size={11} /> Registrar mi cita</span>
           </div>
+          <p className="text-xs text-gray-400 mt-2">En el móvil solo se ven los iconos.</p>
         </div>
       </li>
 
@@ -354,13 +354,49 @@ function TutorialCitas() {
           <StepNum n={2} accent="red" /><StepConnector />
         </div>
         <div className="flex-1 pb-1">
-          <p className="font-medium text-gray-900 text-sm mb-1">Revisa las solicitudes pendientes</p>
-          <p className="text-sm text-gray-500 mb-3">Las nuevas solicitudes llegan a la pestaña <strong className="text-gray-700">Pendientes</strong>, marcada con un contador.</p>
+          <p className="font-medium text-gray-900 text-sm mb-1">«Registrar mi cita»: apunta una cita tuya ya acordada</p>
+          <p className="text-sm text-gray-500 mb-3">Rellena los datos del <strong className="text-blue-800">alumno/a</strong>, del <strong className="text-green-800">familiar</strong>, la <strong className="text-red-800">fecha, hora y lugar</strong> y, si quieres, el <strong className="text-amber-800">motivo</strong>. La cita se crea directamente como <strong className="text-gray-700">Confirmada</strong>.</p>
+          <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden max-w-[260px]">
+            <p className="bg-red-800 text-white text-[11px] font-semibold px-3 py-2">Registrar mi cita con una familia</p>
+            <div className="p-3 space-y-1.5">
+              <div className="rounded border border-blue-200 bg-blue-50 px-2 py-1 text-[10px] font-semibold text-blue-900 flex items-center gap-1"><GraduationCap size={10} /> Datos del alumno/a</div>
+              <div className="rounded border border-green-200 bg-green-50 px-2 py-1 text-[10px] font-semibold text-green-900 flex items-center gap-1"><Users size={10} /> Datos del familiar</div>
+              <div className="rounded border border-red-200 bg-red-50 px-2 py-1 text-[10px] font-semibold text-red-900 flex items-center gap-1"><CalendarClock size={10} /> Fecha, hora y lugar</div>
+              <div className="rounded border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-semibold text-amber-900 flex items-center gap-1"><FileText size={10} /> Motivo de la visita</div>
+            </div>
+          </div>
+          <p className="text-xs text-gray-400 mt-2">Si indicas el email del familiar, recibirá la fecha, hora y lugar con un enlace para cancelar.</p>
+        </div>
+      </li>
+
+      <li className="px-6 py-5 flex gap-4">
+        <div className="flex-shrink-0 flex flex-col items-center">
+          <StepNum n={3} accent="blue" /><StepConnector />
+        </div>
+        <div className="flex-1 pb-1">
+          <p className="font-medium text-gray-900 text-sm mb-1">«Derivar cita»: solo en casos justificados</p>
+          <p className="text-sm text-gray-500 mb-3">Si como tutor/a necesitas que la familia de un alumno/a tuyo se reúna con <strong className="text-gray-700">otro profesor/a</strong> o con un <strong className="text-gray-700">cargo directivo</strong>, elige a quién va dirigida y rellena los datos. Úsalo solo cuando el asunto se salga de las competencias de la tutoría.</p>
+          <div className="bg-amber-50 border border-amber-300 border-l-4 border-l-amber-600 rounded-lg px-3 py-2 max-w-xs">
+            <p className="text-[11px] font-bold text-amber-900">Antes de derivar la cita</p>
+            <p className="text-[10px] text-amber-800">Deriva una cita solo en casos justificados que se salgan de las competencias de la tutoría.</p>
+          </div>
+          <p className="text-xs text-gray-400 mt-2">La cita llega como <strong>Pendiente</strong> a la persona elegida, que recibe un aviso por email indicando quién se la ha derivado.</p>
+        </div>
+      </li>
+
+      <li className="px-6 py-5 flex gap-4">
+        <div className="flex-shrink-0 flex flex-col items-center">
+          <StepNum n={4} accent="red" /><StepConnector />
+        </div>
+        <div className="flex-1 pb-1">
+          <p className="font-medium text-gray-900 text-sm mb-1">Consulta tus citas por pestañas</p>
+          <p className="text-sm text-gray-500 mb-3">Las citas se agrupan por estado. Cada vez que cambias de pestaña la lista se actualiza, así ves los cambios que hayan hecho otros (por ejemplo, una familia que cancela).</p>
           <div className="flex gap-1 flex-wrap">
             {[
-              { label: "Pendientes", badge: "3", active: true },
+              { label: "Pendientes", badge: "2", active: true },
               { label: "Confirmadas", badge: null, active: false },
               { label: "Completadas", badge: null, active: false },
+              { label: "Derivadas", badge: null, active: false },
               { label: "Canceladas", badge: null, active: false },
             ].map(tab => (
               <span key={tab.label} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-medium border ${tab.active ? "bg-red-600 text-white border-red-600" : "bg-white text-gray-500 border-gray-200"}`}>
@@ -374,60 +410,21 @@ function TutorialCitas() {
 
       <li className="px-6 py-5 flex gap-4">
         <div className="flex-shrink-0 flex flex-col items-center">
-          <StepNum n={3} accent="red" /><StepConnector />
-        </div>
-        <div className="flex-1 pb-1">
-          <p className="font-medium text-gray-900 text-sm mb-1">Confirma la cita con fecha, hora y lugar</p>
-          <p className="text-sm text-gray-500 mb-3">Pulsa <strong className="text-gray-700">Registrar cita</strong>, elige fecha, hora y lugar, y pulsa <strong className="text-gray-700">Confirmar cita</strong>.</p>
-          <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4 max-w-[240px]">
-            <p className="text-[11px] font-semibold text-gray-700 mb-3">Registrar cita</p>
-            <div className="space-y-2">
-              <div>
-                <label className="text-[10px] text-gray-500 block mb-0.5">Fecha *</label>
-                <div className="border border-gray-200 rounded px-2 py-1 text-[11px] text-gray-600 flex items-center gap-1"><CalendarDays size={10} className="text-gray-400" /> 22/05/2026</div>
-              </div>
-              <div>
-                <label className="text-[10px] text-gray-500 block mb-0.5">Hora *</label>
-                <div className="border border-gray-200 rounded px-2 py-1 text-[11px] text-gray-600 flex items-center gap-1"><Clock size={10} className="text-gray-400" /> 16:30</div>
-              </div>
-              <div>
-                <label className="text-[10px] text-gray-500 block mb-0.5">Lugar *</label>
-                <div className="border border-gray-200 rounded px-2 py-1 text-[11px] text-gray-600 flex items-center gap-1"><MapPin size={10} className="text-gray-400" /> Sala de visitas</div>
-              </div>
-            </div>
-            <div className="flex gap-2 mt-3">
-              <span className="px-2 py-1 rounded border border-gray-200 text-[10px] text-gray-500">Cancelar</span>
-              <span className="px-2 py-1 rounded bg-green-600 text-[10px] text-white font-semibold">Confirmar cita</span>
-            </div>
-          </div>
-        </div>
-      </li>
-
-      <li className="px-6 py-5 flex gap-4">
-        <div className="flex-shrink-0 flex flex-col items-center">
-          <StepNum n={4} accent="red" /><StepConnector />
-        </div>
-        <div className="flex-1 pb-1">
-          <p className="font-medium text-gray-900 text-sm mb-1">La familia recibe un email automático</p>
-          <p className="text-sm text-gray-500 mb-3">Al confirmar, la familia recibe fecha, hora y lugar, junto con un <strong className="text-gray-700">enlace para cancelar</strong>.</p>
-          <div className="bg-gray-50 rounded-lg border border-gray-100 p-3 max-w-xs">
-            <div className="flex items-center gap-2 mb-2"><Mail size={11} className="text-gray-400" /><span className="text-[10px] text-gray-500">Para: familia@email.com</span></div>
-            <p className="text-[11px] text-gray-700 font-medium mb-1">Cita confirmada · IES Julio Verne</p>
-            <p className="text-[10px] text-gray-500 leading-relaxed">Su cita ha sido confirmada para el <strong className="text-gray-700">22 de mayo a las 16:30</strong> en la <strong className="text-gray-700">Sala de visitas</strong>.</p>
-          </div>
-        </div>
-      </li>
-
-      <li className="px-6 py-5 flex gap-4">
-        <div className="flex-shrink-0 flex flex-col items-center">
           <StepNum n={5} accent="red" /><StepConnector />
         </div>
         <div className="flex-1 pb-1">
-          <p className="font-medium text-gray-900 text-sm mb-1">Tras la reunión, marca como «Completada»</p>
-          <p className="text-sm text-gray-500 mb-3">Una vez celebrada la visita, pulsa el botón morado para archivarla.</p>
-          <div className="flex gap-2">
-            <span className="px-3 py-1.5 rounded-lg bg-indigo-100 text-indigo-700 text-[11px] font-semibold flex items-center gap-1"><CheckCircle2 size={11} /> Completada</span>
-            <span className="px-3 py-1.5 rounded-lg border border-gray-200 text-[11px] text-gray-500 flex items-center gap-1"><X size={11} /> Cancelar</span>
+          <p className="font-medium text-gray-900 text-sm mb-1">Confirma las citas pendientes con fecha, hora y lugar</p>
+          <p className="text-sm text-gray-500 mb-3">En <strong className="text-gray-700">Pendientes</strong> están las citas que te han derivado; la ficha indica <strong className="text-gray-700">quién te la ha derivado</strong>. Pulsa <strong className="text-gray-700">Registrar cita</strong>, elige fecha, hora y lugar y pulsa <strong className="text-gray-700">Confirmar cita</strong>. La familia recibe un email con los datos y un enlace para cancelar.</p>
+          <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-3 max-w-xs space-y-1.5">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-mono text-gray-500">CF-2026-0042</span>
+              <span className="px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-amber-100 text-amber-800">Pendiente</span>
+              <span className="px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-blue-100 text-blue-800 flex items-center gap-0.5"><Forward size={9} /> Derivada</span>
+            </div>
+            <div className="rounded border border-violet-200 bg-violet-50 px-2 py-1 text-[10px] text-gray-700"><span className="text-gray-500">Derivada por</span> <strong>García López, Ana</strong></div>
+            <div className="flex justify-end">
+              <span className="px-2 py-1 rounded bg-green-600 text-[10px] text-white font-semibold flex items-center gap-1"><CalendarDays size={10} /> Registrar cita</span>
+            </div>
           </div>
         </div>
       </li>
@@ -435,6 +432,32 @@ function TutorialCitas() {
       <li className="px-6 py-5 flex gap-4">
         <div className="flex-shrink-0 flex flex-col items-center">
           <StepNum n={6} accent="red" /><StepConnector />
+        </div>
+        <div className="flex-1 pb-1">
+          <p className="font-medium text-gray-900 text-sm mb-1">¿Cambia algo? Modifica la cita confirmada</p>
+          <p className="text-sm text-gray-500 mb-3">En <strong className="text-gray-700">Confirmadas</strong>, pulsa <strong className="text-gray-700">Modificar</strong> para cambiar la fecha, la hora o el lugar y pulsa <strong className="text-gray-700">Guardar cambios</strong>. La familia recibe un email «Cita modificada» con los nuevos datos.</p>
+          <div className="flex gap-2 flex-wrap">
+            <span className="px-3 py-1.5 rounded-lg bg-amber-500 text-white text-[11px] font-semibold flex items-center gap-1"><Pencil size={11} /> Modificar</span>
+            <span className="px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-[11px] font-semibold flex items-center gap-1"><CheckCircle2 size={11} /> Completada</span>
+            <span className="px-3 py-1.5 rounded-lg bg-gray-100 text-red-600 text-[11px] font-semibold flex items-center gap-1"><X size={11} /> Cancelar</span>
+          </div>
+          <p className="text-xs text-gray-400 mt-2">Si la familia no tiene email, avísala del cambio por teléfono.</p>
+        </div>
+      </li>
+
+      <li className="px-6 py-5 flex gap-4">
+        <div className="flex-shrink-0 flex flex-col items-center">
+          <StepNum n={7} accent="red" /><StepConnector />
+        </div>
+        <div className="flex-1 pb-1">
+          <p className="font-medium text-gray-900 text-sm mb-1">Tras la reunión, márcala como «Completada»</p>
+          <p className="text-sm text-gray-500 mb-3">Una vez celebrada la visita, pulsa el botón morado <strong className="text-gray-700">Completada</strong> para archivarla.</p>
+        </div>
+      </li>
+
+      <li className="px-6 py-5 flex gap-4">
+        <div className="flex-shrink-0 flex flex-col items-center">
+          <StepNum n={8} accent="red" /><StepConnector />
         </div>
         <div className="flex-1 pb-1">
           <p className="font-medium text-gray-900 text-sm mb-1">Para cancelar: motivo opcional y confirma</p>
@@ -453,16 +476,15 @@ function TutorialCitas() {
 
       <li className="px-6 py-5 flex gap-4">
         <div className="flex-shrink-0">
-          <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
-            <CheckCircle2 size={16} className="text-green-600" />
+          <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
+            <Forward size={16} className="text-blue-600" />
           </div>
         </div>
         <div className="flex-1">
-          <p className="font-medium text-gray-900 text-sm mb-1">¿Prefieres crear la cita tú directamente?</p>
-          <p className="text-sm text-gray-500 mb-3">Usa <strong className="text-gray-700">+ Registrar mi cita</strong> para apuntar una cita tuya ya acordada: se crea confirmada sin esperar solicitud y, si indicas su email, la familia recibe la fecha, hora y lugar.</p>
-          <div className="flex items-center gap-2">
-            <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-600 text-white text-[11px] font-semibold"><Plus size={11} /> Registrar mi cita</span>
-            <span className="text-xs text-gray-400">→ se crea directamente como «Confirmada»</span>
+          <p className="font-medium text-gray-900 text-sm mb-1">Sigue las citas que has derivado</p>
+          <p className="text-sm text-gray-500 mb-3">En la pestaña <strong className="text-gray-700">Derivadas</strong> ves en qué estado está cada cita que has derivado (pendiente, confirmada, completada o cancelada) y con quién es. Son de <strong className="text-gray-700">solo lectura</strong>: las gestiona la persona que las recibe.</p>
+          <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-xs text-blue-900 max-w-sm">
+            Citas que has derivado a otro profesor/a o cargo directivo. Aquí puedes consultar su estado; solo las gestiona la persona que las recibe.
           </div>
         </div>
       </li>

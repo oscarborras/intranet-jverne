@@ -13,6 +13,9 @@ interface CitaInfo {
   lugar: string | null;
 }
 
+/** Same limit as the API */
+const MOTIVO_MAX = 500;
+
 interface Props {
   cita: CitaInfo | null;
   token: string;
@@ -22,6 +25,7 @@ export default function CancelarCitaClient({ cita, token }: Props) {
   const [cancelled, setCancelled] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [motivo, setMotivo] = useState("");
 
   if (!cita) {
     return (
@@ -78,7 +82,7 @@ export default function CancelarCitaClient({ cita, token }: Props) {
       const res = await fetch("/api/citas/cancelar-familia", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token }),
+        body: JSON.stringify({ token, motivo: motivo.trim() }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -116,6 +120,24 @@ export default function CancelarCitaClient({ cita, token }: Props) {
             ))}
           </tbody>
         </table>
+      </div>
+
+      <div style={{ marginBottom: "24px" }}>
+        <label htmlFor="motivo-cancelacion" style={{ display: "block", fontSize: "13px", fontWeight: 600, color: "#374151", marginBottom: "4px" }}>
+          Motivo de la cancelación (opcional)
+        </label>
+        <textarea
+          id="motivo-cancelacion"
+          rows={3}
+          maxLength={MOTIVO_MAX}
+          placeholder="Indique, si lo desea, por qué cancela la cita..."
+          value={motivo}
+          onChange={(e) => setMotivo(e.target.value)}
+          style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", border: "1px solid #d1d5db", borderRadius: "6px", fontSize: "14px", outline: "none", resize: "vertical", fontFamily: "inherit" }}
+        />
+        <p style={{ margin: "4px 0 0", fontSize: "12px", color: "#6b7280" }}>
+          El profesor/a recibirá este motivo junto con el aviso de cancelación.
+        </p>
       </div>
 
       {error && (
