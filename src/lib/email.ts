@@ -47,6 +47,8 @@ interface NuevaSolicitudParams {
   familiarEmail: string | null;
   familiarTelefono: string | null;
   motivo: string | null;
+  /** Teacher who referred the appointment */
+  derivadaPor?: string | null;
 }
 
 export async function sendNuevaSolicitudEmail(p: NuevaSolicitudParams) {
@@ -59,6 +61,7 @@ export async function sendNuevaSolicitudEmail(p: NuevaSolicitudParams) {
     }</p>
     <table cellpadding="0" cellspacing="0" style="width:100%;border-top:1px solid #e5e7eb;padding-top:16px;">
       ${row("Código", p.codigo)}
+      ${p.derivadaPor ? row("Derivada por", p.derivadaPor) : ""}
       ${p.cargoNombre ? row("Dirigida a", p.cargoNombre) : ""}
       ${row("Alumno/a", `${p.alumnoNombre} (${p.alumnoCurso})`)}
       ${row("Familiar", `${p.familiarNombre} (${p.familiarParentesco})`)}
@@ -92,6 +95,8 @@ interface CitaConfirmadaParams {
   horaInicio: string;
   lugar: string;
   tokenFamilia: string;
+  /** The appointment was already confirmed and its date, time or place changed */
+  modificada?: boolean;
 }
 
 export async function sendCitaConfirmadaEmail(p: CitaConfirmadaParams) {
@@ -104,9 +109,11 @@ export async function sendCitaConfirmadaEmail(p: CitaConfirmadaParams) {
   });
 
   const body = baseLayout(`
-    <h2 style="margin:0 0 8px;font-size:20px;color:#111827;">Cita confirmada</h2>
+    <h2 style="margin:0 0 8px;font-size:20px;color:#111827;">${p.modificada ? "Cita modificada" : "Cita confirmada"}</h2>
     <p style="margin:0 0 24px;color:#6b7280;font-size:14px;">
-      Su cita con <strong>${p.profesorNombre}</strong> ha quedado confirmada.
+      ${p.modificada
+        ? `Su cita con <strong>${p.profesorNombre}</strong> ha cambiado. Estos son los nuevos datos:`
+        : `Su cita con <strong>${p.profesorNombre}</strong> ha quedado confirmada.`}
     </p>
     <table cellpadding="0" cellspacing="0" style="width:100%;border-top:1px solid #e5e7eb;padding-top:16px;">
       ${row("Alumno/a", `${p.alumnoNombre} (${p.alumnoCurso})`)}
@@ -126,7 +133,7 @@ export async function sendCitaConfirmadaEmail(p: CitaConfirmadaParams) {
   return resend.emails.send({
     from: FROM,
     to: p.familiarEmail,
-    subject: `Cita confirmada – ${fechaFormateada} ${p.horaInicio} – ${p.lugar}`,
+    subject: `${p.modificada ? "Cita modificada" : "Cita confirmada"} – ${fechaFormateada} ${p.horaInicio} – ${p.lugar}`,
     html: body,
   });
 }

@@ -188,6 +188,10 @@ export default async function DashboardPage() {
   const showCitasFamilias  = canSee("citas-familias");
   const showAusencias      = canSee("ausencias");
 
+  // Ordenanza: the family appointments panel lists today's confirmed appointments of every
+  // teacher (as in "Citas del día") instead of the user's own ones
+  const isOrdenanzaView = roleNames.includes("Ordenanza");
+
   const canSeeGuardiaView = roleNames.some((r) => ["Admin", "Directiva", "Guardia"].includes(r));
 
   // Expelled students panel: all teaching staff plus Guardia and Ordenanza
@@ -218,6 +222,7 @@ export default async function DashboardPage() {
     mantenimientoResult,
     extraescolaresResult,
     citasResult,
+    citasHoyResult,
     ausenciasProximasResult,
     ausenciasHoyResult,
     sancionesResult,
@@ -243,8 +248,12 @@ export default async function DashboardPage() {
     showCalendario
       ? supabase.from("calendar_eventos").select("id, titulo, descripcion, fecha_inicio, fecha_fin, todo_el_dia, hora_inicio, hora_fin").eq("tipo", "Activ. Extraescolar").gte("fecha_inicio", todayStr).lte("fecha_inicio", limitStr).order("fecha_inicio", { ascending: true })
       : Promise.resolve({ data: [] }),
-    showCitasFamilias && profesorId
+    showCitasFamilias && profesorId && !isOrdenanzaView
       ? supabase.from("citas_familias").select("id, codigo, alumno_nombre, alumno_curso, familiar_nombre, fecha, hora_inicio, lugar, estado, cargo").eq("profesor_id", profesorId).in("estado", ["pendiente", "confirmada"]).or(`fecha.lte.${citasLimitStr},fecha.is.null`).order("fecha", { ascending: true, nullsFirst: true }).limit(5)
+      : Promise.resolve({ data: [] }),
+    // RLS lets Ordenanza read only today's confirmed appointments
+    isOrdenanzaView
+      ? supabase.from("citas_familias").select("id, profesor_id, alumno_nombre, alumno_curso, hora_inicio").eq("estado", "confirmada").eq("fecha", todayStr).order("hora_inicio", { ascending: true })
       : Promise.resolve({ data: [] }),
     showAusencias && profesorId
       ? supabase.from("ausencias_profesorado").select("id, fecha, tramo_id, tramos_horarios(nombre, orden), cursos(nombre)").eq("profesor_id", profesorId).gte("fecha", todayStr).eq("estado", "activa").order("fecha", { ascending: true }).limit(4)
@@ -343,6 +352,23 @@ export default async function DashboardPage() {
   }
   const citasDashboard = (citasResult.data ?? []) as CitaDashboard[];
   const citasPendientesCount = citasDashboard.filter((c) => c.estado === "pendiente").length;
+
+  interface CitaHoyOrdenanza {
+    id: number;
+    profesor_id: string;
+    alumno_nombre: string;
+    alumno_curso: string;
+    hora_inicio: string | null;
+  }
+  const citasHoyRaw = (citasHoyResult.data ?? []) as CitaHoyOrdenanza[];
+  const profesorIdsHoy = [...new Set(citasHoyRaw.map((c) => c.profesor_id))];
+  const { data: profesoresHoy } = profesorIdsHoy.length > 0
+    ? await admin.from("profesores").select("id, profesor").in("id", profesorIdsHoy)
+    : { data: [] };
+  const profesoresHoyMap: Record<string, string> = Object.fromEntries(
+    (profesoresHoy ?? []).map((p) => [p.id as string, p.profesor as string])
+  );
+  const citasHoy = citasHoyRaw.map((c) => ({ ...c, profesor_nombre: profesoresHoyMap[c.profesor_id] ?? "—" }));
 
   interface AusenciaDashboard {
     id: number;
@@ -518,7 +544,58 @@ export default async function DashboardPage() {
           widgets.push(<ProximasReservas key="reservas" reservas={proximasReservas} />);
         }
 
-        if (showCitasFamilias) {
+        if (isOrdenanzaView) {
+          // Same table layout as the expelled students panel
+          widgets.push(
+            <div key="citas" className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+              <div className="bg-green-600 px-5 py-3 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <CalendarClock size={16} className="text-white flex-shrink-0" />
+                  <h3 className="text-white font-semibold text-sm truncate">Citas con Familias — Hoy</h3>
+                </div>
+                {citasHoy.length > 0 && (
+                  <span className="bg-white/25 text-white text-xs font-bold px-2.5 py-0.5 rounded-full flex-shrink-0">
+                    {citasHoy.length} cita{citasHoy.length !== 1 ? "s" : ""}
+                  </span>
+                )}
+              </div>
+              {citasHoy.length === 0 ? (
+                <p className="text-center text-gray-400 text-sm py-8">No hay citas confirmadas para hoy</p>
+              ) : (
+                <>
+                  <div className="hidden sm:grid grid-cols-[auto_1fr_1fr] gap-x-4 px-5 py-2 bg-gray-50 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
+                    <span className="w-12">Hora</span>
+                    <span>Alumno/a</span>
+                    <span>Profesor/a</span>
+                  </div>
+                  <ul className="divide-y divide-gray-50">
+                    {citasHoy.map((c) => (
+                      <li
+                        key={c.id}
+                        className="px-5 py-3 grid grid-cols-[auto_1fr] sm:grid-cols-[auto_1fr_1fr] items-center gap-x-4 gap-y-1"
+                      >
+                        <span className="w-12 text-sm font-semibold text-green-700 tabular-nums">
+                          {c.hora_inicio ? c.hora_inicio.slice(0, 5) : "—"}
+                        </span>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate">{c.alumno_nombre}</p>
+                          <p className="text-xs font-medium text-blue-600 truncate">{c.alumno_curso}</p>
+                        </div>
+                        {/* Mobile: teacher on its own line below the student */}
+                        <p className="col-start-2 sm:col-start-auto text-sm text-gray-600 truncate">{c.profesor_nombre}</p>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+              <div className="px-5 py-3 border-t border-gray-100">
+                <Link href="/ordenanzas" className="text-sm text-green-700 hover:underline cursor-pointer">
+                  Ver citas del día →
+                </Link>
+              </div>
+            </div>
+          );
+        } else if (showCitasFamilias) {
           widgets.push(
             <div key="citas" className="bg-white rounded-xl border border-gray-100 overflow-hidden">
               <div className="bg-red-600 px-5 py-3 flex items-center justify-between gap-2">

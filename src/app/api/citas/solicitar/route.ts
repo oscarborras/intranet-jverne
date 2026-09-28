@@ -46,6 +46,13 @@ export async function POST(req: NextRequest) {
 
   const admin = createAdminClient();
 
+  // Teacher who is referring the appointment (shown to the recipient)
+  const { data: derivador } = await admin
+    .from("profesores")
+    .select("id, profesor")
+    .eq("email", auth.user.email ?? "")
+    .maybeSingle();
+
   // Resolve who receives the request
   let destinatario: { id: string; profesor: string; email: string | null } | null;
   if (cargo) {
@@ -86,6 +93,7 @@ export async function POST(req: NextRequest) {
       familiar_telefono: familiar_telefono?.trim() || null,
       motivo: motivo.trim(),
       estado: "pendiente",
+      derivada_por: derivador?.id ?? null,
     })
     .select("id")
     .single();
@@ -118,8 +126,15 @@ export async function POST(req: NextRequest) {
       familiarEmail: familiar_email?.trim() || null,
       familiarTelefono: familiar_telefono?.trim() || null,
       motivo: motivo.trim(),
+      derivadaPor: derivador?.profesor ?? null,
     }).catch(console.error);
   }
 
-  return NextResponse.json({ success: true, codigo, cita, profesorNombre: destinatario.profesor });
+  return NextResponse.json({
+    success: true,
+    codigo,
+    // The referring teacher does not get the family's cancellation token
+    cita: cita ? { ...cita, token_familia: "", derivada_por_nombre: derivador?.profesor ?? null } : null,
+    profesorNombre: destinatario.profesor,
+  });
 }

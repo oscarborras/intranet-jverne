@@ -20,37 +20,42 @@ export async function POST(req: NextRequest) {
 
   const admin = createAdminClient();
 
-  // Resolve profesores.id from the authenticated user's email
+  // Admin/Directiva manage any teacher's appointments (same rule as the RLS policy);
+  // everyone else only their own, resolved from the authenticated user's email
+  const isAdmin = auth.roleNames.some((r) => ["Admin", "Directiva"].includes(r));
   const { data: profesorRow } = await admin
     .from("profesores")
     .select("id, profesor")
-    .eq("email", user.email!)
-    .single();
+    .eq("email", user.email ?? "")
+    .maybeSingle();
 
-  if (!profesorRow) {
+  if (!profesorRow && !isAdmin) {
     return NextResponse.json({ error: "Profesor no encontrado" }, { status: 403 });
   }
 
-  const { data: updated, error: updateError } = await admin
+  let query = admin
     .from("citas_familias")
     .update({
       estado: "cancelada",
       cancelada_por: "profesor",
       motivo_cancelacion: motivo_cancelacion?.trim() || null,
     })
-    .eq("id", citaId)
-    .eq("profesor_id", profesorRow.id)
-    .select()
-    .single();
+    .eq("id", citaId);
+  if (!isAdmin && profesorRow) query = query.eq("profesor_id", profesorRow.id);
+  const { data: updated, error: updateError } = await query.select().single();
 
   if (updateError || !updated) {
     return NextResponse.json({ error: "Error al cancelar la cita" }, { status: 500 });
   }
 
+  // The family is told the name of the teacher the appointment belongs to, not who clicked
+  const { data: owner } = await admin.from("profesores").select("profesor").eq("id", updated.profesor_id).maybeSingle();
+  const ownerNombre = owner?.profesor ?? profesorRow?.profesor ?? "";
+
   if (updated.familiar_email && process.env.RESEND_API_KEY) {
     await sendCanceladaProfesorEmail({
       familiarEmail: updated.familiar_email,
-      profesorNombre: nombreConCargo(profesorRow.profesor, updated.cargo),
+      profesorNombre: nombreConCargo(ownerNombre, updated.cargo),
       alumnoNombre: updated.alumno_nombre,
       fecha: updated.fecha,
       horaInicio: updated.hora_inicio,

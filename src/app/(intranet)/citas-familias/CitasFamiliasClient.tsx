@@ -1,31 +1,29 @@
 "use client";
 
-import { useState } from "react";
-import { Users, Plus, Forward, CalendarCheck, Clock, MapPin, User, Phone, Mail, BookOpen, X, Check, ChevronDown } from "lucide-react";
-import type { CitaFamilia, CitaFamiliaEstado } from "@/lib/types";
+import { useRef, useState } from "react";
+import { Users, Plus, Forward, CalendarCheck, Pencil, Loader2, X, Check, ChevronDown } from "lucide-react";
+import type { CitaFamilia } from "@/lib/types";
 import type { ProfesorOption } from "./page";
-import { CARGOS_DIRECTIVOS, type CargoDirectivoClave } from "@/lib/types";
+import type { CargoDirectivoClave } from "@/lib/types";
 import SolicitudCitaForm from "./SolicitudCitaForm";
 import RegistrarCitaForm, { type RegistrarCitaData } from "./RegistrarCitaForm";
+import CitaCard from "./CitaCard";
 
-type Tab = "pendiente" | "confirmada" | "completada" | "cancelada";
+/** Status tabs plus "derivada": appointments the user referred to someone else (read-only) */
+type Tab = "pendiente" | "confirmada" | "completada" | "derivada" | "cancelada";
 
 const TAB_LABELS: Record<Tab, string> = {
   pendiente: "Pendientes",
   confirmada: "Confirmadas",
   completada: "Completadas",
+  derivada: "Derivadas",
   cancelada: "Canceladas",
-};
-
-const ESTADO_COLORS: Record<CitaFamiliaEstado, string> = {
-  pendiente: "#f59e0b",
-  confirmada: "#10b981",
-  completada: "#6366f1",
-  cancelada: "#ef4444",
 };
 
 interface Props {
   initialCitas: CitaFamilia[];
+  /** Appointments the user referred to another teacher (not their own), read-only */
+  initialDerivadas: CitaFamilia[];
   userId: string;
   currentProfesorId: string | null;
   isAdmin: boolean;
@@ -42,13 +40,13 @@ interface RegistrarForm {
   lugar: string;
 }
 
-function formatFecha(fecha: string | null): string {
-  if (!fecha) return "—";
-  return new Date(fecha + "T00:00:00").toLocaleDateString("es-ES", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
-}
 
-export default function CitasFamiliasClient({ initialCitas, userId, currentProfesorId, isAdmin, profesores, canSolicitar, cargos }: Props) {
+export default function CitasFamiliasClient({ initialCitas, initialDerivadas, userId, currentProfesorId, isAdmin, profesores, canSolicitar, cargos }: Props) {
   const [citas, setCitas] = useState<CitaFamilia[]>(initialCitas);
+  const [derivadasAjenas, setDerivadasAjenas] = useState<CitaFamilia[]>(initialDerivadas);
+  const [refreshing, setRefreshing] = useState(false);
+  // Only the latest refresh may update the list (tabs can be switched quickly)
+  const refreshSeq = useRef(0);
   const [activeTab, setActiveTab] = useState<Tab>("pendiente");
   const [saving, setSaving] = useState(false);
   const [registrarId, setRegistrarId] = useState<number | null>(null);
@@ -60,15 +58,61 @@ export default function CitasFamiliasClient({ initialCitas, userId, currentProfe
   const [selectedCita, setSelectedCita] = useState<CitaFamilia | null>(null);
   const [filtroProfesorId, setFiltroProfesorId] = useState<string>(currentProfesorId ?? "");
 
-  const tabs: Tab[] = ["pendiente", "confirmada", "completada", "cancelada"];
+  const tabs: Tab[] = ["pendiente", "confirmada", "completada", "derivada", "cancelada"];
   const citasFiltradas = isAdmin && filtroProfesorId
     ? citas.filter((c) => c.profesor_id === filtroProfesorId)
     : citas;
-  const filtered = citasFiltradas.filter((c) => c.estado === activeTab);
+  // Referred by the selected teacher (admin filter) or by the user, whoever it went to
+  const derivadorId = isAdmin ? filtroProfesorId : currentProfesorId;
+  const derivadas = [...citas, ...derivadasAjenas]
+    .filter((c) => c.derivada_por && (isAdmin && !filtroProfesorId ? true : c.derivada_por === derivadorId))
+    .sort((a, b) => b.created_at.localeCompare(a.created_at));
+  const isDerivadasTab = activeTab === "derivada";
+  const filtered = isDerivadasTab ? derivadas : citasFiltradas.filter((c) => c.estado === activeTab);
   const pendienteCount = citasFiltradas.filter((c) => c.estado === "pendiente").length;
   const confirmadaCount = citasFiltradas.filter((c) => c.estado === "confirmada").length;
 
   const efectiveProfesorId = isAdmin ? (filtroProfesorId || userId) : userId;
+
+  // Reload the list from the server so changes made by others (e.g. the recipient of a
+  // referred appointment, or a family cancelling) show up without leaving the page
+  async function refreshCitas() {
+    const seq = ++refreshSeq.current;
+    setRefreshing(true);
+    try {
+      const res = await fetch("/api/citas/listado", { cache: "no-store" });
+      if (!res.ok) return;
+      const data = (await res.json()) as { citas: CitaFamilia[]; derivadas: CitaFamilia[] };
+      if (seq !== refreshSeq.current) return;
+      setCitas(data.citas);
+      setDerivadasAjenas(data.derivadas);
+    } catch {
+      // Keep the current list if the network fails; the next tab change retries
+    } finally {
+      if (seq === refreshSeq.current) setRefreshing(false);
+    }
+  }
+
+  function changeTab(tab: Tab) {
+    setActiveTab(tab);
+    void refreshCitas();
+  }
+
+  // "Registrar cita" (pending) and "Modificar" (confirmed) share the date/time/place modal
+  function openRegistrar(cita: CitaFamilia) {
+    setSelectedCita(cita);
+    setRegistrarForm(
+      cita.estado === "confirmada"
+        ? { fecha: cita.fecha ?? "", hora_inicio: cita.hora_inicio?.slice(0, 5) ?? "", lugar: cita.lugar ?? "" }
+        : { fecha: "", hora_inicio: "", lugar: "" }
+    );
+    setRegistrarId(cita.id);
+  }
+
+  function closeRegistrar() {
+    setRegistrarId(null);
+    setRegistrarForm({ fecha: "", hora_inicio: "", lugar: "" });
+  }
 
   async function handleRegistrar(citaId: number) {
     const lugar = registrarForm.lugar.trim();
@@ -80,13 +124,13 @@ export default function CitasFamiliasClient({ initialCitas, userId, currentProfe
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ citaId, fecha: registrarForm.fecha, hora_inicio: registrarForm.hora_inicio, lugar }),
       });
-      if (!res.ok) throw new Error();
-      const { cita } = await res.json();
+      const data = (await res.json().catch(() => ({}))) as { cita?: Partial<CitaFamilia>; error?: string };
+      if (!res.ok || !data.cita) throw new Error(data.error);
+      const cita = data.cita;
       setCitas((prev) => prev.map((c) => (c.id === citaId ? { ...c, ...cita } : c)));
-      setRegistrarId(null);
-      setRegistrarForm({ fecha: "", hora_inicio: "", lugar: "" });
-    } catch {
-      alert("Error al confirmar la cita. Inténtelo de nuevo.");
+      closeRegistrar();
+    } catch (err) {
+      alert(err instanceof Error && err.message ? err.message : "Error al guardar la cita. Inténtelo de nuevo.");
     } finally {
       setSaving(false);
     }
@@ -141,10 +185,14 @@ export default function CitasFamiliasClient({ initialCitas, userId, currentProfe
   }
 
   function handleSolicitudCreada(cita: CitaFamilia) {
-    // Only list it if this user can see it (admins see all, teachers only their own)
-    if (!isAdmin && cita.profesor_id !== currentProfesorId) return;
-    setCitas((prev) => [cita, ...prev]);
-    setActiveTab("pendiente");
+    // Admins see every appointment and teachers their own; otherwise it is someone
+    // else's appointment and only shows up in the read-only "Derivadas" tab
+    if (isAdmin || cita.profesor_id === currentProfesorId) {
+      setCitas((prev) => [cita, ...prev]);
+    } else {
+      setDerivadasAjenas((prev) => [cita, ...prev]);
+    }
+    setActiveTab("derivada");
   }
 
   return (
@@ -209,11 +257,11 @@ export default function CitasFamiliasClient({ initialCitas, userId, currentProfe
       )}
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-gray-100 rounded-lg p-1 mb-6 overflow-x-auto">
+      <div className="flex gap-1 bg-gray-100 rounded-lg p-1 overflow-x-auto">
         {tabs.map((tab) => (
           <button
             key={tab}
-            onClick={() => setActiveTab(tab)}
+            onClick={() => changeTab(tab)}
             className={`flex-1 min-w-max px-3 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === tab ? "bg-white text-gray-900 shadow-sm" : "text-gray-600 hover:text-gray-900"
               }`}
           >
@@ -232,133 +280,98 @@ export default function CitasFamiliasClient({ initialCitas, userId, currentProfe
         ))}
       </div>
 
+      {/* Fixed height so the list does not jump while refreshing */}
+      <p aria-live="polite" className="h-5 mb-2 text-xs text-gray-400 flex items-center justify-end gap-1">
+        {refreshing && <><Loader2 className="w-3 h-3 animate-spin" aria-hidden="true" /> Actualizando…</>}
+      </p>
+
+      {isDerivadasTab && (
+        <p className="text-sm text-blue-900 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 flex items-start gap-2">
+          <Forward className="w-4 h-4 mt-0.5 shrink-0 text-blue-600" aria-hidden="true" />
+          <span>
+            Citas que {isAdmin && !filtroProfesorId ? "se han derivado" : "has derivado"} a otro profesor/a o cargo directivo.
+            Aquí puedes consultar su estado; solo las gestiona la persona que las recibe.
+          </span>
+        </p>
+      )}
+
       {/* Lista de citas */}
       {filtered.length === 0 ? (
         <div className="text-center py-12 text-gray-400">
           <Users className="w-10 h-10 mx-auto mb-3 opacity-30" />
-          <p className="text-sm">No hay citas en este estado</p>
+          <p className="text-sm">{isDerivadasTab ? "No hay citas derivadas" : "No hay citas en este estado"}</p>
         </div>
       ) : (
         <div className="space-y-3">
           {filtered.map((cita) => (
-            <div
+            <CitaCard
               key={cita.id}
-              className="bg-white border border-gray-200 rounded-xl p-4 hover:border-gray-300 transition-colors"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap mb-1">
-                    <span className="text-xs font-mono text-gray-400">{cita.codigo}</span>
-                    <span
-                      className="px-2 py-0.5 rounded-full text-xs font-medium"
-                      style={{ background: ESTADO_COLORS[cita.estado] + "20", color: ESTADO_COLORS[cita.estado] }}
+              cita={cita}
+              showProfesor={isAdmin || isDerivadasTab}
+              actions={!isDerivadasTab && (isAdmin || cita.profesor_id === userId) && (
+                <>
+                  {cita.estado === "pendiente" && (
+                    <button
+                      onClick={() => openRegistrar(cita)}
+                      className="px-3 py-2 min-h-[40px] bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors flex items-center gap-1.5"
                     >
-                      {TAB_LABELS[cita.estado]}
-                    </span>
-                    {cita.cancelada_por && (
-                      <span className="text-xs text-gray-400">({cita.cancelada_por})</span>
-                    )}
-                    {cita.cargo && (
-                      <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700">
-                        {CARGOS_DIRECTIVOS[cita.cargo]}
-                      </span>
-                    )}
-                  </div>
-                  <p className="font-semibold text-gray-900">{cita.alumno_nombre} <span className="text-sm font-normal text-gray-500">({cita.alumno_curso})</span></p>
-                  <p className="text-sm text-gray-600 mt-0.5">
-                    <User className="w-3.5 h-3.5 inline mr-1 text-gray-400" />
-                    {cita.familiar_nombre} · <span className="capitalize">{cita.familiar_parentesco}</span>
-                  </p>
-                  {isAdmin && cita.profesor && (
-                    <p className="text-xs text-gray-400 mt-0.5">Profesor/a: {cita.profesor.full_name}</p>
+                      <CalendarCheck className="w-4 h-4" />
+                      Registrar cita
+                    </button>
                   )}
-                  {cita.fecha && (
-                    <div className="flex items-center gap-3 mt-2 flex-wrap">
-                      <span className="text-sm text-gray-600 flex items-center gap-1">
-                        <CalendarCheck className="w-3.5 h-3.5 text-gray-400" />
-                        {formatFecha(cita.fecha)}
-                      </span>
-                      {cita.hora_inicio && (
-                        <span className="text-sm text-gray-600 flex items-center gap-1">
-                          <Clock className="w-3.5 h-3.5 text-gray-400" />
-                          {cita.hora_inicio.slice(0, 5)}
-                        </span>
-                      )}
-                      {cita.lugar && (
-                        <span className="text-sm text-gray-600 flex items-center gap-1">
-                          <MapPin className="w-3.5 h-3.5 text-gray-400" />
-                          {cita.lugar}
-                        </span>
-                      )}
-                    </div>
+                  {cita.estado === "confirmada" && (
+                    <button
+                      onClick={() => openRegistrar(cita)}
+                      aria-label={`Modificar la cita ${cita.codigo}`}
+                      className="px-3 py-2 min-h-[40px] bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 transition-colors flex items-center gap-1.5"
+                    >
+                      <Pencil className="w-4 h-4" />
+                      Modificar
+                    </button>
                   )}
-                  {cita.motivo && (
-                    <p className="text-xs text-gray-500 mt-1 flex items-start gap-1">
-                      <BookOpen className="w-3.5 h-3.5 mt-0.5 text-gray-300 shrink-0" />
-                      {cita.motivo}
-                    </p>
+                  {cita.estado === "confirmada" && (
+                    <button
+                      onClick={() => handleCompletar(cita.id)}
+                      disabled={saving}
+                      className="px-3 py-2 min-h-[40px] bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors flex items-center gap-1.5"
+                    >
+                      <Check className="w-4 h-4" />
+                      Completada
+                    </button>
                   )}
-                  {cita.estado === "cancelada" && cita.motivo_cancelacion && (
-                    <p className="text-xs text-red-400 mt-1 flex items-start gap-1">
-                      <X className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-                      <span><span className="font-medium">Motivo cancelación:</span> {cita.motivo_cancelacion}</span>
-                    </p>
+                  {(cita.estado === "pendiente" || cita.estado === "confirmada") && (
+                    <button
+                      onClick={() => { setCancelId(cita.id); setCancelMotivo(""); }}
+                      className="px-3 py-2 min-h-[40px] bg-gray-100 text-red-600 rounded-lg text-sm font-medium hover:bg-red-50 transition-colors flex items-center gap-1.5"
+                    >
+                      <X className="w-4 h-4" />
+                      Cancelar
+                    </button>
                   )}
-                  {cita.familiar_email && (
-                    <p className="text-xs text-gray-400 mt-1 flex items-center gap-1">
-                      <Mail className="w-3 h-3" />{cita.familiar_email}
-                      {cita.familiar_telefono && <><Phone className="w-3 h-3 ml-2" />{cita.familiar_telefono}</>}
-                    </p>
-                  )}
-                </div>
-
-                {/* Acciones */}
-                {(isAdmin || cita.profesor_id === userId) && (
-                  <div className="flex flex-col gap-1 shrink-0">
-                    {cita.estado === "pendiente" && (
-                      <button
-                        onClick={() => { setRegistrarId(cita.id); setSelectedCita(cita); }}
-                        className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700 transition-colors flex items-center gap-1"
-                      >
-                        <CalendarCheck className="w-3.5 h-3.5" />
-                        Registrar cita
-                      </button>
-                    )}
-                    {cita.estado === "confirmada" && (
-                      <button
-                        onClick={() => handleCompletar(cita.id)}
-                        disabled={saving}
-                        className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-medium hover:bg-indigo-700 transition-colors flex items-center gap-1"
-                      >
-                        <Check className="w-3.5 h-3.5" />
-                        Completada
-                      </button>
-                    )}
-                    {(cita.estado === "pendiente" || cita.estado === "confirmada") && (
-                      <button
-                        onClick={() => { setCancelId(cita.id); setCancelMotivo(""); }}
-                        className="px-3 py-1.5 bg-gray-100 text-red-600 rounded-lg text-xs font-medium hover:bg-red-50 transition-colors flex items-center gap-1"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                        Cancelar
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
+                </>
+              )}
+            />
           ))}
         </div>
       )}
 
-      {/* Modal: Registrar fecha/hora */}
+      {/* Modal: Registrar fecha/hora (pending) or Modificar (confirmed) */}
       {registrarId !== null && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6">
-            <h2 className="font-bold text-gray-900 mb-1">Registrar cita</h2>
+            <h2 className="font-bold text-gray-900 mb-1">
+              {selectedCita?.estado === "confirmada" ? "Modificar cita" : "Registrar cita"}
+            </h2>
             {selectedCita && (
               <p className="text-sm text-gray-500 mb-4">
                 {selectedCita.alumno_nombre} · {selectedCita.familiar_nombre}
+              </p>
+            )}
+            {selectedCita?.estado === "confirmada" && (
+              <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4">
+                {selectedCita.familiar_email
+                  ? "La familia recibirá un email con la nueva fecha, hora y lugar."
+                  : "Esta familia no tiene email: avísela del cambio por teléfono."}
               </p>
             )}
             <div className="space-y-3">
@@ -385,9 +398,9 @@ export default function CitasFamiliasClient({ initialCitas, userId, currentProfe
                 disabled={saving || !registrarForm.fecha || !registrarForm.hora_inicio || !registrarForm.lugar.trim()}
                 className="flex-1 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50 transition-colors"
               >
-                {saving ? "Guardando..." : "Confirmar cita"}
+                {saving ? "Guardando..." : selectedCita?.estado === "confirmada" ? "Guardar cambios" : "Confirmar cita"}
               </button>
-              <button onClick={() => setRegistrarId(null)}
+              <button onClick={closeRegistrar}
                 className="flex-1 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors">
                 Cancelar
               </button>

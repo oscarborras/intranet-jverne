@@ -401,9 +401,13 @@ export interface CitaFamilia {
   token_familia: string;
   /** Leadership role the family asked for; null when they chose a specific teacher */
   cargo: CargoDirectivoClave | null;
+  /** Teacher who referred the appointment ("Derivar cita"); null when not referred */
+  derivada_por: string | null;
   created_at: string;
   updated_at: string;
   profesor?: { full_name: string; email: string };
+  /** Name of the teacher in derivada_por, resolved server-side */
+  derivada_por_nombre?: string | null;
 }
 
 // ─── Gratuidad de Libros ──────────────────────────────────────────────────────

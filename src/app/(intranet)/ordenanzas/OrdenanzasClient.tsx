@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Search, MapPin, RefreshCw, User } from "lucide-react";
+import { Search, MapPin, RefreshCw, User, GraduationCap, Users } from "lucide-react";
 import { CARGOS_DIRECTIVOS, type CargoDirectivoClave } from "@/lib/types";
+import { CITA_THEMES, CitaBlock, CitaField } from "@/components/citas/CitaBlocks";
 
 interface CitaOrdenanza {
   id: number;
@@ -139,23 +140,19 @@ export default function OrdenanzasClient({ citas, profesores, todayStr }: Props)
                           </p>
                         </div>
                       )}
-                      <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-gray-900 text-sm">
-                          {c.alumno_nombre}{" "}
-                          <span className="font-normal text-gray-400 text-xs">({c.alumno_curso})</span>
-                        </p>
-                        <p className="text-gray-500 text-xs mt-0.5">
-                          {c.familiar_nombre} · <span className="capitalize">{c.familiar_parentesco}</span>
-                        </p>
-                        {c.cargo && (
-                          <p className="text-indigo-600 text-xs font-medium mt-0.5">Cita con {CARGOS_DIRECTIVOS[c.cargo]}</p>
-                        )}
-                        {c.lugar && (
-                          <p className="text-gray-400 text-xs mt-1 flex items-center gap-1">
-                            <MapPin size={11} />
-                            {c.lugar}
-                          </p>
-                        )}
+                      <div className="flex-1 min-w-0 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <CitaBlock title="Alumno/a" icon={GraduationCap} theme={CITA_THEMES.alumno}>
+                          <CitaField label="Nombre"><strong className="font-semibold">{c.alumno_nombre}</strong></CitaField>
+                          <CitaField label="Curso">{c.alumno_curso}</CitaField>
+                        </CitaBlock>
+                        <CitaBlock title="Familiar" icon={Users} theme={CITA_THEMES.familiar}>
+                          <CitaField label="Nombre">{c.familiar_nombre}</CitaField>
+                          <CitaField label="Parentesco"><span className="capitalize">{c.familiar_parentesco}</span></CitaField>
+                        </CitaBlock>
+                        <CitaBlock title="Lugar" icon={MapPin} theme={CITA_THEMES.cuando}>
+                          <CitaField label="Lugar">{c.lugar ?? <span className="text-gray-500 italic">Por determinar</span>}</CitaField>
+                          {c.cargo && <CitaField label="Cita con">{CARGOS_DIRECTIVOS[c.cargo]}</CitaField>}
+                        </CitaBlock>
                       </div>
                     </div>
                   ))}
