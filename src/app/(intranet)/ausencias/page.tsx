@@ -2,12 +2,15 @@ import { createClient } from "@/lib/supabase/server";
 import { AusenciasClient } from "./AusenciasClient";
 import type { AusenciaProfesorado, TramoHorario, Curso } from "@/lib/types";
 import { todayMadrid, addDaysToDateStr } from "@/lib/dates";
-import { requireAuth } from "@/lib/auth";
+import { requireRole } from "@/lib/auth";
 
 export default async function AusenciasPage() {
-  const { user, roleNames } = await requireAuth();
+  const { user, roleNames } = await requireRole(["Admin", "Directiva", "Guardia", "Profesor"]);
   const supabase = await createClient();
-  const canViewGuardia = roleNames.some((r) => ["Admin", "Directiva", "Guardia"].includes(r));
+  // Guardia/management roles land on the guardia tab; Profesor can also view it, as a secondary tab
+  const isGuardiaRole = roleNames.some((r) => ["Admin", "Directiva", "Guardia"].includes(r));
+  const canViewGuardia = isGuardiaRole || roleNames.includes("Profesor");
+  const canViewMis = roleNames.some((r) => ["Profesor", "Directiva"].includes(r));
   const canManageAll = roleNames.some((r) => ["Admin", "Directiva"].includes(r));
 
   // Fetch supporting data for the form
@@ -20,6 +23,16 @@ export default async function AusenciasPage() {
   ]);
 
   const myProfesorId: string | null = myProfesorRow?.id ?? null;
+
+  // Course dropdown: special entries first ("Guardia", then "Otros"), then the rest alphabetically
+  const PINNED_CURSOS = ["Guardia", "Otros"];
+  const pinnedRank = (nombre: string) => {
+    const i = PINNED_CURSOS.indexOf(nombre);
+    return i === -1 ? PINNED_CURSOS.length : i;
+  };
+  const sortedCursos = ((cursos ?? []) as Curso[]).toSorted(
+    (x, y) => pinnedRank(x.nombre) - pinnedRank(y.nombre)
+  );
 
   // Fetch teacher's own absences (last 60 days + future)
   let misAusencias: AusenciaProfesorado[] = [];
@@ -84,10 +97,12 @@ export default async function AusenciasPage() {
       misAusencias={misAusencias}
       guardiaAusencias={canViewGuardia ? guardiaAusencias : null}
       tramos={(tramos ?? []) as TramoHorario[]}
-      cursos={(cursos ?? []) as Curso[]}
+      cursos={sortedCursos}
       userId={user.id}
       myProfesorId={myProfesorId}
       canViewGuardia={canViewGuardia}
+      guardiaFirst={isGuardiaRole}
+      canViewMis={canViewMis}
       canManageAll={canManageAll}
       profesores={profesores}
     />

@@ -31,6 +31,10 @@ interface Props {
   userId: string;
   myProfesorId: string | null;
   canViewGuardia: boolean;
+  /** When true, the guardia tab is shown first and selected by default */
+  guardiaFirst: boolean;
+  /** "Mis ausencias" tab (own absence list); without it the form is still reachable to register/edit */
+  canViewMis: boolean;
   canManageAll: boolean;
   profesores: Profesor[];
 }
@@ -145,13 +149,27 @@ function GuardiaActions({ a, onEdit, onCancel, cancellingId }: { a: AusenciaProf
   );
 }
 
+function findCurrentTramo(tramos: TramoHorario[]): TramoHorario | null {
+  const now = new Date();
+  const cur = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+  return tramos.find((t) => t.hora_inicio.slice(0, 5) <= cur && cur <= t.hora_fin.slice(0, 5)) ?? null;
+}
+
+// "1ª hora", "2ª hora"... counting only teaching slots, or "Recreo"
+function tramoLabel(tramo: TramoHorario, tramos: TramoHorario[]): string {
+  if (tramo.es_recreo) return "Recreo";
+  const position = tramos.filter((t) => !t.es_recreo && t.orden <= tramo.orden).length;
+  return `${position}ª hora`;
+}
+
 function GuardiaView({ initial, initialFecha, tramos, refreshKey, canManage, onEdit, onCancel, cancellingId }: GuardiaViewProps) {
   const [fecha, setFecha] = useState(initialFecha);
   const fechaRef = useRef(initialFecha);
   const [ausencias, setAusencias] = useState(initial);
   const [loading, setLoading] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
-  const [filterMode, setFilterMode] = useState<"all" | "current">("all");
+  // Default to the current slot when there is one; otherwise it would show every absence anyway
+  const [filterMode, setFilterMode] = useState<"all" | "current">(() => (findCurrentTramo(tramos) ? "current" : "all"));
 
   const loadFecha = useCallback(async (f: string) => {
     setLoading(true);
@@ -205,11 +223,7 @@ function GuardiaView({ initial, initialFecha, tramos, refreshKey, canManage, onE
 
   const isToday = fecha === todayMadrid();
 
-  const currentTramo = tramos.find((t) => {
-    const now = new Date();
-    const cur = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-    return t.hora_inicio.slice(0, 5) <= cur && cur <= t.hora_fin.slice(0, 5);
-  }) ?? null;
+  const currentTramo = findCurrentTramo(tramos);
 
   const displayedAusencias = filterMode === "current" && isToday && currentTramo
     ? ausencias.filter((a) => a.tramo_id === currentTramo.id)
@@ -282,7 +296,7 @@ function GuardiaView({ initial, initialFecha, tramos, refreshKey, canManage, onE
               <span className="text-xs text-gray-500">
                 {currentTramo.nombre}
                 <span className="text-gray-400 ml-1">
-                  ({currentTramo.hora_inicio.slice(0, 5)}–{currentTramo.hora_fin.slice(0, 5)})
+                  ({tramoLabel(currentTramo, tramos)})
                 </span>
               </span>
             ) : (
@@ -412,10 +426,12 @@ export function AusenciasClient({
   userId,
   myProfesorId,
   canViewGuardia,
+  guardiaFirst,
+  canViewMis,
   canManageAll,
   profesores,
 }: Props) {
-  const [activeTab, setActiveTab] = useState<Tab>(canViewGuardia ? "guardia" : "mis");
+  const [activeTab, setActiveTab] = useState<Tab>(canViewGuardia && (guardiaFirst || !canViewMis) ? "guardia" : "mis");
   const [misAusencias, setMisAusencias] = useState(initialAusencias);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -468,6 +484,7 @@ export function AusenciasClient({
     setShowForm(false);
     resetForm();
     if (editing) setActiveTab(editReturnTab);
+    else if (!canViewMis) setActiveTab("guardia");
   }
 
   function openEdit(a: AusenciaProfesorado, returnTab: Tab = "mis") {
@@ -698,7 +715,7 @@ export function AusenciasClient({
     setGuardiaRefreshKey((k) => k + 1);
     if (targetProfesorId === myProfesorId) {
       setMisAusencias((prev) => [...creadas, ...prev]);
-      setActiveTab("mis");
+      setActiveTab(canViewMis ? "mis" : "guardia");
     } else {
       setActiveTab("guardia");
     }
@@ -766,30 +783,24 @@ export function AusenciasClient({
       </div>
 
       {/* Tabs */}
-      {canViewGuardia && (
+      {canViewGuardia && canViewMis && (
         <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit">
-          <button
-            onClick={() => setActiveTab("guardia")}
-            className={cn(
-              "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors",
-              activeTab === "guardia"
-                ? "bg-white text-gray-900 shadow-sm"
-                : "text-gray-500 hover:text-gray-700"
-            )}
-          >
-            <ShieldCheck size={15} /> Vista Guardia
-          </button>
-          <button
-            onClick={() => setActiveTab("mis")}
-            className={cn(
-              "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors",
-              activeTab === "mis"
-                ? "bg-white text-gray-900 shadow-sm"
-                : "text-gray-500 hover:text-gray-700"
-            )}
-          >
-            <UserX size={15} /> Mis ausencias
-          </button>
+          {(guardiaFirst ? (["guardia", "mis"] as const) : (["mis", "guardia"] as const)).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={cn(
+                "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors",
+                activeTab === tab
+                  ? "bg-white text-gray-900 shadow-sm"
+                  : "text-gray-500 hover:text-gray-700"
+              )}
+            >
+              {tab === "guardia"
+                ? <><ShieldCheck size={15} /> Vista Guardia</>
+                : <><UserX size={15} /> Mis ausencias</>}
+            </button>
+          ))}
         </div>
       )}
 
@@ -1149,7 +1160,7 @@ export function AusenciasClient({
           )}
 
           {/* Absence list */}
-          {misAusencias.length === 0 ? (
+          {!canViewMis ? null : misAusencias.length === 0 ? (
             <div className="bg-white rounded-xl border border-gray-100 py-16 text-center">
               <UserX size={32} className="text-gray-200 mx-auto mb-3" />
               <p className="text-sm text-gray-400">No tienes ausencias registradas</p>

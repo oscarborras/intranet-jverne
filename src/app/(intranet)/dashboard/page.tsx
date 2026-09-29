@@ -194,6 +194,10 @@ export default async function DashboardPage() {
 
   const canSeeGuardiaView = roleNames.some((r) => ["Admin", "Directiva", "Guardia"].includes(r));
 
+  // Guardia-only users: the absences panel lists today's remaining absences of every teacher
+  // instead of the user's own upcoming ones
+  const isGuardiaOnlyView = roleNames.length > 0 && roleNames.every((r) => r === "Guardia");
+
   // Expelled students panel: all teaching staff plus Guardia and Ordenanza
   const showSanciones = roleNames.some((r) => ["Admin", "Directiva", "Profesor", "Guardia", "Ordenanza"].includes(r));
 
@@ -255,7 +259,9 @@ export default async function DashboardPage() {
     isOrdenanzaView
       ? supabase.from("citas_familias").select("id, profesor_id, alumno_nombre, alumno_curso, hora_inicio").eq("estado", "confirmada").eq("fecha", todayStr).order("hora_inicio", { ascending: true })
       : Promise.resolve({ data: [] }),
-    showAusencias && profesorId
+    showAusencias && isGuardiaOnlyView
+      ? supabase.from("ausencias_profesorado").select("id, fecha, tramo_id, profesor_id, tramos_horarios(nombre, orden, hora_fin), cursos(nombre)").eq("fecha", todayStr).eq("estado", "activa")
+      : showAusencias && profesorId
       ? supabase.from("ausencias_profesorado").select("id, fecha, tramo_id, tramos_horarios(nombre, orden), cursos(nombre)").eq("profesor_id", profesorId).gte("fecha", todayStr).eq("estado", "activa").order("fecha", { ascending: true }).limit(4)
       : Promise.resolve({ data: [] }),
     showAusencias && canSeeGuardiaView
@@ -373,10 +379,27 @@ export default async function DashboardPage() {
   interface AusenciaDashboard {
     id: number;
     fecha: string;
-    tramos_horarios: { nombre: string; orden: number } | null;
+    profesor_id?: string;
+    tramos_horarios: { nombre: string; orden: number; hora_fin?: string } | null;
     cursos: { nombre: string } | null;
   }
-  const misAusenciasProximas = (ausenciasProximasResult.data ?? []) as unknown as AusenciaDashboard[];
+  let misAusenciasProximas = (ausenciasProximasResult.data ?? []) as unknown as AusenciaDashboard[];
+  let ausenciaProfesorMap: Record<string, string> = {};
+  if (isGuardiaOnlyView) {
+    // Keep only slots that have not finished yet, in timetable order
+    const _now = new Date();
+    const nowTime = `${String(_now.getHours()).padStart(2, "0")}:${String(_now.getMinutes()).padStart(2, "0")}`;
+    misAusenciasProximas = misAusenciasProximas
+      .filter((a) => (a.tramos_horarios?.hora_fin?.slice(0, 5) ?? "23:59") > nowTime)
+      .sort((a, b) => (a.tramos_horarios?.orden ?? 0) - (b.tramos_horarios?.orden ?? 0));
+    const ids = [...new Set(misAusenciasProximas.map((a) => a.profesor_id).filter((id): id is string => !!id))];
+    const { data: profesoresAusentes } = ids.length > 0
+      ? await supabase.from("profesores").select("id, profesor").in("id", ids)
+      : { data: [] };
+    ausenciaProfesorMap = Object.fromEntries(
+      (profesoresAusentes ?? []).map((p) => [p.id as string, p.profesor as string])
+    );
+  }
   const ausenciasHoyCount = (ausenciasHoyResult.data ?? []).length;
 
   interface SancionDashboard {
@@ -711,7 +734,7 @@ export default async function DashboardPage() {
               <div className="bg-amber-500 px-5 py-3 flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <UserX size={16} className="text-white" />
-                  <h3 className="text-white font-semibold text-sm">Mis Ausencias Próximas</h3>
+                  <h3 className="text-white font-semibold text-sm">{isGuardiaOnlyView ? "Próximas Ausencias de Hoy" : "Mis Ausencias Próximas"}</h3>
                 </div>
                 {canSeeGuardiaView && ausenciasHoyCount > 0 && (
                   <span className="bg-white/25 text-white text-xs font-bold px-2.5 py-0.5 rounded-full">
@@ -721,7 +744,25 @@ export default async function DashboardPage() {
               </div>
               <div className="divide-y divide-gray-50">
                 {misAusenciasProximas.length === 0 ? (
-                  <p className="text-center text-gray-400 text-sm py-8">No tienes ausencias próximas registradas</p>
+                  <p className="text-center text-gray-400 text-sm py-8">
+                    {isGuardiaOnlyView ? "No quedan ausencias para hoy" : "No tienes ausencias próximas registradas"}
+                  </p>
+                ) : isGuardiaOnlyView ? (
+                  misAusenciasProximas.map((a) => (
+                    <div key={a.id} className="px-5 py-3 flex items-center gap-3">
+                      <div className="flex-shrink-0 bg-amber-50 text-amber-700 rounded-lg px-2.5 py-1.5 text-xs font-medium min-w-[84px] text-center">
+                        {a.tramos_horarios?.nombre ?? "—"}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">
+                          {(a.profesor_id && ausenciaProfesorMap[a.profesor_id]) ?? "—"}
+                        </p>
+                        {a.cursos?.nombre && (
+                          <p className="text-xs text-gray-500 truncate">{a.cursos.nombre}</p>
+                        )}
+                      </div>
+                    </div>
+                  ))
                 ) : (
                   misAusenciasProximas.map((a) => {
                     const [y, m, d] = a.fecha.split("-").map(Number);
