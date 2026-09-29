@@ -10,12 +10,21 @@ export interface BlockTheme {
   icon: string;
 }
 
+/** Block palette by colour, for cards other than appointments (e.g. the maintenance portal) */
+export const BLOCK_THEMES = {
+  violet: { box: "border-violet-200 bg-violet-50/60", title: "text-violet-900", icon: "bg-violet-700" },
+  blue: { box: "border-blue-200 bg-blue-50/60", title: "text-blue-900", icon: "bg-blue-800" },
+  green: { box: "border-green-200 bg-green-50/60", title: "text-green-900", icon: "bg-green-700" },
+  red: { box: "border-red-200 bg-red-50/60", title: "text-red-900", icon: "bg-red-700" },
+  amber: { box: "border-amber-200 bg-amber-50/60", title: "text-amber-900", icon: "bg-amber-700" },
+} satisfies Record<string, BlockTheme>;
+
 export const CITA_THEMES = {
-  profesor: { box: "border-violet-200 bg-violet-50/60", title: "text-violet-900", icon: "bg-violet-700" },
-  alumno: { box: "border-blue-200 bg-blue-50/60", title: "text-blue-900", icon: "bg-blue-800" },
-  familiar: { box: "border-green-200 bg-green-50/60", title: "text-green-900", icon: "bg-green-700" },
-  cuando: { box: "border-red-200 bg-red-50/60", title: "text-red-900", icon: "bg-red-700" },
-  motivo: { box: "border-amber-200 bg-amber-50/60", title: "text-amber-900", icon: "bg-amber-700" },
+  profesor: BLOCK_THEMES.violet,
+  alumno: BLOCK_THEMES.blue,
+  familiar: BLOCK_THEMES.green,
+  cuando: BLOCK_THEMES.red,
+  motivo: BLOCK_THEMES.amber,
 } satisfies Record<string, BlockTheme>;
 
 export function CitaBlock({ title, icon: Icon, theme, className = "", plain = false, children }: {
