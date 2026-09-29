@@ -216,6 +216,12 @@ export type DevolverResult =
     }
   | RpcErrorV2;
 
+export type CorregirDevolucionResult =
+  | { ok: true; prestamo_id: string; conservacion: ConservacionV2; incidencia: string | null }
+  | RpcErrorV2;
+
+export type AnularDevolucionResult = { ok: true; prestamo_id: string } | RpcErrorV2;
+
 export type CambiarSituacionResult =
   | { ok: true; codigo: string; incidencia?: string | null }
   | RpcErrorV2;

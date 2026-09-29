@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowLeft, Camera, CheckCircle2, ChevronRight, Circle, FileText, Loader2, Search, Undo2, Users, AlertTriangle, XCircle,
+  ArrowLeft, Camera, CheckCircle2, ChevronRight, Circle, FileText, Loader2, Search, Undo2, Users, AlertTriangle,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -12,6 +12,7 @@ import { ScannerInput, type ScannerInputHandle } from "@/components/gratuidad-v2
 import { CameraScanner } from "@/components/gratuidad-v2/CameraScanner";
 import { useBarcodeScanner, useScanDebounce } from "@/components/gratuidad-v2/useBarcodeScanner";
 import { playFeedback, type TipoFeedback } from "@/components/gratuidad-v2/scanFeedback";
+import { FeedbackBanner, type Feedback } from "@/components/gratuidad-v2/FeedbackBanner";
 import { buildJustificanteEntregaHtml, imprimirHtml } from "@/lib/gratuidadV2/documentos";
 import {
   MENSAJES_ERROR_V2,
@@ -47,13 +48,6 @@ interface EntregaSesion {
   titulo: string;
 }
 
-interface Feedback {
-  tipo: TipoFeedback;
-  titulo: string;
-  detalle?: string;
-  /** Changes on every scan so the banner animation restarts */
-  key: number;
-}
 
 interface Props {
   grupos: string[];
@@ -553,32 +547,6 @@ export function EntregaClient({ grupos, lotePorGrupo, cursoEscolar, profesorNomb
           </p>
         </Modal>
       )}
-    </div>
-  );
-}
-
-const feedbackCls: Record<TipoFeedback, string> = {
-  ok: "bg-emerald-50 border-emerald-300 text-emerald-900",
-  aviso: "bg-amber-50 border-amber-300 text-amber-900",
-  error: "bg-red-50 border-red-300 text-red-900",
-};
-
-function FeedbackBanner({ feedback, procesando }: { feedback: Feedback | null; procesando: boolean }) {
-  if (!feedback && !procesando) {
-    return <p className="text-sm text-gray-400 text-center py-3">Esperando lectura…</p>;
-  }
-  if (!feedback) {
-    return <p className="text-sm text-gray-500 text-center py-3 flex items-center justify-center gap-2"><Loader2 size={16} className="animate-spin" /> Registrando…</p>;
-  }
-  const Icon = feedback.tipo === "ok" ? CheckCircle2 : feedback.tipo === "aviso" ? AlertTriangle : XCircle;
-  return (
-    <div key={feedback.key} role="status" aria-live="assertive" className={cn("flex items-start gap-3 border-2 rounded-xl px-4 py-3 animate-[pulse_0.4s_ease-in-out_1]", feedbackCls[feedback.tipo])}>
-      <Icon size={26} className="flex-shrink-0 mt-0.5" />
-      <div className="min-w-0">
-        <p className="font-semibold text-base leading-snug">{feedback.titulo}</p>
-        {feedback.detalle && <p className="text-sm opacity-80 mt-0.5 break-words">{feedback.detalle}</p>}
-      </div>
-      {procesando && <Loader2 size={16} className="animate-spin ml-auto flex-shrink-0" />}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { BookCopy, ChevronLeft, ChevronRight, Download, Loader2, Search, Tags, RefreshCw, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -308,7 +309,7 @@ export function EjemplaresClient({ titulos, grupos, canManage }: Props) {
                 </span>
                 <div className={`min-w-0 flex-1 gap-y-0.5 ${rowGridCls}`}>
                   <div className="flex items-center justify-between gap-2 md:contents">
-                    <span className="font-mono text-sm font-semibold text-gray-900">{r.codigo}</span>
+                    <Link href={`/gratuidad-libros-v2/consulta?codigo=${encodeURIComponent(r.codigo)}`} className="font-mono text-sm font-semibold text-blue-700 hover:underline">{r.codigo}</Link>
                     <span className="md:hidden"><SituacionBadge situacion={r.situacion} /></span>
                   </div>
                   <span className="text-sm text-gray-700 truncate">{r.titulo?.titulo ?? "—"}</span>
