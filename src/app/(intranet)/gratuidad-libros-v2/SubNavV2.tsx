@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutGrid, Library, BookCopy, Tags } from "lucide-react";
+import { LayoutGrid, Library, BookCopy, Tags, HandHelping } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const BASE = "/gratuidad-libros-v2";
@@ -16,6 +16,7 @@ interface Item {
 
 const items: Item[] = [
   { label: "Resumen", href: BASE, icon: <LayoutGrid size={16} /> },
+  { label: "Entrega", href: `${BASE}/entrega`, icon: <HandHelping size={16} /> },
   { label: "Ejemplares", href: `${BASE}/ejemplares`, icon: <BookCopy size={16} /> },
   { label: "Títulos", href: `${BASE}/titulos`, icon: <Library size={16} />, gestor: true },
   { label: "Etiquetas", href: `${BASE}/etiquetas`, icon: <Tags size={16} />, gestor: true },

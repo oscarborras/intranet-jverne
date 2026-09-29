@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BookCopy, Library, Tags } from "lucide-react";
+import { BookCopy, HandHelping, Library, Tags } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth";
 import { ROLES_OPERAR_V2, puedeGestionarV2 } from "@/lib/gratuidadV2/permisos";
@@ -29,6 +29,7 @@ export default async function GratuidadV2Page() {
   const total = porSituacion.reduce((sum, r) => sum + (r.count ?? 0), 0);
 
   const accesos = [
+    { href: "/gratuidad-libros-v2/entrega", label: "Entrega", desc: "Entregar libros escaneando", icon: HandHelping, show: true },
     { href: "/gratuidad-libros-v2/ejemplares", label: "Ejemplares", desc: "Dónde está cada libro", icon: BookCopy, show: true },
     { href: "/gratuidad-libros-v2/titulos", label: "Títulos", desc: "Catálogo, lotes y alta de ejemplares", icon: Library, show: canManage },
     { href: "/gratuidad-libros-v2/etiquetas", label: "Etiquetas", desc: "Imprimir códigos de barras", icon: Tags, show: canManage },
@@ -50,7 +51,7 @@ export default async function GratuidadV2Page() {
         ))}
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {accesos.map((a) => (
           <Link
             key={a.href}

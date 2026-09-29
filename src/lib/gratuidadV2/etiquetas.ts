@@ -2,8 +2,7 @@
 // through the browser) and raw ZPL for Zebra printers. Browser-only (uses the DOM).
 import JsBarcode from "jsbarcode";
 import type { CamposEtiqueta, PlantillaEtiqueta } from "@/lib/types/gratuidadV2";
-
-export const NOMBRE_CENTRO = "IES Julio Verne";
+import { NOMBRE_CENTRO } from "./centro";
 
 /** Grey margin around pages when the document is shown on screen (preview) */
 export const PREVIEW_PADDING_MM = 4;
