@@ -783,9 +783,11 @@ export function AusenciasClient({
       </div>
 
       {/* Tabs */}
-      {canViewGuardia && canViewMis && (
+      {canViewGuardia && (
         <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit">
-          {(guardiaFirst ? (["guardia", "mis"] as const) : (["mis", "guardia"] as const)).map((tab) => (
+          {(guardiaFirst ? (["guardia", "mis"] as const) : (["mis", "guardia"] as const))
+            .filter((tab) => tab === "guardia" || canViewMis)
+            .map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
