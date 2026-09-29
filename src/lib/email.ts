@@ -407,6 +407,8 @@ interface NuevaPeticionMantenimientoParams {
   ubicacion: string;
   prioridad: string;
   autorNombre: string;
+  /** Created by the external technician: already open, no validation needed */
+  creadaPorExterno?: boolean;
 }
 
 export async function sendNuevaPeticionMantenimientoEmail(p: NuevaPeticionMantenimientoParams) {
@@ -421,7 +423,7 @@ export async function sendNuevaPeticionMantenimientoEmail(p: NuevaPeticionManten
   const body = baseLayout(`
     <h2 style="margin:0 0 8px;font-size:20px;color:#111827;">Nueva petición de mantenimiento</h2>
     <p style="margin:0 0 24px;color:#6b7280;font-size:14px;">
-      <strong>${autor}</strong> ha registrado una nueva petición de mantenimiento pendiente de validar.
+      <strong>${autor}</strong> ha registrado una nueva petición de mantenimiento ${p.creadaPorExterno ? "desde el portal del técnico externo. Se ha abierto directamente, sin validación." : "pendiente de validar."}
     </p>
     <table cellpadding="0" cellspacing="0" style="width:100%;border-top:1px solid #e5e7eb;padding-top:16px;">
       ${row("Código", escapeHtml(p.codigo))}

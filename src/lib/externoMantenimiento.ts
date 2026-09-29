@@ -19,3 +19,10 @@ export const ESTADO_PORTAL_LABELS: Partial<Record<PeticionMantenimientoEstado, s
 };
 
 export const MAX_NOTA_LENGTH = 2000;
+
+/** New requests created from the portal skip validation and start in this state */
+export const ESTADO_INICIAL_PORTAL: PeticionMantenimientoEstado = "abierta";
+export const MAX_TITULO_LENGTH = 200;
+export const MAX_UBICACION_LENGTH = 200;
+export const MAX_DESCRIPCION_LENGTH = 5000;
+export const MAX_FOTO_BYTES = 10 * 1024 * 1024;

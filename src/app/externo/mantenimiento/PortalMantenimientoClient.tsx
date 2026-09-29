@@ -1,10 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Wrench, MapPin, CalendarDays, Camera, LogOut, Play, CheckCircle2, MessageSquare, Loader2, Send, FileText } from "lucide-react";
+import { Wrench, MapPin, CalendarDays, Camera, LogOut, Play, CheckCircle2, MessageSquare, Loader2, Send, FileText, Plus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { ESTADO_PORTAL_LABELS, MAX_NOTA_LENGTH } from "@/lib/externoMantenimiento";
+import {
+  ESTADO_PORTAL_LABELS,
+  MAX_DESCRIPCION_LENGTH,
+  MAX_FOTO_BYTES,
+  MAX_NOTA_LENGTH,
+  MAX_TITULO_LENGTH,
+  MAX_UBICACION_LENGTH,
+} from "@/lib/externoMantenimiento";
 import { useAutoRefresh } from "@/lib/useAutoRefresh";
 import { BLOCK_THEMES, CitaBlock, CitaField } from "@/components/citas/CitaBlocks";
 import type { PeticionMantenimientoEstado, PeticionPrioridad } from "@/lib/types";
@@ -69,6 +76,129 @@ async function postJson(url: string, body: unknown): Promise<string | null> {
   } catch {
     return "Sin conexión. Inténtelo de nuevo.";
   }
+}
+
+const inputClass =
+  "w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-400";
+
+function NuevaPeticionForm({ onCreated, onCancel }: { onCreated: (codigo: string) => void; onCancel: () => void }) {
+  const [titulo, setTitulo] = useState("");
+  const [ubicacion, setUbicacion] = useState("");
+  const [descripcion, setDescripcion] = useState("");
+  const [prioridad, setPrioridad] = useState<PeticionPrioridad>("normal");
+  const [foto, setFoto] = useState<File | null>(null);
+  const fotoInputRef = useRef<HTMLInputElement>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function clearFoto() {
+    setFoto(null);
+    if (fotoInputRef.current) fotoInputRef.current.value = "";
+  }
+
+  async function crear() {
+    if (!titulo.trim() || !ubicacion.trim()) {
+      setError("El título y la ubicación son obligatorios");
+      return;
+    }
+    if (foto && foto.size > MAX_FOTO_BYTES) {
+      setError("La foto no puede superar los 10 MB");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    const data = new FormData();
+    data.set("titulo", titulo);
+    data.set("ubicacion", ubicacion);
+    data.set("descripcion", descripcion);
+    data.set("prioridad", prioridad);
+    if (foto) data.set("foto", foto);
+    try {
+      const res = await fetch("/api/externo/crear", { method: "POST", body: data });
+      const json = (await res.json().catch(() => ({}))) as { codigo?: string; error?: string };
+      if (!res.ok || !json.codigo) {
+        setError(json.error ?? "No se pudo crear la petición");
+        return;
+      }
+      onCreated(json.codigo);
+    } catch {
+      setError("Sin conexión. Inténtelo de nuevo.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section aria-labelledby="nueva-peticion-titulo" className="bg-white rounded-xl border border-orange-200 overflow-hidden">
+      <div className="flex items-center justify-between gap-2 bg-orange-50 border-b border-orange-100 px-4 py-3">
+        <h2 id="nueva-peticion-titulo" className="font-semibold text-gray-900">Nueva incidencia</h2>
+        <button type="button" onClick={onCancel} aria-label="Cerrar" className="w-10 h-10 flex items-center justify-center rounded-lg text-gray-500 hover:bg-orange-100">
+          <X size={18} />
+        </button>
+      </div>
+      <div className="p-4 space-y-3">
+        <div>
+          <label htmlFor="np-titulo" className="block text-sm font-medium text-gray-700 mb-1">Título <span className="text-red-500">*</span></label>
+          <input id="np-titulo" className={inputClass} value={titulo} maxLength={MAX_TITULO_LENGTH} onChange={(e) => setTitulo(e.target.value)} placeholder="Describe el problema brevemente" />
+        </div>
+        <div>
+          <label htmlFor="np-ubicacion" className="block text-sm font-medium text-gray-700 mb-1">Ubicación <span className="text-red-500">*</span></label>
+          <input id="np-ubicacion" className={inputClass} value={ubicacion} maxLength={MAX_UBICACION_LENGTH} onChange={(e) => setUbicacion(e.target.value)} placeholder="Aula, planta, zona..." />
+        </div>
+        <div>
+          <label htmlFor="np-descripcion" className="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
+          <textarea id="np-descripcion" rows={3} className={cn(inputClass, "resize-y")} value={descripcion} maxLength={MAX_DESCRIPCION_LENGTH} onChange={(e) => setDescripcion(e.target.value)} placeholder="Explica el problema con detalle..." />
+        </div>
+        <div>
+          <label htmlFor="np-prioridad" className="block text-sm font-medium text-gray-700 mb-1">Prioridad</label>
+          <select id="np-prioridad" className={inputClass} value={prioridad} onChange={(e) => setPrioridad(e.target.value as PeticionPrioridad)}>
+            {(Object.keys(PRIORITY_LABELS) as PeticionPrioridad[]).map((p) => (
+              <option key={p} value={p}>{PRIORITY_LABELS[p]}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <span className="block text-sm font-medium text-gray-700 mb-1">
+            Foto <span className="text-gray-400 font-normal">(opcional)</span>
+          </span>
+          <div className="flex items-center gap-2">
+            <label className="flex-1 min-w-0 flex items-center gap-2 cursor-pointer px-3 py-2.5 min-h-[44px] border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50">
+              <Camera size={16} className="text-gray-400 flex-shrink-0" />
+              <span className="truncate">{foto ? foto.name : "Hacer foto o elegir imagen"}</span>
+              <input
+                ref={fotoInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={(e) => setFoto(e.target.files?.[0] ?? null)}
+              />
+            </label>
+            {foto && (
+              <button type="button" onClick={clearFoto} aria-label="Quitar foto" className="w-11 h-11 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50">
+                <X size={16} />
+              </button>
+            )}
+          </div>
+        </div>
+        <p className="text-xs text-gray-500">La incidencia se crea directamente en «{ESTADO_PORTAL_LABELS.abierta}».</p>
+        {error && <p role="alert" className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+      </div>
+      <div className="bg-gray-50 border-t border-gray-100 p-3 flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
+        <button type="button" onClick={onCancel} className="px-4 py-3 min-h-[44px] rounded-lg border border-gray-200 bg-white text-sm text-gray-700">
+          Cancelar
+        </button>
+        <button
+          type="button"
+          onClick={crear}
+          disabled={saving}
+          className="flex items-center justify-center gap-2 px-4 py-3 min-h-[44px] rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold disabled:opacity-50"
+        >
+          {saving ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />} Crear incidencia
+        </button>
+      </div>
+    </section>
+  );
 }
 
 function PeticionCard({ p, onChanged }: { p: PeticionPortal; onChanged: () => void }) {
@@ -236,6 +366,8 @@ function PeticionCard({ p, onChanged }: { p: PeticionPortal; onChanged: () => vo
 export function PortalMantenimientoClient({ peticiones, nombre, email }: Props) {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("abierta");
+  const [showForm, setShowForm] = useState(false);
+  const [creada, setCreada] = useState<string | null>(null);
   // New validated requests show up without reloading; half-typed notes are kept
   useAutoRefresh();
 
@@ -265,6 +397,32 @@ export function PortalMantenimientoClient({ peticiones, nombre, email }: Props) 
           </button>
         </form>
       </header>
+
+      {/* New request */}
+      {showForm ? (
+        <NuevaPeticionForm
+          onCancel={() => setShowForm(false)}
+          onCreated={(codigo) => {
+            setShowForm(false);
+            setCreada(codigo);
+            setTab("abierta");
+            router.refresh();
+          }}
+        />
+      ) : (
+        <button
+          type="button"
+          onClick={() => { setShowForm(true); setCreada(null); }}
+          className="w-full flex items-center justify-center gap-2 px-4 py-3 min-h-[48px] rounded-xl border-2 border-dashed border-orange-300 text-orange-700 bg-white hover:bg-orange-50 text-sm font-semibold"
+        >
+          <Plus size={18} /> Nueva incidencia
+        </button>
+      )}
+      {creada && (
+        <p role="status" className="flex items-center gap-2 text-sm text-green-800 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+          <CheckCircle2 size={16} className="flex-shrink-0" /> Incidencia {creada} creada en «{ESTADO_PORTAL_LABELS.abierta}».
+        </p>
+      )}
 
       {/* Tabs */}
       <div role="tablist" aria-label="Estado de las peticiones" className="grid grid-cols-3 bg-gray-100 rounded-lg p-1 gap-1">
