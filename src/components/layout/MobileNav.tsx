@@ -32,7 +32,7 @@ export function MobileNav({ inactiveModuleSlugs, isAdmin }: MobileNavProps) {
         const active =
           item.href === "/dashboard"
             ? pathname === item.href
-            : pathname.startsWith(item.href);
+            : pathname === item.href || pathname.startsWith(`${item.href}/`);
         return (
           <Link
             key={item.href}

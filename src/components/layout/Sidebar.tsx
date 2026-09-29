@@ -21,6 +21,7 @@ import {
   Clock,
   BookMarked,
   Upload,
+  ScanBarcode,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -72,6 +73,7 @@ const navGroups: NavGroup[] = [
     title: "PRÉSTAMOS",
     items: [
       { label: "Gratuidad de Libros", href: "/gratuidad-libros", icon: <BookMarked size={18} />, slug: "gratuidad-libros" },
+      { label: "Gratuidad de Libros v2", href: "/gratuidad-libros-v2", icon: <ScanBarcode size={18} />, slug: "gratuidad-libros-v2" },
     ],
   },
   {
@@ -116,7 +118,8 @@ export function Sidebar({ userRoles, userName, inactiveModuleSlugs, externalUrls
 
   function isActive(href: string) {
     if (href === "/dashboard") return pathname === href;
-    return pathname.startsWith(href);
+    // Match whole path segments so "/gratuidad-libros" is not active on "/gratuidad-libros-v2"
+    return pathname === href || pathname.startsWith(`${href}/`);
   }
 
   return (

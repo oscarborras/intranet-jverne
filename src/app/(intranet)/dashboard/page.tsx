@@ -14,6 +14,7 @@ import {
   UserX,
   BookMarked,
   ShieldAlert,
+  ScanBarcode,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import type { Anuncio, PeticionTIC, PeticionMantenimiento } from "@/lib/types";
@@ -102,6 +103,14 @@ const moduleCards = [
     icono: BookMarked,
     color: "bg-teal-600",
     href: "/gratuidad-libros",
+  },
+  {
+    slug: "gratuidad-libros-v2",
+    nombre: "Gratuidad de Libros v2",
+    descripcion: "Entrega y devolución por código de barras",
+    icono: ScanBarcode,
+    color: "bg-teal-700",
+    href: "/gratuidad-libros-v2",
   },
 ];
 

@@ -127,7 +127,8 @@ export function Header({ userName, userEmail, userRoles, inactiveModuleSlugs, ex
 
   function isActive(href: string) {
     if (href === "/dashboard") return pathname === href;
-    return pathname.startsWith(href);
+    // Match whole path segments so "/gratuidad-libros" is not active on "/gratuidad-libros-v2"
+    return pathname === href || pathname.startsWith(`${href}/`);
   }
 
   const initials = userName
