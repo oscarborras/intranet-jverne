@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Users, Edit2, Check, X } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+import { Users, Edit2, Check, X, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Perfil } from "@/lib/types";
 
@@ -33,11 +32,13 @@ export function AdminUsuariosClient({ users, perfiles, userRolesMap, currentUser
   const [editingUser, setEditingUser] = useState<string | null>(null);
   const [editRoles, setEditRoles] = useState<number[]>([]);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [tab, setTab] = useState<"usuarios" | "auditoria">("usuarios");
 
   function startEdit(userId: string) {
     setEditingUser(userId);
     setEditRoles(rolesMap[userId] ?? []);
+    setSaveError(null);
   }
 
   function toggleRole(perfilId: number) {
@@ -48,21 +49,27 @@ export function AdminUsuariosClient({ users, perfiles, userRolesMap, currentUser
 
   async function saveRoles(userId: string) {
     setSaving(true);
-    const supabase = createClient();
-
-    // Remove all existing roles
-    await supabase.from("user_roles_intranet").delete().eq("user_id", userId);
-
-    // Insert new roles
-    if (editRoles.length > 0) {
-      await supabase.from("user_roles_intranet").insert(
-        editRoles.map((pid) => ({ user_id: userId, perfil_id: pid }))
-      );
+    setSaveError(null);
+    try {
+      const res = await fetch("/api/admin/usuarios/roles", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, perfilIds: editRoles }),
+      });
+      const data = (await res.json().catch(() => null)) as { perfilIds?: number[]; error?: string } | null;
+      if (!res.ok || !data?.perfilIds) {
+        setSaveError(data?.error ?? "No se pudieron guardar los perfiles");
+        return;
+      }
+      // Show what the server actually stored
+      const saved = data.perfilIds;
+      setRolesMap((prev) => ({ ...prev, [userId]: saved }));
+      setEditingUser(null);
+    } catch {
+      setSaveError("No se pudieron guardar los perfiles");
+    } finally {
+      setSaving(false);
     }
-
-    setRolesMap((prev) => ({ ...prev, [userId]: editRoles }));
-    setEditingUser(null);
-    setSaving(false);
   }
 
   function getUserRoles(userId: string): Perfil[] {
@@ -101,6 +108,13 @@ export function AdminUsuariosClient({ users, perfiles, userRolesMap, currentUser
         ))}
       </div>
 
+      {tab === "usuarios" && saveError && (
+        <div role="alert" className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3">
+          <AlertCircle size={16} className="flex-shrink-0" />
+          {saveError}
+        </div>
+      )}
+
       {tab === "usuarios" && (
         <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
           <table className="w-full text-sm">
@@ -126,20 +140,27 @@ export function AdminUsuariosClient({ users, perfiles, userRolesMap, currentUser
                     <td className="px-4 py-3">
                       {isEditing ? (
                         <div className="flex flex-wrap gap-1">
-                          {perfiles.map((p) => (
-                            <button
-                              key={p.id}
-                              onClick={() => toggleRole(p.id)}
-                              className={cn(
-                                "text-xs px-2 py-0.5 rounded-full border font-medium transition-colors",
-                                editRoles.includes(p.id)
-                                  ? "bg-blue-600 text-white border-blue-600"
-                                  : "bg-white text-gray-500 border-gray-300 hover:border-blue-400"
-                              )}
-                            >
-                              {p.nombre}
-                            </button>
-                          ))}
+                          {perfiles.map((p) => {
+                            // An admin cannot drop their own Admin perfil (they would lock themselves out)
+                            const locked = u.id === currentUserId && p.nombre === "Admin" && editRoles.includes(p.id);
+                            return (
+                              <button
+                                key={p.id}
+                                onClick={() => toggleRole(p.id)}
+                                disabled={locked}
+                                title={locked ? "No puedes quitarte a ti mismo el perfil Admin" : undefined}
+                                className={cn(
+                                  "text-xs px-2 py-0.5 rounded-full border font-medium transition-colors",
+                                  editRoles.includes(p.id)
+                                    ? "bg-blue-600 text-white border-blue-600"
+                                    : "bg-white text-gray-500 border-gray-300 hover:border-blue-400",
+                                  locked && "opacity-60 cursor-not-allowed"
+                                )}
+                              >
+                                {p.nombre}
+                              </button>
+                            );
+                          })}
                         </div>
                       ) : (
                         <div className="flex flex-wrap gap-1">
@@ -175,7 +196,7 @@ export function AdminUsuariosClient({ users, perfiles, userRolesMap, currentUser
                             <Check size={14} />
                           </button>
                           <button
-                            onClick={() => setEditingUser(null)}
+                            onClick={() => { setEditingUser(null); setSaveError(null); }}
                             className="p-1.5 text-gray-400 hover:bg-gray-100 rounded-lg transition-colors"
                           >
                             <X size={14} />

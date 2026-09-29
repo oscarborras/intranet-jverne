@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Settings, Save, CheckCircle, AlertCircle, SlidersHorizontal, UserX, BookOpen, ChevronDown, Bell, Landmark, Link2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { CARGOS_DIRECTIVOS, type CargoDirectivo, type CargoDirectivoClave, type ConfigIntranet, type Perfil } from "@/lib/types";
+import { parseNotificationRecipients, serializeNotificationRecipients } from "@/lib/notificationConfig";
 
 interface ProfesorCargoOption {
   id: string;
@@ -74,17 +75,8 @@ const HIDDEN_CLAVES = new Set(["ultima_importacion_profesores", "ultima_importac
 // Claves grouped under the "Gratuidad Libros" tab
 const GRATUIDAD_CLAVES = new Set(["modo_gratuidad_libros", "curso_escolar_activo"]);
 
-// Claves under the "Notificaciones" tab: JSON array of perfil ids that receive the module's emails
+// Claves under the "Notificaciones" tab: perfiles and cargos directivos that receive the module's emails
 const NOTIFICACION_CLAVES = new Set(["notificaciones_ausencias_perfiles", "notificaciones_peticiones_tic_perfiles", "notificaciones_peticiones_mantenimiento_perfiles"]);
-
-function parsePerfilIds(val: string | undefined): number[] {
-  try {
-    const parsed: unknown = JSON.parse(val ?? "[]");
-    return Array.isArray(parsed) ? parsed.filter((n): n is number => typeof n === "number") : [];
-  } catch {
-    return [];
-  }
-}
 
 // Genera los cursos escolares disponibles para el selector: 4 anteriores + el siguiente
 function cursosEscolaresOptions(): string[] {
@@ -258,32 +250,47 @@ export function ConfiguracionClient({ config, perfiles, cargos, profesores }: Pr
     const selectOpts = SELECT_OPTIONS[row.clave];
 
     if (NOTIFICACION_CLAVES.has(row.clave)) {
-      const selectedIds = parsePerfilIds(values[row.clave]);
-      const togglePerfil = (id: number) => {
-        const next = selectedIds.includes(id)
-          ? selectedIds.filter((x) => x !== id)
-          : [...selectedIds, id].sort((a, b) => a - b);
-        setValues((v) => ({ ...v, [row.clave]: JSON.stringify(next) }));
-      };
+      const recipients = parseNotificationRecipients(values[row.clave]);
+      const setRecipients = (next: typeof recipients) =>
+        setValues((v) => ({ ...v, [row.clave]: serializeNotificationRecipients(next) }));
+      const togglePerfil = (id: number) =>
+        setRecipients({
+          ...recipients,
+          perfiles: recipients.perfiles.includes(id)
+            ? recipients.perfiles.filter((x) => x !== id)
+            : [...recipients.perfiles, id].sort((a, b) => a - b),
+        });
+      // Keep cargos in display order (cargos_directivos.orden)
+      const toggleCargo = (cargo: CargoDirectivoClave) =>
+        setRecipients({
+          ...recipients,
+          cargos: cargos
+            .map((c) => c.cargo)
+            .filter((c) => (c === cargo ? !recipients.cargos.includes(c) : recipients.cargos.includes(c))),
+        });
+      const total = recipients.perfiles.length + recipients.cargos.length;
+      const optionClass = (checked: boolean) =>
+        `flex items-center gap-3 min-h-11 px-3 py-2 border rounded-lg cursor-pointer transition-colors ${
+          checked ? `${accent.checked} font-medium text-gray-900` : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+        }`;
       return (
         <fieldset key={row.clave}>
           <legend className="flex items-center gap-2 text-sm font-semibold text-gray-800 mb-1">
             {label}
             <span className="text-xs font-medium text-gray-500 bg-white border border-gray-200 rounded-full px-2 py-0.5">
-              {selectedIds.length} {selectedIds.length === 1 ? "perfil" : "perfiles"}
+              {recipients.perfiles.length} {recipients.perfiles.length === 1 ? "perfil" : "perfiles"}
+              {" · "}
+              {recipients.cargos.length} {recipients.cargos.length === 1 ? "cargo" : "cargos"}
             </span>
           </legend>
           <p className="text-xs text-gray-500 mb-2">{row.descripcion}</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Perfiles</p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             {perfiles.map((perfil) => {
-              const checked = selectedIds.includes(perfil.id);
+              const checked = recipients.perfiles.includes(perfil.id);
               return (
-                <label
-                  key={perfil.id}
-                  className={`flex items-center gap-3 min-h-11 px-3 py-2 border rounded-lg cursor-pointer transition-colors ${
-                    checked ? `${accent.checked} font-medium text-gray-900` : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
-                  }`}
-                >
+                <label key={perfil.id} className={optionClass(checked)}>
                   <input
                     type="checkbox"
                     checked={checked}
@@ -295,8 +302,37 @@ export function ConfiguracionClient({ config, perfiles, cargos, profesores }: Pr
               );
             })}
           </div>
-          {selectedIds.length === 0 && (
-            <p className="text-xs text-amber-600 mt-1.5">Ningún perfil seleccionado: no se enviarán emails.</p>
+
+          {cargos.length > 0 && (
+            <>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mt-3 mb-1.5">Cargos directivos</p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {cargos.map((c) => {
+                  const checked = recipients.cargos.includes(c.cargo);
+                  const holder = profesores.find((p) => p.id === cargoValues[c.cargo]);
+                  return (
+                    <label key={c.cargo} className={optionClass(checked)}>
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleCargo(c.cargo)}
+                        className={`h-4 w-4 rounded ${accent.checkbox}`}
+                      />
+                      <span className="min-w-0">
+                        <span className="block text-sm">{CARGOS_DIRECTIVOS[c.cargo]}</span>
+                        <span className="block text-xs font-normal text-gray-500 truncate">
+                          {holder ? holder.profesor : "Sin asignar"}
+                        </span>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            </>
+          )}
+
+          {total === 0 && (
+            <p className="text-xs text-amber-600 mt-1.5">Ningún perfil ni cargo seleccionado: no se enviarán emails.</p>
           )}
         </fieldset>
       );
@@ -488,7 +524,7 @@ export function ConfiguracionClient({ config, perfiles, cargos, profesores }: Pr
       label: "Notificaciones",
       icon: <Bell size={15} />,
       rows: notificacionRows,
-      description: "Perfiles que reciben los emails enviados por cada módulo. Se puede marcar más de un perfil.",
+      description: "Perfiles y cargos directivos que reciben los emails enviados por cada módulo. Se pueden marcar varios.",
     },
     {
       id: "cargos" as Tab,
