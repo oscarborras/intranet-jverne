@@ -6,14 +6,14 @@ import {
   CheckCircle2, MapPin, ChevronRight, ArrowLeft, Camera,
   Mail, X, Smartphone, ShieldAlert, Monitor, Wrench,
   BookMarked, FileText, GraduationCap, ExternalLink, RotateCcw, Printer, ClipboardCheck,
-  CalendarClock, LayoutDashboard, RefreshCw, Search, Forward, Pencil,
+  CalendarClock, LayoutDashboard, RefreshCw, Search, Forward, Pencil, UserX, Paperclip, ShieldCheck,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type ItemId = "carros" | "citas" | "ordenanza" | "movil" | "prestamos" | "devoluciones" | "revisiones" | "tic" | "mantenimiento";
+type ItemId = "carros" | "citas" | "ordenanza" | "ausencias" | "movil" | "prestamos" | "devoluciones" | "revisiones" | "tic" | "mantenimiento";
 type Category = "tutorial" | "protocolo";
-type ModuleId = "carros-portatiles" | "citas-familias" | "citas-del-dia" | "gratuidad-libros" | "peticiones-incidencias";
+type ModuleId = "carros-portatiles" | "citas-familias" | "citas-del-dia" | "ausencias" | "gratuidad-libros" | "peticiones-incidencias";
 
 interface ItemMeta {
   id: ItemId;
@@ -72,6 +72,16 @@ const ITEMS: ItemMeta[] = [
     badge: "5 pasos · 1 min",
     headerBg: "bg-blue-700",
     headerText: "text-blue-700",
+  },
+  {
+    id: "ausencias",
+    category: "tutorial",
+    icon: <UserX size={22} className="text-white" />,
+    title: "Notificar una ausencia",
+    description: "Registra tus ausencias con las tareas para el alumnado y consulta las del día si haces guardia.",
+    badge: "7 pasos · 2 min",
+    headerBg: "bg-amber-500",
+    headerText: "text-amber-600",
   },
   {
     id: "prestamos",
@@ -164,6 +174,15 @@ const MODULES: ModuleMeta[] = [
     tutorials: ["ordenanza"],
   },
   {
+    id: "ausencias",
+    slug: "ausencias",
+    icon: <UserX size={22} className="text-white" />,
+    title: "Ausencias",
+    description: "Notificación de ausencias del profesorado y tareas para el alumnado.",
+    color: "bg-amber-500",
+    tutorials: ["ausencias"],
+  },
+  {
     id: "gratuidad-libros",
     slug: "gratuidad-libros",
     icon: <BookMarked size={22} className="text-white" />,
@@ -189,10 +208,15 @@ function StepConnector() {
   return <div className="w-px flex-1 bg-gray-100 mt-2" />;
 }
 
-function StepNum({ n, accent }: { n: number; accent: "blue" | "red" }) {
+const STEP_ACCENTS = {
+  blue: "bg-blue-100 text-blue-700",
+  red: "bg-red-100 text-red-700",
+  amber: "bg-amber-100 text-amber-800",
+} as const;
+
+function StepNum({ n, accent }: { n: number; accent: keyof typeof STEP_ACCENTS }) {
   return (
-    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0 ${accent === "red" ? "bg-red-100 text-red-700" : "bg-blue-100 text-blue-700"
-      }`}>
+    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0 ${STEP_ACCENTS[accent]}`}>
       {n}
     </div>
   );
@@ -485,6 +509,142 @@ function TutorialCitas() {
           <p className="text-sm text-gray-500 mb-3">En la pestaña <strong className="text-gray-700">Derivadas</strong> ves en qué estado está cada cita que has derivado (pendiente, confirmada, completada o cancelada) y con quién es. Son de <strong className="text-gray-700">solo lectura</strong>: las gestiona la persona que las recibe.</p>
           <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-xs text-blue-900 max-w-sm">
             Citas que has derivado a otro profesor/a o cargo directivo. Aquí puedes consultar su estado; solo las gestiona la persona que las recibe.
+          </div>
+        </div>
+      </li>
+    </ol>
+  );
+}
+
+// ─── Tutorial: Ausencias ──────────────────────────────────────────────────────
+
+function TutorialAusencias() {
+  return (
+    <ol className="divide-y divide-gray-50">
+      <li className="px-6 py-5 flex gap-4">
+        <div className="flex-shrink-0 flex flex-col items-center">
+          <StepNum n={1} accent="amber" /><StepConnector />
+        </div>
+        <div className="flex-1 pb-1">
+          <p className="font-medium text-gray-900 text-sm mb-1">Accede a «Ausencias» y pulsa «Registrar ausencia»</p>
+          <p className="text-sm text-gray-500 mb-3">En el menú lateral pulsa <strong className="text-gray-700">Ausencias</strong>. Arriba a la derecha tienes el botón para notificar una nueva ausencia.</p>
+          <div className="bg-gray-50 rounded-lg border border-gray-100 p-3 text-xs space-y-1 max-w-[200px]">
+            <div className="flex items-center gap-2 text-gray-400 py-1 px-2"><CalendarDays size={12} /> Calendario</div>
+            <div className="flex items-center gap-2 text-amber-700 font-semibold bg-amber-50 py-1 px-2 rounded border border-amber-200"><UserX size={12} /> Ausencias</div>
+            <div className="flex items-center gap-2 text-gray-400 py-1 px-2"><BookOpen size={12} /> Anuncios</div>
+          </div>
+          <div className="mt-2 inline-flex items-center gap-1.5 bg-amber-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold"><Plus size={12} /> Registrar ausencia</div>
+        </div>
+      </li>
+
+      <li className="px-6 py-5 flex gap-4">
+        <div className="flex-shrink-0 flex flex-col items-center">
+          <StepNum n={2} accent="amber" /><StepConnector />
+        </div>
+        <div className="flex-1 pb-1">
+          <p className="font-medium text-gray-900 text-sm mb-1">Elige la fecha y marca los tramos en los que faltas</p>
+          <p className="text-sm text-gray-500 mb-3">Puedes marcar <strong className="text-gray-700">varios tramos</strong> del mismo día de una vez. Cada tramo marcado se despliega para que indiques sus datos.</p>
+          <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-3 max-w-xs space-y-1.5">
+            <div className="border border-gray-200 rounded px-2 py-1 text-[11px] text-gray-600 flex items-center gap-1 mb-2"><CalendarDays size={10} className="text-gray-400" /> 14/10/2026</div>
+            {[
+              { t: "1ª hora", h: "08:15–09:15", on: true },
+              { t: "2ª hora", h: "09:15–10:15", on: true },
+              { t: "3ª hora", h: "10:15–11:15", on: false },
+            ].map((r) => (
+              <div key={r.t} className={`flex items-center gap-2 rounded border px-2 py-1.5 text-[11px] ${r.on ? "border-amber-300 bg-amber-50 text-gray-800" : "border-gray-200 text-gray-500"}`}>
+                <span className={`w-3 h-3 rounded-sm border flex items-center justify-center text-[8px] ${r.on ? "bg-amber-500 border-amber-500 text-white" : "border-gray-300"}`}>{r.on ? "✓" : ""}</span>
+                {r.t} <span className="text-gray-400">({r.h})</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </li>
+
+      <li className="px-6 py-5 flex gap-4">
+        <div className="flex-shrink-0 flex flex-col items-center">
+          <StepNum n={3} accent="amber" /><StepConnector />
+        </div>
+        <div className="flex-1 pb-1">
+          <p className="font-medium text-gray-900 text-sm mb-1">Indica el grupo y las tareas de cada tramo</p>
+          <p className="text-sm text-gray-500 mb-3">En cada tramo marcado elige el <strong className="text-gray-700">curso / grupo</strong> (obligatorio), el <strong className="text-gray-700">aula</strong> y describe las <strong className="text-gray-700">tareas para el alumnado</strong>. Si las tienes en un documento, adjúntalo (PDF, Word, Excel o imagen, máx. 10 MB).</p>
+          <div className="bg-white rounded-lg border border-amber-200 shadow-sm p-3 max-w-xs space-y-2">
+            <p className="text-[11px] font-semibold text-gray-700">1ª hora</p>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-[10px] text-gray-500 block mb-0.5">Curso / Grupo *</label>
+                <div className="border border-gray-200 rounded px-2 py-1 text-[11px] text-gray-600">2º ESO A</div>
+              </div>
+              <div>
+                <label className="text-[10px] text-gray-500 block mb-0.5">Aula</label>
+                <div className="border border-gray-200 rounded px-2 py-1 text-[11px] text-gray-600">Aula B2</div>
+              </div>
+            </div>
+            <div>
+              <label className="text-[10px] text-gray-500 block mb-0.5">Tareas para el alumnado</label>
+              <div className="border border-gray-200 rounded px-2 py-1 text-[10px] text-gray-600 leading-relaxed">Ejercicios 3 a 7 de la página 45.</div>
+            </div>
+            <div className="inline-flex items-center gap-1.5 border border-gray-200 rounded px-2 py-1 text-[10px] text-gray-600"><Paperclip size={10} className="text-gray-400" /> tareas_2ESO.pdf</div>
+          </div>
+        </div>
+      </li>
+
+      <li className="px-6 py-5 flex gap-4">
+        <div className="flex-shrink-0 flex flex-col items-center">
+          <StepNum n={4} accent="amber" /><StepConnector />
+        </div>
+        <div className="flex-1 pb-1">
+          <p className="font-medium text-gray-900 text-sm mb-1">Añade observaciones y registra la ausencia</p>
+          <p className="text-sm text-gray-500 mb-3">En <strong className="text-gray-700">Observaciones</strong> puedes dejar información para el profesorado de guardia, común a todos los tramos. Pulsa <strong className="text-gray-700">Registrar ausencia</strong>: se crea una ausencia por cada tramo y Dirección (y los perfiles configurados para este aviso) recibe un email con las tareas.</p>
+          <div className="bg-gray-50 rounded-lg border border-gray-100 p-3 max-w-xs">
+            <div className="flex items-center gap-2 mb-2"><Mail size={11} className="text-gray-400" /><span className="text-[10px] text-gray-500">Para: Dirección</span></div>
+            <p className="text-[11px] text-gray-700 font-medium mb-1">Ausencia registrada · IES Julio Verne</p>
+            <p className="text-[10px] text-gray-500 leading-relaxed">García López, Ana · 14 de octubre · <strong className="text-gray-700">1ª y 2ª hora</strong>, con las tareas de cada grupo.</p>
+          </div>
+        </div>
+      </li>
+
+      <li className="px-6 py-5 flex gap-4">
+        <div className="flex-shrink-0 flex flex-col items-center">
+          <StepNum n={5} accent="amber" /><StepConnector />
+        </div>
+        <div className="flex-1 pb-1">
+          <p className="font-medium text-gray-900 text-sm mb-1">Consulta tus ausencias</p>
+          <p className="text-sm text-gray-500 mb-3">En <strong className="text-gray-700">Mis ausencias</strong> las tienes separadas en <strong className="text-gray-700">Próximas</strong> y <strong className="text-gray-700">Pasadas</strong>. Pulsa una para ver el aula, las tareas, el adjunto y las observaciones. Las próximas también aparecen en la página de inicio.</p>
+          <div className="flex gap-0.5 bg-gray-100 p-0.5 rounded-lg w-fit">
+            <span className="px-3 py-1 rounded-md text-[10px] font-semibold bg-white text-gray-900 shadow-sm">Próximas (2)</span>
+            <span className="px-3 py-1 rounded-md text-[10px] font-semibold text-gray-500">Pasadas (5)</span>
+          </div>
+        </div>
+      </li>
+
+      <li className="px-6 py-5 flex gap-4">
+        <div className="flex-shrink-0 flex flex-col items-center">
+          <StepNum n={6} accent="amber" /><StepConnector />
+        </div>
+        <div className="flex-1 pb-1">
+          <p className="font-medium text-gray-900 text-sm mb-1">¿Cambia algo? Modifica o cancela la ausencia</p>
+          <p className="text-sm text-gray-500 mb-3">En cada ausencia activa tienes el <strong className="text-gray-700">lápiz</strong> para modificar la fecha, el tramo, el grupo, las tareas o el adjunto, y la <strong className="text-gray-700">X</strong> para cancelarla si finalmente vas a asistir.</p>
+          <div className="flex items-center gap-2">
+            <span className="p-1.5 rounded-lg bg-blue-50 text-blue-500 border border-blue-100"><Pencil size={12} /></span>
+            <span className="text-xs text-gray-400">Modificar</span>
+            <span className="p-1.5 rounded-lg bg-red-50 text-red-500 border border-red-100 ml-2"><X size={12} /></span>
+            <span className="text-xs text-gray-400">Cancelar</span>
+          </div>
+        </div>
+      </li>
+
+      <li className="px-6 py-5 flex gap-4">
+        <div className="flex-shrink-0">
+          <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center">
+            <ShieldCheck size={16} className="text-orange-600" />
+          </div>
+        </div>
+        <div className="flex-1">
+          <p className="font-medium text-gray-900 text-sm mb-1">Guardia y Directiva: «Vista Guardia»</p>
+          <p className="text-sm text-gray-500 mb-3">Si tienes perfil <strong className="text-gray-700">Guardia</strong>, <strong className="text-gray-700">Directiva</strong> o <strong className="text-gray-700">Admin</strong>, la pestaña <strong className="text-gray-700">Vista Guardia</strong> muestra las ausencias de todo el profesorado para el día elegido, con grupo, aula, tareas y adjunto. Con <strong className="text-gray-700">Tramo actual</strong> ves solo las de la hora en curso. La lista se actualiza sola cada 2 minutos.</p>
+          <div className="flex gap-0.5 bg-orange-100 p-0.5 rounded-lg w-fit">
+            <span className="px-3 py-1 rounded-md text-[10px] font-semibold text-orange-500">Todas</span>
+            <span className="px-3 py-1 rounded-md text-[10px] font-semibold bg-orange-500 text-white shadow-sm">Tramo actual</span>
           </div>
         </div>
       </li>
@@ -1404,6 +1564,7 @@ const ITEM_CONTENT: Record<ItemId, React.ReactNode> = {
   carros: <TutorialCarros />,
   citas: <TutorialCitas />,
   ordenanza: <TutorialOrdenanza />,
+  ausencias: <TutorialAusencias />,
   prestamos: <TutorialPrestamos />,
   devoluciones: <TutorialDevoluciones />,
   revisiones: <TutorialRevisiones />,
@@ -1431,6 +1592,11 @@ const ITEM_TIPS: Record<ItemId, React.ReactNode> = {
   citas: (
     <p className="text-xs text-amber-800">
       <strong>¿Una familia quiere una cita con otro profesor/a o con Dirección?</strong> Pulsa <strong>Derivar cita</strong> y rellena sus datos: la solicitud llega como pendiente al profesor/a o cargo elegido, que recibe un aviso por email.
+    </p>
+  ),
+  ausencias: (
+    <p className="text-xs text-amber-800">
+      <strong>¿Directiva registrando la ausencia de otro docente?</strong> Al registrar una ausencia, Admin y Directiva tienen un selector <strong>Profesor/a</strong> para notificarla en nombre de quien falta. Desde la Vista Guardia también pueden modificarla o cancelarla.
     </p>
   ),
   ordenanza: (
