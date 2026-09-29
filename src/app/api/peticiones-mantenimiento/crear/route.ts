@@ -20,6 +20,7 @@ export async function POST(req: NextRequest) {
     prioridad: PeticionPrioridad;
     foto_path: string | null;
     foto_nombre: string | null;
+    oculta_externo?: boolean;
   };
 
   const titulo = body.titulo?.trim();
@@ -28,6 +29,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "El título y la ubicación son obligatorios" }, { status: 400 });
   }
   const prioridad = PRIORIDADES.includes(body.prioridad) ? body.prioridad : "normal";
+  // Only Admin/Directiva may hide a request from the external technician (also enforced by a DB trigger)
+  const puedeOcultar = auth.roleNames.some((r) => ["Admin", "Directiva"].includes(r));
+  const oculta_externo = puedeOcultar && body.oculta_externo === true;
 
   const { data: peticion, error } = await supabase
     .from("peticiones_mantenimiento")
@@ -39,6 +43,7 @@ export async function POST(req: NextRequest) {
       autor_id: user.id,
       foto_path: body.foto_path ?? null,
       foto_nombre: body.foto_nombre ?? null,
+      oculta_externo,
     })
     .select()
     .single();

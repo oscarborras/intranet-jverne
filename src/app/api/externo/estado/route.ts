@@ -20,10 +20,11 @@ export async function POST(req: NextRequest) {
   const admin = createAdminClient();
   const { data: peticion } = await admin
     .from("peticiones_mantenimiento")
-    .select("id, estado")
+    .select("id, estado, oculta_externo")
     .eq("id", peticionId)
     .maybeSingle();
-  if (!peticion) {
+  // Hidden requests do not exist as far as the portal is concerned
+  if (!peticion || peticion.oculta_externo) {
     return NextResponse.json({ error: "Petición no encontrada" }, { status: 404 });
   }
 
@@ -38,6 +39,7 @@ export async function POST(req: NextRequest) {
     .update({ estado: nuevo })
     .eq("id", peticionId)
     .eq("estado", actual)
+    .eq("oculta_externo", false)
     .select("id")
     .maybeSingle();
   if (error || !updated) {

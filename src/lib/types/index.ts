@@ -234,6 +234,8 @@ export interface PeticionMantenimiento {
   validado_por: string | null;
   foto_path: string | null;
   foto_nombre: string | null;
+  /** Hidden from the external maintenance technician's portal (set by Admin/Directiva) */
+  oculta_externo: boolean;
   created_at: string;
   updated_at: string;
   finalizada_at: string | null;

@@ -23,13 +23,13 @@ export async function POST(req: NextRequest) {
   const admin = createAdminClient();
   const { data: peticion } = await admin
     .from("peticiones_mantenimiento")
-    .select("id, estado")
+    .select("id, estado, oculta_externo")
     .eq("id", peticionId)
     .maybeSingle();
 
-  // Only requests shown in the portal (validated, or finished) accept notes
+  // Only requests shown in the portal (validated, or finished, and not hidden) accept notes
   const estado = peticion?.estado as PeticionMantenimientoEstado | undefined;
-  if (!estado || !(ESTADOS_PORTAL_ACTIVOS.includes(estado) || estado === "finalizada")) {
+  if (!estado || peticion?.oculta_externo || !(ESTADOS_PORTAL_ACTIVOS.includes(estado) || estado === "finalizada")) {
     return NextResponse.json({ error: "Petición no encontrada" }, { status: 404 });
   }
 

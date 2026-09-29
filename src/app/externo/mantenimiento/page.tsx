@@ -15,10 +15,11 @@ export default async function PortalMantenimientoPage() {
   const desde = new Date(Date.now() - DIAS_FINALIZADAS_PORTAL * 24 * 60 * 60 * 1000).toISOString();
   const campos = "id, codigo, titulo, descripcion, ubicacion, prioridad, estado, created_at, finalizada_at, foto_path, foto_nombre";
 
-  // Only validated requests (never "por validar", rejected or deleted ones)
+  // Only validated requests (never "por validar", rejected or deleted ones), and never
+  // the ones the school has hidden from the external technician
   const [{ data: activas }, { data: finalizadas }] = await Promise.all([
-    admin.from("peticiones_mantenimiento").select(campos).in("estado", ESTADOS_PORTAL_ACTIVOS).order("created_at", { ascending: true }),
-    admin.from("peticiones_mantenimiento").select(campos).eq("estado", "finalizada").gte("finalizada_at", desde).order("finalizada_at", { ascending: false }),
+    admin.from("peticiones_mantenimiento").select(campos).in("estado", ESTADOS_PORTAL_ACTIVOS).eq("oculta_externo", false).order("created_at", { ascending: true }),
+    admin.from("peticiones_mantenimiento").select(campos).eq("estado", "finalizada").gte("finalizada_at", desde).eq("oculta_externo", false).order("finalizada_at", { ascending: false }),
   ]);
   const rows = [...(activas ?? []), ...(finalizadas ?? [])];
   const ids = rows.map((r) => r.id as number);

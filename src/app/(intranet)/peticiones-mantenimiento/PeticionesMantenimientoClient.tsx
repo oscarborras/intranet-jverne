@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import Link from "next/link";
-import { Wrench, Plus, Camera, X, BarChart3, MessageSquare } from "lucide-react";
+import { Wrench, Plus, Camera, X, BarChart3, MessageSquare, EyeOff } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { KanbanBoard } from "@/components/kanban/KanbanBoard";
 import { KanbanFilters } from "@/components/kanban/KanbanFilters";
@@ -77,6 +77,8 @@ export function PeticionesMantenimientoClient({
   const [formError, setFormError] = useState<string | null>(null);
   // Status chosen in the edit modal (only shown to Admin/Directiva)
   const [estado, setEstado] = useState<PeticionMantenimientoEstado>("por_validar");
+  // "Ocultar al técnico externo" (only shown to and saved by Admin/Directiva)
+  const [ocultaExterno, setOcultaExterno] = useState(false);
 
   useEffect(() => {
     if (searchParams.get("nueva") === "1") {
@@ -93,6 +95,7 @@ export function PeticionesMantenimientoClient({
     setShowForm(false);
     setEditing(null);
     setForm(EMPTY_FORM);
+    setOcultaExterno(false);
     setFoto(null);
     if (fotoInputRef.current) fotoInputRef.current.value = "";
   }
@@ -105,6 +108,7 @@ export function PeticionesMantenimientoClient({
     setEditing(item);
     setForm({ titulo: item.titulo, descripcion: item.descripcion, ubicacion: item.ubicacion, prioridad: item.prioridad });
     setEstado(item.estado);
+    setOcultaExterno(item.oculta_externo ?? false);
     setNotas([]);
     setShowForm(true);
     createClient()
@@ -172,9 +176,10 @@ export function PeticionesMantenimientoClient({
         estadoUpdate.estado = estado;
         if (estado === "abierta") estadoUpdate.validado_por = userId;
       }
+      const ocultaUpdate = canValidate ? { oculta_externo: ocultaExterno } : {};
       const { data, error } = await supabase
         .from("peticiones_mantenimiento")
-        .update({ ...form, ...(fotoUpdate ?? {}), ...estadoUpdate })
+        .update({ ...form, ...(fotoUpdate ?? {}), ...estadoUpdate, ...ocultaUpdate })
         .eq("id", editing.id)
         .select()
         .single();
@@ -190,7 +195,12 @@ export function PeticionesMantenimientoClient({
       const res = await fetch("/api/peticiones-mantenimiento/crear", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, foto_path: fotoUpdate?.foto_path ?? null, foto_nombre: fotoUpdate?.foto_nombre ?? null }),
+        body: JSON.stringify({
+          ...form,
+          foto_path: fotoUpdate?.foto_path ?? null,
+          foto_nombre: fotoUpdate?.foto_nombre ?? null,
+          oculta_externo: canValidate && ocultaExterno,
+        }),
       });
       if (!res.ok) {
         // Keep the form open with what was typed, and show why it failed
@@ -324,6 +334,29 @@ export function PeticionesMantenimientoClient({
                     ))}
                   </select>
                 </div>
+              )}
+              {canValidate && (
+                <label
+                  htmlFor="oculta-externo"
+                  className={`flex items-start gap-3 rounded-lg border px-3 py-2.5 cursor-pointer transition-colors ${ocultaExterno ? "border-amber-300 bg-amber-50" : "border-gray-200 hover:bg-gray-50"}`}
+                >
+                  <input
+                    id="oculta-externo"
+                    type="checkbox"
+                    checked={ocultaExterno}
+                    onChange={(e) => setOcultaExterno(e.target.checked)}
+                    className="mt-0.5 w-4 h-4 accent-amber-600 flex-shrink-0"
+                  />
+                  <span>
+                    <span className="flex items-center gap-1.5 text-sm font-medium text-gray-800">
+                      <EyeOff size={14} className="text-amber-600" aria-hidden="true" />
+                      Ocultar al técnico externo
+                    </span>
+                    <span className="block text-xs text-gray-500 mt-0.5">
+                      La petición no aparecerá en el portal del técnico externo de mantenimiento.
+                    </span>
+                  </span>
+                </label>
               )}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">

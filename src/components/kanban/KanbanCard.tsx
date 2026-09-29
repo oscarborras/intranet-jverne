@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, MapPin, User, Users, Clock, Trash2, Camera } from "lucide-react";
+import { ChevronDown, MapPin, User, Users, Clock, Trash2, Camera, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { KanbanItem } from "./KanbanBoard";
 
@@ -107,6 +107,14 @@ export function KanbanCard({ item, allStatuses, currentStatus, onStatusChange, o
           >
             {item.solo_usuario ? <User size={10} /> : <Users size={10} />}
             {item.solo_usuario ? "Solo el autor" : "Visible para todos"}
+          </span>
+        </div>
+      )}
+
+      {"oculta_externo" in item && item.oculta_externo && (
+        <div className="mb-2">
+          <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-medium bg-amber-100 text-amber-800">
+            <EyeOff size={10} aria-hidden="true" /> Oculta al técnico externo
           </span>
         </div>
       )}
