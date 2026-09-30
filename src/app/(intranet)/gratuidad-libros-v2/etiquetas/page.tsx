@@ -32,6 +32,7 @@ export default async function EtiquetasV2Page({ searchParams }: Props) {
     id: t.id,
     titulo: t.titulo,
     curso: resumenLote(lotesPorTitulo[t.id] ?? [], nombresCursos),
+    cursos: lotesPorTitulo[t.id] ?? [],
   }));
 
   return (

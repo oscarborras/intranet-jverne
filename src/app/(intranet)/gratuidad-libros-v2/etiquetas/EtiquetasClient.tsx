@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Printer, FileDown, Loader2, Settings2, Tags, AlertTriangle } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
+import { agruparPorNivel, nivelDeCurso } from "@/lib/gratuidadV2/cursos";
+import { expandirIntervalo, MAX_CODIGOS_LISTA, parseListaCodigos } from "@/lib/gratuidadV2/codigos";
 import {
   buildEtiquetasHtml, descargarZpl, imprimirEtiquetas, paginasNecesarias, PREVIEW_PADDING_MM,
   type EtiquetaDatos, type OpcionesEtiquetas,
@@ -16,6 +18,8 @@ export interface TituloEtiqueta {
   titulo: string;
   /** Lot summary printed on the label */
   curso: string;
+  /** Groups whose lot includes the title */
+  cursos: string[];
 }
 
 interface Props {
@@ -37,8 +41,9 @@ const CAMPOS_LABEL: Record<keyof CamposEtiqueta, string> = {
 const MM_TO_PX = 96 / 25.4;
 const PREVIEW_ZEBRA_MAX = 6;
 
-function parseCodigos(texto: string): string[] {
-  return [...new Set(texto.split(/[\s,;]+/).map((c) => c.trim().toUpperCase()).filter(Boolean))];
+/** Title list filter by level ("1º ESO"); "" shows every title */
+function coincideFiltro(t: TituloEtiqueta, nivel: string): boolean {
+  return !nivel || t.cursos.some((c) => nivelDeCurso(c) === nivel);
 }
 
 function plantillaInicial(plantillas: PlantillaEtiqueta[]): PlantillaEtiqueta | undefined {
@@ -52,6 +57,21 @@ export function EtiquetasClient({ plantillas: initialPlantillas, titulos, cursoE
   // Source of the labels
   const [modo, setModo] = useState<Modo>(inicial.codigos ? "codigos" : "titulo");
   const [tituloId, setTituloId] = useState(inicial.titulo);
+  const [filtroCurso, setFiltroCurso] = useState("");
+  // Only levels that have at least one title assigned
+  const niveles = useMemo(
+    () => agruparPorNivel([...new Set(titulos.flatMap((t) => t.cursos))].sort((a, b) => a.localeCompare(b, "es"))).map((n) => n.nivel),
+    [titulos],
+  );
+  const titulosFiltrados = useMemo(() => titulos.filter((t) => coincideFiltro(t, filtroCurso)), [titulos, filtroCurso]);
+
+  function elegirFiltroCurso(valor: string) {
+    setFiltroCurso(valor);
+    // Keep the chosen title only if it is still in the filtered list
+    const actual = titulos.find((t) => t.id === tituloId);
+    if (actual && !coincideFiltro(actual, valor)) setTituloId("");
+  }
+
   const [desde, setDesde] = useState(inicial.desde);
   const [hasta, setHasta] = useState(inicial.hasta);
   const [soloEnCentro, setSoloEnCentro] = useState(false);
@@ -59,6 +79,12 @@ export function EtiquetasClient({ plantillas: initialPlantillas, titulos, cursoE
 
   const [etiquetas, setEtiquetas] = useState<EtiquetaDatos[]>([]);
   const [noEncontrados, setNoEncontrados] = useState<string[]>([]);
+  // Codes inside ranges that do not exist (e.g. deleted leftover labels): only counted
+  const [noEncontradosIntervalo, setNoEncontradosIntervalo] = useState(0);
+  const [intervalosNoValidos, setIntervalosNoValidos] = useState<string[]>([]);
+  const [intervaloDesde, setIntervaloDesde] = useState("");
+  const [intervaloHasta, setIntervaloHasta] = useState("");
+  const [errorIntervalo, setErrorIntervalo] = useState<string | null>(null);
   const [cargando, setCargando] = useState(false);
   const [errorCarga, setErrorCarga] = useState<string | null>(null);
 
@@ -99,6 +125,8 @@ export function EtiquetasClient({ plantillas: initialPlantillas, titulos, cursoE
     setCargando(true);
     setErrorCarga(null);
     setNoEncontrados([]);
+    setNoEncontradosIntervalo(0);
+    setIntervalosNoValidos([]);
     const out: EtiquetaDatos[] = [];
     for (let from = 0; ; from += 1000) {
       let q = supabase.from("gplv2_ejemplares").select("codigo, titulo_id").eq("titulo_id", id).neq("situacion", "baja");
@@ -115,8 +143,9 @@ export function EtiquetasClient({ plantillas: initialPlantillas, titulos, cursoE
   }, [supabase, aEtiqueta]);
 
   const cargarPorCodigos = useCallback(async (texto: string) => {
-    const codigos = parseCodigos(texto);
-    if (codigos.length === 0) { setEtiquetas([]); setNoEncontrados([]); return; }
+    const { codigos, sueltos, errores } = parseListaCodigos(texto);
+    setIntervalosNoValidos(errores);
+    if (codigos.length === 0) { setEtiquetas([]); setNoEncontrados([]); setNoEncontradosIntervalo(0); return; }
     setCargando(true);
     setErrorCarga(null);
     const encontrados = new Map<string, EtiquetaDatos>();
@@ -127,7 +156,9 @@ export function EtiquetasClient({ plantillas: initialPlantillas, titulos, cursoE
     }
     // Keep the order in which the codes were typed / scanned
     setEtiquetas(codigos.filter((c) => encontrados.has(c)).map((c) => encontrados.get(c) as EtiquetaDatos));
-    setNoEncontrados(codigos.filter((c) => !encontrados.has(c)));
+    const faltan = codigos.filter((c) => !encontrados.has(c));
+    setNoEncontrados(faltan.filter((c) => sueltos.has(c)));
+    setNoEncontradosIntervalo(faltan.filter((c) => !sueltos.has(c)).length);
     setCargando(false);
   }, [supabase, aEtiqueta]);
 
@@ -139,6 +170,20 @@ export function EtiquetasClient({ plantillas: initialPlantillas, titulos, cursoE
     if (inicial.codigos) cargarPorCodigos(inicial.codigos.split(",").join("\n"));
     else if (inicial.titulo) cargarPorTitulo(inicial.titulo, inicial.desde, inicial.hasta, false);
   }, [inicial, cargarPorCodigos, cargarPorTitulo]);
+
+  /** Appends "DESDE-HASTA" to the code list */
+  function añadirIntervalo() {
+    const rango = expandirIntervalo(intervaloDesde, intervaloHasta);
+    if (!rango) {
+      setErrorIntervalo(`Intervalo no válido: los dos códigos deben tener el mismo prefijo, ir de menor a mayor y no superar ${MAX_CODIGOS_LISTA} códigos.`);
+      return;
+    }
+    setErrorIntervalo(null);
+    const linea = `${intervaloDesde.trim().toUpperCase()}-${intervaloHasta.trim().toUpperCase()}`;
+    setCodigosTexto((prev) => (prev.trim() ? `${prev.trimEnd()}\n${linea}` : linea));
+    setIntervaloDesde("");
+    setIntervaloHasta("");
+  }
 
   function cargar() {
     if (modo === "titulo") cargarPorTitulo(tituloId, desde, hasta, soloEnCentro);
@@ -215,9 +260,15 @@ export function EtiquetasClient({ plantillas: initialPlantillas, titulos, cursoE
 
           {modo === "titulo" ? (
             <div className="space-y-2">
+              <select value={filtroCurso} onChange={(e) => elegirFiltroCurso(e.target.value)} aria-label="Filtrar títulos por curso" className={inputCls}>
+                <option value="">Todos los cursos</option>
+                {niveles.map((n) => <option key={n} value={n}>{n}</option>)}
+              </select>
               <select value={tituloId} onChange={(e) => setTituloId(e.target.value)} aria-label="Título" className={inputCls}>
-                <option value="">Elige un título…</option>
-                {titulos.map((t) => <option key={t.id} value={t.id}>{t.titulo}</option>)}
+                <option value="">
+                  {titulosFiltrados.length === 0 ? "No hay títulos para ese curso" : `Elige un título… (${titulosFiltrados.length})`}
+                </option>
+                {titulosFiltrados.map((t) => <option key={t.id} value={t.id}>{t.titulo}</option>)}
               </select>
               <div className="grid grid-cols-2 gap-2">
                 <input value={desde} onChange={(e) => setDesde(e.target.value)} placeholder="Desde código" aria-label="Desde código" className={`${inputCls} font-mono`} />
@@ -229,16 +280,43 @@ export function EtiquetasClient({ plantillas: initialPlantillas, titulos, cursoE
               </label>
             </div>
           ) : (
-            <div className="space-y-1">
+            <div className="space-y-2">
+              <div className="grid grid-cols-[1fr_1fr_auto] gap-2">
+                <input
+                  value={intervaloDesde}
+                  onChange={(e) => setIntervaloDesde(e.target.value)}
+                  placeholder="Desde"
+                  aria-label="Intervalo: código inicial"
+                  className={`${inputCls} font-mono`}
+                />
+                <input
+                  value={intervaloHasta}
+                  onChange={(e) => setIntervaloHasta(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") añadirIntervalo(); }}
+                  placeholder="Hasta"
+                  aria-label="Intervalo: código final"
+                  className={`${inputCls} font-mono`}
+                />
+                <button
+                  onClick={añadirIntervalo}
+                  disabled={!intervaloDesde.trim() || !intervaloHasta.trim()}
+                  className="px-3 text-sm font-medium rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-40 whitespace-nowrap"
+                >
+                  Añadir intervalo
+                </button>
+              </div>
+              {errorIntervalo && <p className="text-xs text-red-600">{errorIntervalo}</p>}
               <textarea
                 value={codigosTexto}
                 onChange={(e) => setCodigosTexto(e.target.value)}
                 rows={5}
-                placeholder={"Escribe o escanea códigos,\nuno por línea"}
-                aria-label="Códigos de barras"
+                placeholder={"Escribe o escanea códigos, uno por línea.\nIntervalos: JV000010-JV000020"}
+                aria-label="Códigos de barras e intervalos"
                 className={`${inputCls} font-mono resize-y`}
               />
-              <p className="text-xs text-gray-400">Útil para reimprimir etiquetas dañadas.</p>
+              <p className="text-xs text-gray-400">
+                Códigos sueltos o intervalos (<span className="font-mono">JV000010-JV000020</span> o <span className="font-mono">JV000010-20</span>). Útil para reimprimir etiquetas dañadas.
+              </p>
             </div>
           )}
 
@@ -254,6 +332,18 @@ export function EtiquetasClient({ plantillas: initialPlantillas, titulos, cursoE
           <p className="text-sm text-gray-600" aria-live="polite">
             <b>{etiquetas.length}</b> etiquetas{hojas > 0 && plantilla && ` · ${hojas} ${plantilla.tipo === "zebra" ? "etiquetas de rollo" : hojas === 1 ? "hoja" : "hojas"}`}
           </p>
+          {intervalosNoValidos.length > 0 && (
+            <p className="text-xs text-red-600 flex gap-1.5">
+              <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" />
+              Intervalos no válidos: <span className="font-mono">{intervalosNoValidos.join(", ")}</span>
+            </p>
+          )}
+          {noEncontradosIntervalo > 0 && (
+            <p className="text-xs text-amber-700 flex gap-1.5">
+              <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" />
+              {noEncontradosIntervalo} {noEncontradosIntervalo === 1 ? "código de los intervalos no existe" : "códigos de los intervalos no existen"} (por ejemplo, etiquetas eliminadas).
+            </p>
+          )}
           {noEncontrados.length > 0 && (
             <p className="text-xs text-amber-700 flex gap-1.5">
               <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" />
