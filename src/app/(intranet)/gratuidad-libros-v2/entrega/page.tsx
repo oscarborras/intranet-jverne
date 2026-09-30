@@ -30,13 +30,16 @@ export default async function EntregaV2Page({ searchParams }: Props) {
   }
 
   // Lot of each group: active titles assigned to it
-  const titulosById = new Map(((titulos ?? []) as TituloLote[]).map((t) => [t.id, t]));
+  type TituloRow = Omit<TituloLote, "optativo">;
+  const titulosById = new Map(((titulos ?? []) as TituloRow[]).map((t) => [t.id, t]));
   const lotePorGrupo: Record<string, TituloLote[]> = {};
   for (const l of (lotes ?? []) as TituloCursoV2[]) {
     const t = titulosById.get(l.titulo_id);
-    if (t) (lotePorGrupo[l.curso] ??= []).push(t);
+    if (t) (lotePorGrupo[l.curso] ??= []).push({ ...t, optativo: l.optativo });
   }
-  Object.values(lotePorGrupo).forEach((list) => list.sort((a, b) => a.titulo.localeCompare(b.titulo, "es")));
+  // Compulsory titles first, then optional ones, each alphabetically
+  Object.values(lotePorGrupo).forEach((list) =>
+    list.sort((a, b) => Number(a.optativo) - Number(b.optativo) || a.titulo.localeCompare(b.titulo, "es")));
 
   return (
     <EntregaClient

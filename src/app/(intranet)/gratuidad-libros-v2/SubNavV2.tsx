@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutGrid, Library, BookCopy, Tags, HandHelping, Undo2, ScanSearch } from "lucide-react";
+import { LayoutGrid, Library, BookCopy, Tags, HandHelping, Undo2, ScanSearch, BarChart3, ClipboardList } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const BASE = "/gratuidad-libros-v2";
@@ -20,6 +20,8 @@ const items: Item[] = [
   { label: "Devolución", href: `${BASE}/devolucion`, icon: <Undo2 size={16} /> },
   { label: "Consulta", href: `${BASE}/consulta`, icon: <ScanSearch size={16} /> },
   { label: "Ejemplares", href: `${BASE}/ejemplares`, icon: <BookCopy size={16} /> },
+  { label: "Informes", href: `${BASE}/informes`, icon: <BarChart3 size={16} /> },
+  { label: "Incidencias", href: `${BASE}/incidencias`, icon: <ClipboardList size={16} />, gestor: true },
   { label: "Títulos", href: `${BASE}/titulos`, icon: <Library size={16} />, gestor: true },
   { label: "Etiquetas", href: `${BASE}/etiquetas`, icon: <Tags size={16} />, gestor: true },
 ];

@@ -23,6 +23,8 @@ export interface TituloLote {
   id: string;
   titulo: string;
   asignatura: string | null;
+  /** Only for some students: does not count for a complete lot */
+  optativo: boolean;
 }
 
 interface AlumnoGrupo {
@@ -165,7 +167,7 @@ export function EntregaClient({ grupos, lotePorGrupo, cursoEscolar, profesorNomb
   // ── Derived data ────────────────────────────────────────────────────────────
 
   const progreso = useCallback((a: AlumnoGrupo) => {
-    const lote = lotePorGrupo[a.unidad] ?? [];
+    const lote = (lotePorGrupo[a.unidad] ?? []).filter((t) => !t.optativo);
     const tiene = new Set((prestamos[a.id] ?? []).map((p) => p.ejemplar?.titulo_id));
     const entregados = lote.filter((t) => tiene.has(t.id)).length;
     return { entregados, total: lote.length, completo: lote.length > 0 && entregados === lote.length };
@@ -227,7 +229,7 @@ export function EntregaClient({ grupos, lotePorGrupo, cursoEscolar, profesorNomb
     ].slice(0, 20));
 
     // Lot complete after this delivery?
-    const lote = lotePorGrupo[alumno.unidad] ?? [];
+    const lote = (lotePorGrupo[alumno.unidad] ?? []).filter((t) => !t.optativo);
     const tiene = new Set([...(prestamosRef.current[alumno.id] ?? []).map((p) => p.ejemplar?.titulo_id), res.ejemplar.titulo_id]);
     const completo = lote.length > 0 && lote.every((t) => tiene.has(t.id));
 
@@ -469,15 +471,21 @@ export function EntregaClient({ grupos, lotePorGrupo, cursoEscolar, profesorNomb
               <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
                 <h3 className="px-4 py-3 border-b bg-gray-50 text-sm font-semibold text-gray-700">Lote de {alumnoActual.unidad}</h3>
                 <ul className="divide-y divide-gray-100">
-                  {loteActual.map((t) => {
+                  {loteActual.map((t, i) => {
                     const entregas = porTitulo.get(t.id) ?? [];
                     const ok = entregas.length > 0;
+                    const primerOptativo = t.optativo && (i === 0 || !loteActual[i - 1].optativo);
                     return (
-                      <li key={t.id} className={cn("flex items-center gap-3 px-4 py-3", !ok && "bg-amber-50/40")}>
-                        {ok ? <CheckCircle2 size={20} className="text-emerald-600 flex-shrink-0" /> : <Circle size={20} className="text-amber-400 flex-shrink-0" />}
+                      <li key={t.id} className={cn("flex items-center gap-3 px-4 py-3", !ok && !t.optativo && "bg-amber-50/40", primerOptativo && "border-t-4 border-gray-100")}>
+                        {ok
+                          ? <CheckCircle2 size={20} className="text-emerald-600 flex-shrink-0" />
+                          : <Circle size={20} className={cn("flex-shrink-0", t.optativo ? "text-gray-300" : "text-amber-400")} />}
                         <div className="min-w-0 flex-1">
-                          <p className={cn("text-sm", ok ? "text-gray-500" : "text-gray-900 font-medium")}>{t.titulo}</p>
-                          {t.asignatura && <p className="text-xs text-gray-400">{t.asignatura}</p>}
+                          <p className={cn("text-sm", ok || t.optativo ? "text-gray-500" : "text-gray-900 font-medium")}>{t.titulo}</p>
+                          <p className="text-xs text-gray-400">
+                            {t.optativo && <span className="font-semibold text-purple-700 mr-1.5">OPTATIVO</span>}
+                            {t.asignatura}
+                          </p>
                         </div>
                         {ok && <span className="font-mono text-xs text-gray-500">{entregas.map((e) => e.ejemplar?.codigo).join(", ")}</span>}
                       </li>

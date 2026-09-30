@@ -123,6 +123,84 @@ export function buildAlbaranDevolucionHtml(d: DatosAlbaranDevolucion): string {
     ${firmas("Recogido por:", d.profesor, "Entregado (alumno/a o familia):")}`);
 }
 
+// ─── Generic printable list (reports) ────────────────────────────────────────
+
+export function buildListadoHtml(titulo: string, subtitulo: string, cabeceras: string[], filas: (string | number)[][]): string {
+  const head = cabeceras.map((c) => `<th>${esc(c)}</th>`).join("");
+  const body = filas.map((f) => `<tr>${f.map((c) => `<td>${esc(String(c))}</td>`).join("")}</tr>`).join("");
+  return `<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><title>${esc(titulo)}</title>
+<style>
+  @page { size: A4 landscape; margin: 10mm; }
+  body { font-family: Arial, Helvetica, sans-serif; font-size: 9.5pt; color: #111; margin: 0; }
+  header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 3mm; }
+  h1 { font-size: 13pt; margin: 0; }
+  .muted { color: #555; font-size: 9pt; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { border: 1px solid #bbb; padding: 1mm 2mm; text-align: left; vertical-align: top; }
+  th { background: #f1f1f1; }
+  thead { display: table-header-group; }
+  tr { page-break-inside: avoid; }
+</style></head>
+<body>
+<header><div><h1>${esc(titulo)}</h1><span class="muted">${esc(subtitulo)}</span></div><span class="muted">${NOMBRE_CENTRO}</span></header>
+<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>
+<script>window.onload=function(){window.print()}<\/script>
+</body></html>`;
+}
+
+// ─── Letter to the family about a lost / damaged book ────────────────────────
+
+export interface DatosCartaIncidencia {
+  codigoIncidencia: string;
+  tipo: "deterioro" | "perdida" | "otro";
+  alumno: string;
+  grupo: string;
+  cursoEscolar: string;
+  fecha: string;
+  libroCodigo: string;
+  libroTitulo: string;
+  coste: number | null;
+  descripcion: string | null;
+}
+
+export function buildCartaIncidenciaHtml(d: DatosCartaIncidencia): string {
+  const motivo = d.tipo === "perdida" ? "la pérdida" : d.tipo === "deterioro" ? "el deterioro por mal uso" : "una incidencia con";
+  const coste = d.coste != null ? d.coste.toLocaleString("es-ES", { style: "currency", currency: "EUR" }) : null;
+  return `<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><title>Comunicación ${esc(d.codigoIncidencia)}</title>
+<style>
+  @page { size: A4; margin: 20mm; }
+  body { font-family: Arial, Helvetica, sans-serif; font-size: 11pt; color: #111; line-height: 1.5; margin: 0; }
+  header { display: flex; justify-content: space-between; margin-bottom: 10mm; }
+  h1 { font-size: 14pt; margin: 0 0 6mm; }
+  table { border-collapse: collapse; margin: 4mm 0; }
+  td { padding: 1mm 4mm 1mm 0; vertical-align: top; }
+  td:first-child { color: #555; }
+  .firma { margin-top: 20mm; }
+  .muted { color: #555; font-size: 9pt; }
+</style></head>
+<body>
+<header><div><b>${NOMBRE_CENTRO}</b><br><span class="muted">Programa de gratuidad de libros de texto · ${esc(d.cursoEscolar)}</span></div>
+<div class="muted">Ref.: ${esc(d.codigoIncidencia)}<br>${esc(d.fecha)}</div></header>
+<h1>Comunicación a la familia</h1>
+<p>Estimada familia de <b>${esc(d.alumno)}</b> (${esc(d.grupo)}):</p>
+<p>Les comunicamos que se ha registrado ${motivo} del siguiente libro de texto, propiedad del centro y
+prestado a su hijo/a dentro del Programa de gratuidad de libros de texto:</p>
+<table>
+  <tr><td>Libro</td><td><b>${esc(d.libroTitulo)}</b></td></tr>
+  <tr><td>Código del ejemplar</td><td>${esc(d.libroCodigo)}</td></tr>
+  ${d.descripcion ? `<tr><td>Observaciones</td><td>${esc(d.descripcion)}</td></tr>` : ""}
+  ${coste ? `<tr><td>Importe de reposición</td><td><b>${coste}</b></td></tr>` : ""}
+</table>
+<p>De acuerdo con la normativa del programa, el deterioro culpable o la pérdida de los libros supone la obligación
+de reponerlos. Les rogamos que se pongan en contacto con el centro para acordar la reposición del ejemplar.</p>
+<p>Atentamente,</p>
+<p class="firma">La Dirección del centro</p>
+<script>window.onload=function(){window.print()}<\/script>
+</body></html>`;
+}
+
 export function imprimirHtml(html: string): boolean {
   const blob = new Blob([html], { type: "text/html" });
   const url = URL.createObjectURL(blob);

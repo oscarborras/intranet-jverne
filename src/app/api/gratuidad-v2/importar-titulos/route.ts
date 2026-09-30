@@ -12,6 +12,7 @@ interface LibroV1 {
   asignatura: string | null;
   nivel: string | null;
   precio: number | null;
+  diversificacion: boolean;
 }
 
 function normIsbn(isbn: string | null): string {
@@ -27,7 +28,8 @@ function clave(titulo: string, isbn: string | null): string {
 /**
  * One-off copy of the active v1 catalogue (libros_catalogo) into gplv2_titulos.
  * Titles that already exist are skipped. The v1 level ("1º ESO") becomes a lot
- * with every group of that level ("1º ESO A", "1º ESO B"...).
+ * with every group of that level ("1º ESO A", "1º ESO B"...). Diversificación books
+ * become optional titles of the lot.
  */
 export async function POST() {
   const auth = await authorizeApi(ROLES_GESTIONAR_V2);
@@ -35,7 +37,7 @@ export async function POST() {
   const supabase = await createClient();
 
   const [{ data: v1, error: e1 }, { data: existentes, error: e2 }, { data: cursos, error: e3 }] = await Promise.all([
-    supabase.from("libros_catalogo").select("titulo, isbn, editorial, asignatura, nivel, precio").eq("activo", true),
+    supabase.from("libros_catalogo").select("titulo, isbn, editorial, asignatura, nivel, precio, diversificacion").eq("activo", true),
     supabase.from("gplv2_titulos").select("titulo, isbn"),
     supabase.from("cursos").select("nombre").order("nombre"),
   ]);
@@ -74,11 +76,11 @@ export async function POST() {
 
   // PostgREST returns inserted rows in the same order as the payload
   const nombresCursos = (cursos ?? []).map((c: { nombre: string }) => c.nombre);
-  const lotes: { titulo_id: string; curso: string }[] = [];
+  const lotes: { titulo_id: string; curso: string; optativo: boolean }[] = [];
   (insertados as TituloV2[]).forEach((t, i) => {
-    const niveles = entries[i].niveles;
+    const { niveles, libro } = entries[i];
     for (const curso of nombresCursos) {
-      if (niveles.has(nivelDeCurso(curso))) lotes.push({ titulo_id: t.id, curso });
+      if (niveles.has(nivelDeCurso(curso))) lotes.push({ titulo_id: t.id, curso, optativo: libro.diversificacion });
     }
   });
 

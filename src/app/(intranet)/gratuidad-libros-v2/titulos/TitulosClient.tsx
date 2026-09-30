@@ -50,6 +50,12 @@ export function TitulosClient({ titulos: initialTitulos, lotes: initialLotes, re
     for (const l of initialLotes) (map[l.titulo_id] ??= []).push(l.curso);
     return map;
   });
+  // Optional title (e.g. Diversificación): same flag on every group of its lot
+  const [optativos, setOptativos] = useState<Record<string, boolean>>(() => {
+    const map: Record<string, boolean> = {};
+    for (const l of initialLotes) if (l.optativo) map[l.titulo_id] = true;
+    return map;
+  });
   const [resumen, setResumen] = useState<Record<string, ResumenTituloV2>>(
     () => Object.fromEntries(initialResumen.map((r) => [r.titulo_id, r])),
   );
@@ -63,6 +69,7 @@ export function TitulosClient({ titulos: initialTitulos, lotes: initialLotes, re
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<FormTitulo>(emptyForm);
   const [formCursos, setFormCursos] = useState<Set<string>>(new Set());
+  const [formOptativo, setFormOptativo] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -107,6 +114,7 @@ export function TitulosClient({ titulos: initialTitulos, lotes: initialLotes, re
     setEditing(null);
     setForm(emptyForm);
     setFormCursos(new Set());
+    setFormOptativo(false);
     setError(null);
     setShowForm(true);
   }
@@ -121,6 +129,7 @@ export function TitulosClient({ titulos: initialTitulos, lotes: initialLotes, re
       precio: t.precio != null ? String(t.precio) : "",
     });
     setFormCursos(new Set(lotes[t.id] ?? []));
+    setFormOptativo(optativos[t.id] ?? false);
     setError(null);
     setShowForm(true);
   }
@@ -168,10 +177,18 @@ export function TitulosClient({ titulos: initialTitulos, lotes: initialLotes, re
       if (err) { setError(`Título guardado, pero no se pudo actualizar el lote: ${err.message}`); setSaving(false); return; }
     }
     if (añadir.length > 0) {
-      const { error: err } = await supabase.from("gplv2_titulo_cursos").insert(añadir.map((curso) => ({ titulo_id: tituloId, curso })));
+      const { error: err } = await supabase
+        .from("gplv2_titulo_cursos")
+        .insert(añadir.map((curso) => ({ titulo_id: tituloId, curso, optativo: formOptativo })));
       if (err) { setError(`Título guardado, pero no se pudo actualizar el lote: ${err.message}`); setSaving(false); return; }
     }
+    const conservados = [...antes].filter((c) => formCursos.has(c));
+    if (conservados.length > 0 && formOptativo !== (optativos[tituloId] ?? false)) {
+      const { error: err } = await supabase.from("gplv2_titulo_cursos").update({ optativo: formOptativo }).eq("titulo_id", tituloId);
+      if (err) { setError(`Título guardado, pero no se pudo marcar como optativo: ${err.message}`); setSaving(false); return; }
+    }
     setLotes((prev) => ({ ...prev, [tituloId]: [...formCursos].sort() }));
+    setOptativos((prev) => ({ ...prev, [tituloId]: formOptativo }));
 
     setSaving(false);
     setShowForm(false);
@@ -256,6 +273,11 @@ export function TitulosClient({ titulos: initialTitulos, lotes: initialLotes, re
       setLotes((prev) => {
         const next = { ...prev };
         for (const l of body.lotes) next[l.titulo_id] = [...(next[l.titulo_id] ?? []), l.curso];
+        return next;
+      });
+      setOptativos((prev) => {
+        const next = { ...prev };
+        for (const l of body.lotes) if (l.optativo) next[l.titulo_id] = true;
         return next;
       });
       setImportMsg(`${body.importados} títulos importados${body.omitidos ? `, ${body.omitidos} ya existían` : ""}.`);
@@ -346,6 +368,11 @@ export function TitulosClient({ titulos: initialTitulos, lotes: initialLotes, re
                       .filter(Boolean).join(" · ")}
                   </p>
                   <p className={`text-xs mt-1 ${lote ? "text-blue-700" : "text-amber-600"}`}>
+                    {optativos[t.id] && lote && (
+                      <span className="inline-block mr-1.5 text-[10px] font-semibold tracking-wide uppercase px-1.5 py-0.5 rounded bg-purple-100 text-purple-700">
+                        Optativo
+                      </span>
+                    )}
                     {lote || "Sin lote asignado"}
                   </p>
                 </div>
@@ -411,6 +438,13 @@ export function TitulosClient({ titulos: initialTitulos, lotes: initialLotes, re
               <p className="text-sm font-medium text-gray-700 mb-1">Lote: cursos que usan este libro</p>
               <p className="text-xs text-gray-400 mb-2">Pulsa el nivel para marcar todos sus grupos, o elige grupos sueltos.</p>
               <CursosSelector cursos={cursos} seleccion={formCursos} onChange={setFormCursos} />
+              <label className="flex items-start gap-2 mt-3 text-sm text-gray-700 cursor-pointer">
+                <input type="checkbox" checked={formOptativo} onChange={(e) => setFormOptativo(e.target.checked)} className="w-4 h-4 rounded mt-0.5" />
+                <span>
+                  Libro optativo
+                  <span className="block text-xs text-gray-400">Solo lo usan algunos alumnos del curso (p. ej. Diversificación). No cuenta para completar el lote.</span>
+                </span>
+              </label>
             </div>
             {error && <p className="text-sm text-red-600">{error}</p>}
           </div>

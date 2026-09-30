@@ -33,6 +33,8 @@ export interface TituloCursoV2 {
   titulo_id: string;
   /** Matches cursos.nombre / alumnos.unidad */
   curso: string;
+  /** Only for some students of the group (e.g. Diversificación): not required for a complete lot */
+  optativo: boolean;
   created_at: string;
 }
 
@@ -136,6 +138,61 @@ export interface ResumenTituloV2 {
   perdido: number;
   baja: number;
 }
+
+/** Row of gplv2_progreso_grupos() */
+export interface ProgresoGrupoV2 {
+  grupo: string;
+  alumnos: number;
+  lote: number;
+  completos: number;
+  entregados: number;
+  esperados: number;
+  prestados: number;
+  devueltos: number;
+}
+
+/** Row of gplv2_stock_titulos() */
+export interface StockTituloV2 {
+  titulo_id: string;
+  titulo: string;
+  asignatura: string | null;
+  activo: boolean;
+  /** Optional in every lot it belongs to: no "faltan" figure */
+  optativo: boolean;
+  total: number;
+  en_centro: number;
+  prestado: number;
+  perdido: number;
+  baja: number;
+  deteriorados: number;
+  /** Active students in the groups whose lot includes the title */
+  alumnos_lote: number;
+}
+
+/** Row of gplv2_alumnos_pendientes() */
+export interface AlumnoPendienteV2 {
+  alumno_id: string | null;
+  alumno: string;
+  grupo: string;
+  /** Left the school (or has no group) but still holds books */
+  baja: boolean;
+  pendientes: number;
+  /** "Title (CODE); Title (CODE)" */
+  libros: string;
+}
+
+export const ETIQUETAS_ESTADO_INCIDENCIA: Record<EstadoIncidenciaV2, string> = {
+  abierta: "Abierta",
+  en_gestion: "En gestión",
+  resuelta: "Resuelta",
+  archivada: "Archivada",
+};
+
+export const ETIQUETAS_TIPO_INCIDENCIA: Record<TipoIncidenciaV2, string> = {
+  deterioro: "Deterioro",
+  perdida: "Pérdida",
+  otro: "Otro",
+};
 
 /** Copy with its title and current holder, as listed in the UI */
 export interface EjemplarListadoV2 extends EjemplarV2 {

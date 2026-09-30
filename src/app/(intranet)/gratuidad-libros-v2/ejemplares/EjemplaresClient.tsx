@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { BookCopy, ChevronLeft, ChevronRight, Download, Loader2, Search, Tags, RefreshCw, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Modal } from "@/components/gratuidad-v2/Modal";
+import { descargarCsv } from "@/lib/gratuidadV2/exportar";
 import { ConservacionText, SituacionBadge } from "@/components/gratuidad-v2/Badges";
 import {
   ETIQUETAS_CONSERVACION, ETIQUETAS_SITUACION, MENSAJES_ERROR_V2,
@@ -133,20 +134,15 @@ export function EjemplaresClient({ titulos, grupos, canManage }: Props) {
       todos.push(...((data ?? []) as EjemplarListadoV2[]));
       if (!data || data.length < 1000) break;
     }
-    const headers = ["Código", "Título", "Asignatura", "Situación", "Conservación", "Alumno", "Grupo", "Fecha alta", "Observaciones"];
-    const lines = todos.map((r) => [
-      r.codigo, r.titulo?.titulo ?? "", r.titulo?.asignatura ?? "",
-      ETIQUETAS_SITUACION[r.situacion], ETIQUETAS_CONSERVACION[r.conservacion],
-      r.alumno?.alumno ?? "", r.alumno?.unidad ?? "", r.fecha_alta, r.observaciones ?? "",
-    ]);
-    const csv = [headers, ...lines].map((l) => l.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
-    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "ejemplares_gratuidad_v2.csv";
-    a.click();
-    URL.revokeObjectURL(url);
+    descargarCsv(
+      "ejemplares_gratuidad_v2.csv",
+      ["Código", "Título", "Asignatura", "Situación", "Conservación", "Alumno", "Grupo", "Fecha alta", "Observaciones"],
+      todos.map((r) => [
+        r.codigo, r.titulo?.titulo, r.titulo?.asignatura,
+        ETIQUETAS_SITUACION[r.situacion], ETIQUETAS_CONSERVACION[r.conservacion],
+        r.alumno?.alumno, r.alumno?.unidad, r.fecha_alta, r.observaciones,
+      ]),
+    );
     setExportando(false);
   }
 
