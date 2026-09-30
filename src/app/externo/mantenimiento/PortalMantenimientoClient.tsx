@@ -53,6 +53,14 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "finalizada", label: "Finalizadas" },
 ];
 
+// Left stripe of each card: identifies the priority at a glance (the label repeats it in text)
+const PRIORITY_STRIPE: Record<PeticionPrioridad, string> = {
+  urgente: "border-l-red-500",
+  alta: "border-l-amber-500",
+  normal: "border-l-blue-500",
+  baja: "border-l-gray-400",
+};
+
 const PRIORITY_CLASSES: Record<PeticionPrioridad, string> = {
   baja: "bg-gray-100 text-gray-600",
   normal: "bg-blue-100 text-blue-700",
@@ -233,7 +241,7 @@ function PeticionCard({ p, onChanged }: { p: PeticionPortal; onChanged: () => vo
   const activa = p.estado === "abierta" || p.estado === "en_progreso";
 
   return (
-    <article className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+    <article className={cn("bg-white rounded-xl border border-gray-300 border-l-[6px] shadow-sm overflow-hidden", PRIORITY_STRIPE[p.prioridad])}>
       <div className="p-3 sm:p-4 space-y-3">
         {/* Header: code, priority and title */}
         <div>
@@ -458,7 +466,7 @@ export function PortalMantenimientoClient({ peticiones, nombre, email }: Props) 
 
       {/* Cards */}
       {lista.length === 0 ? (
-        <p className="text-center text-sm text-gray-400 bg-white rounded-xl border border-gray-100 py-12">
+        <p className="text-center text-sm text-gray-500 bg-white rounded-xl border border-gray-300 py-12">
           No hay peticiones {tab === "finalizada" ? "finalizadas recientemente" : `en «${ESTADO_PORTAL_LABELS[tab]}»`}
         </p>
       ) : (

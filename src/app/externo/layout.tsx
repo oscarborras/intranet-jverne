@@ -6,5 +6,5 @@ export const metadata: Metadata = {
 
 // Standalone layout: external technicians never see the intranet shell (menu, header)
 export default function ExternoLayout({ children }: { children: React.ReactNode }) {
-  return <div className="min-h-screen bg-gray-50">{children}</div>;
+  return <div className="min-h-screen bg-gray-200/70">{children}</div>;
 }
