@@ -77,6 +77,7 @@ const MOVIMIENTO_LABEL: Record<TipoMovimientoV2, string> = {
   baja: "Dado de baja",
   recuperado: "Recuperado",
   cambio_conservacion: "Cambio de estado",
+  renovacion: "Préstamo renovado",
 };
 
 const MOVIMIENTO_COLOR: Record<TipoMovimientoV2, string> = {
@@ -88,12 +89,14 @@ const MOVIMIENTO_COLOR: Record<TipoMovimientoV2, string> = {
   baja: "bg-gray-500",
   recuperado: "bg-emerald-500",
   cambio_conservacion: "bg-amber-500",
+  renovacion: "bg-blue-500",
 };
 
 const RESULTADO_LABEL: Record<ResultadoPrestamoV2, string> = {
   devuelto: "Devuelto",
   perdido: "Perdido",
   anulado: "Anulado",
+  renovado: "Renovado para el curso siguiente",
 };
 
 function fechaHora(iso: string): string {
@@ -110,6 +113,7 @@ function detalleMovimiento(m: Movimiento): string {
   if (m.tipo === "cambio_conservacion") return `${cons(d.anterior)} → ${cons(d.nueva)}${d.motivo ? ` · ${d.motivo}` : ""}`;
   if (m.tipo === "devolucion") return `Estado: ${cons(d.conservacion)}`;
   if (m.tipo === "anulacion") return d.deshace === "devolucion" ? "Devolución deshecha" : "Entrega deshecha";
+  if (m.tipo === "renovacion") return `Del curso ${d.curso_anterior} al ${d.curso_escolar}`;
   if (m.tipo === "entrega" && d.curso_escolar) return `Curso ${d.curso_escolar}${d.forzado ? " · título repetido confirmado" : ""}`;
   if ((m.tipo === "perdido" || m.tipo === "baja" || m.tipo === "recuperado") && d.motivo) return String(d.motivo);
   return "";

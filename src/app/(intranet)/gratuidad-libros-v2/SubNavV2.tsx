@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutGrid, Library, BookCopy, Tags, HandHelping, Undo2, ScanSearch, BarChart3, ClipboardList } from "lucide-react";
+import { LayoutGrid, Library, BookCopy, Tags, HandHelping, Undo2, ScanSearch, BarChart3, ClipboardList, CalendarRange } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const BASE = "/gratuidad-libros-v2";
@@ -24,15 +24,23 @@ const items: Item[] = [
   { label: "Incidencias", href: `${BASE}/incidencias`, icon: <ClipboardList size={16} />, gestor: true },
   { label: "Títulos", href: `${BASE}/titulos`, icon: <Library size={16} />, gestor: true },
   { label: "Etiquetas", href: `${BASE}/etiquetas`, icon: <Tags size={16} />, gestor: true },
+  { label: "Curso escolar", href: `${BASE}/curso`, icon: <CalendarRange size={16} />, gestor: true },
 ];
 
 export function SubNavV2({ canManage }: { canManage: boolean }) {
   const pathname = usePathname();
 
+  const visibles = items.filter((i) => !i.gestor || canManage);
+  // On large screens the buttons are split into exactly two rows
+  const columnasLg = Math.ceil(visibles.length / 2);
+
   return (
-    <nav aria-label="Secciones de Gratuidad v2" className="-mx-4 px-4 overflow-x-auto sm:mx-0 sm:px-0">
-      <ul className="flex gap-2 min-w-max">
-        {items.filter((i) => !i.gestor || canManage).map((i) => {
+    <nav aria-label="Secciones de Gratuidad v2">
+      <ul
+        className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-[repeat(var(--cols),minmax(0,1fr))] gap-2"
+        style={{ "--cols": columnasLg } as React.CSSProperties}
+      >
+        {visibles.map((i) => {
           const active = i.href === BASE ? pathname === BASE : pathname.startsWith(i.href);
           return (
             <li key={i.href}>
@@ -40,7 +48,7 @@ export function SubNavV2({ canManage }: { canManage: boolean }) {
                 href={i.href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-medium transition-colors",
+                  "flex items-center justify-center gap-2 px-3 py-2.5 rounded-full text-sm font-medium transition-colors whitespace-nowrap",
                   active
                     ? "bg-gray-900 text-white"
                     : "bg-white border border-gray-300 text-gray-600 hover:border-gray-400",

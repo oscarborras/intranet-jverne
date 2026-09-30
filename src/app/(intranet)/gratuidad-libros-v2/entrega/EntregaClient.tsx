@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowLeft, Camera, CheckCircle2, ChevronRight, Circle, FileText, Loader2, Search, Undo2, Users, AlertTriangle,
+  ArrowLeft, Camera, CheckCircle2, ChevronRight, Circle, FileText, Loader2, RefreshCw, Search, Undo2, Users, AlertTriangle,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -17,7 +17,7 @@ import { DiversificacionBadge, OptativoBadge } from "@/components/gratuidad-v2/B
 import { buildJustificanteEntregaHtml, imprimirHtml } from "@/lib/gratuidadV2/documentos";
 import {
   MENSAJES_ERROR_V2,
-  type AnularEntregaResult, type AvisoEntregaV2, type ConservacionV2, type EntregarResult,
+  type AnularEntregaResult, type AvisoEntregaV2, type ConservacionV2, type EntregarResult, type RenovarPrestamoResult,
 } from "@/lib/types/gratuidadV2";
 
 export interface TituloLote {
@@ -39,6 +39,8 @@ interface AlumnoGrupo {
 interface PrestamoActivo {
   id: string;
   alumno_id: string;
+  /** School year of the delivery: older ones can be renewed */
+  curso_escolar: string;
   fecha_entrega: string;
   conservacion_entrega: ConservacionV2;
   ejemplar: { codigo: string; titulo_id: string; titulo: { titulo: string } | null } | null;
@@ -69,7 +71,7 @@ const AVISOS: Record<AvisoEntregaV2, string> = {
 };
 
 const PRESTAMO_SELECT =
-  "id, alumno_id, fecha_entrega, conservacion_entrega, ejemplar:gplv2_ejemplares(codigo, titulo_id, titulo:gplv2_titulos(titulo))";
+  "id, alumno_id, curso_escolar, fecha_entrega, conservacion_entrega, ejemplar:gplv2_ejemplares(codigo, titulo_id, titulo:gplv2_titulos(titulo))";
 
 function esCodigo(s: string): boolean {
   return /\d/.test(s) && !/\s/.test(s);
@@ -223,6 +225,7 @@ export function EntregaClient({ grupos, lotePorGrupo, titulosDiversificacion, cu
     const nuevo: PrestamoActivo = {
       id: res.prestamo_id,
       alumno_id: alumno.id,
+      curso_escolar: cursoEscolar,
       fecha_entrega: new Date().toISOString(),
       conservacion_entrega: res.ejemplar.conservacion,
       ejemplar: { codigo: res.ejemplar.codigo, titulo_id: res.ejemplar.titulo_id, titulo: { titulo: res.ejemplar.titulo } },
@@ -261,6 +264,39 @@ export function EntregaClient({ grupos, lotePorGrupo, titulosDiversificacion, cu
     setConfirmRepetido(null);
     await entregar(codigo, true);
     scannerRef.current?.focus();
+  }
+
+  // ── Loans kept from a previous school year ──────────────────────────────────
+
+  const [renovando, setRenovando] = useState(false);
+
+  /** Re-lends copies kept from a previous year to the same student for this year. */
+  async function renovar(lista: PrestamoActivo[]) {
+    if (lista.length === 0) return;
+    setRenovando(true);
+    let ok = 0;
+    const errores: string[] = [];
+    const renovados = new Map<string, string>();
+    for (const p of lista) {
+      const { data, error } = await supabase.rpc("gplv2_renovar_prestamo", { p_prestamo_id: p.id });
+      const res = data as RenovarPrestamoResult | null;
+      if (error || !res) errores.push(error?.message ?? "error");
+      else if (!res.ok) errores.push(`${p.ejemplar?.codigo}: ${MENSAJES_ERROR_V2[res.error]}`);
+      else { ok++; renovados.set(p.id, res.prestamo_id); }
+    }
+    setRenovando(false);
+    setPrestamos((prev) => {
+      const next = { ...prev };
+      for (const [alumnoId, list] of Object.entries(next)) {
+        next[alumnoId] = list.map((p) => {
+          const nuevoId = renovados.get(p.id);
+          return nuevoId ? { ...p, id: nuevoId, curso_escolar: cursoEscolar, fecha_entrega: new Date().toISOString() } : p;
+        });
+      }
+      return next;
+    });
+    if (errores.length > 0) mostrar("error", `${ok} renovados, ${errores.length} con errores`, errores.join(" · "));
+    else mostrar("ok", ok === 1 ? "Préstamo renovado" : `${ok} préstamos renovados`, `Ahora constan en el curso ${cursoEscolar}`);
   }
 
   async function deshacer(s: EntregaSesion) {
@@ -330,6 +366,7 @@ export function EntregaClient({ grupos, lotePorGrupo, titulosDiversificacion, cu
   for (const p of prestamosActual) if (p.ejemplar) porTitulo.set(p.ejemplar.titulo_id, [...(porTitulo.get(p.ejemplar.titulo_id) ?? []), p]);
   const idsLote = new Set(loteActual.map((t) => t.id));
   const fueraDeLote = prestamosActual.filter((p) => p.ejemplar && !idsLote.has(p.ejemplar.titulo_id));
+  const anterioresActual = prestamosActual.filter((p) => p.curso_escolar !== cursoEscolar);
   const progActual = alumnoActual ? progreso(alumnoActual) : null;
 
   return (
@@ -446,6 +483,17 @@ export function EntregaClient({ grupos, lotePorGrupo, titulosDiversificacion, cu
                   <button onClick={imprimirJustificante} className="flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium border border-gray-300 rounded-lg hover:bg-gray-50">
                     <FileText size={16} /> Justificante
                   </button>
+                  {anterioresActual.length > 0 && (
+                    <button
+                      onClick={() => renovar(anterioresActual)}
+                      disabled={renovando}
+                      title="Pasar al curso actual los libros que el alumno conserva de cursos anteriores"
+                      className="flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium border border-blue-300 text-blue-700 bg-blue-50 rounded-lg hover:bg-blue-100 disabled:opacity-50"
+                    >
+                      {renovando ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
+                      Renovar {anterioresActual.length} del curso anterior
+                    </button>
+                  )}
                   <button onClick={siguienteAlumno} className="ml-auto flex items-center gap-1.5 px-4 py-2.5 text-sm font-semibold bg-gray-900 text-white rounded-lg hover:bg-gray-800">
                     Siguiente alumno <ChevronRight size={16} />
                   </button>
@@ -493,7 +541,20 @@ export function EntregaClient({ grupos, lotePorGrupo, titulosDiversificacion, cu
                             {t.asignatura}
                           </p>
                         </div>
-                        {ok && <span className="font-mono text-xs text-gray-500">{entregas.map((e) => e.ejemplar?.codigo).join(", ")}</span>}
+                        {ok && (
+                          <span className="text-right">
+                            <span className="block font-mono text-xs text-gray-500">{entregas.map((e) => e.ejemplar?.codigo).join(", ")}</span>
+                            {entregas.some((e) => e.curso_escolar !== cursoEscolar) && (
+                              <button
+                                onClick={() => renovar(entregas.filter((e) => e.curso_escolar !== cursoEscolar))}
+                                disabled={renovando}
+                                className="text-xs font-medium text-blue-700 hover:underline disabled:opacity-50"
+                              >
+                                Del curso {entregas.find((e) => e.curso_escolar !== cursoEscolar)?.curso_escolar} · Renovar
+                              </button>
+                            )}
+                          </span>
+                        )}
                       </li>
                     );
                   })}

@@ -3,7 +3,7 @@
 
 export type ConservacionV2 = "nuevo" | "bueno" | "regular" | "deteriorado";
 export type SituacionV2 = "en_centro" | "prestado" | "perdido" | "baja";
-export type ResultadoPrestamoV2 = "devuelto" | "perdido" | "anulado";
+export type ResultadoPrestamoV2 = "devuelto" | "perdido" | "anulado" | "renovado";
 export type TipoMovimientoV2 =
   | "alta"
   | "entrega"
@@ -12,7 +12,8 @@ export type TipoMovimientoV2 =
   | "perdido"
   | "baja"
   | "recuperado"
-  | "cambio_conservacion";
+  | "cambio_conservacion"
+  | "renovacion";
 export type TipoIncidenciaV2 = "deterioro" | "perdida" | "otro";
 export type EstadoIncidenciaV2 = "abierta" | "en_gestion" | "resuelta" | "archivada";
 export type TipoPlantillaEtiqueta = "a4" | "zebra";
@@ -180,6 +181,8 @@ export interface AlumnoPendienteV2 {
   /** Left the school (or has no group) but still holds books */
   baja: boolean;
   pendientes: number;
+  /** Loans delivered in a previous school year */
+  anteriores: number;
   /** "Title (CODE); Title (CODE)" */
   libros: string;
 }
@@ -232,7 +235,11 @@ export type ErrorRpcV2 =
   | "cantidad_invalida"
   | "conservacion_invalida"
   | "situacion_invalida"
-  | "no_activo";
+  | "no_activo"
+  | "ya_renovado"
+  | "curso_no_coincide"
+  | "curso_invalido"
+  | "ya_cerrado";
 
 export type AvisoEntregaV2 = "fuera_de_lote" | "conservacion_deteriorado";
 
@@ -282,6 +289,41 @@ export type CorregirDevolucionResult =
 
 export type AnularDevolucionResult = { ok: true; prestamo_id: string } | RpcErrorV2;
 
+export type RenovarPrestamoResult =
+  | { ok: true; prestamo_id: string; prestamo_anterior: string; curso_escolar: string }
+  | RpcErrorV2;
+
+export type CerrarCursoResult =
+  | { ok: true; curso_cerrado: string; nuevo_curso: string; incidencias_creadas: number }
+  | RpcErrorV2;
+
+/** gplv2_resumen_cierre(): figures of the active school year (also stored on close) */
+export interface ResumenCierreV2 {
+  curso: string;
+  siguiente: string | null;
+  prestamos_activos: number;
+  alumnos_con_libros: number;
+  de_cursos_anteriores: number;
+  bajas_alumnos: number;
+  bajas_libros: number;
+  incidencias_abiertas: number;
+  entregados_curso: number;
+  devueltos_curso: number;
+  perdidos_curso: number;
+  grupos: ProgresoGrupoV2[];
+}
+
+/** Row of gplv2_cierres_curso */
+export interface CierreCursoV2 {
+  id: string;
+  curso_escolar: string;
+  nuevo_curso: string;
+  cerrado_at: string;
+  cerrado_por: string | null;
+  incidencias_bajas: number;
+  resumen: ResumenCierreV2;
+}
+
 /** Why a copy could not be deleted by gplv2_eliminar_ejemplares */
 export type MotivoNoEliminadoV2 = "no_existe" | "prestado" | "con_historial";
 
@@ -314,4 +356,8 @@ export const MENSAJES_ERROR_V2: Record<ErrorRpcV2, string> = {
   conservacion_invalida: "Estado de conservación no válido",
   situacion_invalida: "Situación no válida",
   no_activo: "El préstamo ya no está activo",
+  ya_renovado: "El préstamo ya es de este curso escolar",
+  curso_no_coincide: "El curso escolar ha cambiado mientras tanto: recarga la página",
+  curso_invalido: "El curso escolar activo no tiene el formato AAAA-AAAA",
+  ya_cerrado: "Este curso escolar ya está cerrado",
 };

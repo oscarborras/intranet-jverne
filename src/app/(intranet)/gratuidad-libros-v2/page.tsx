@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AlertTriangle, BarChart3, BookCopy, ClipboardList, HandHelping, Library, ScanSearch, Tags, Undo2 } from "lucide-react";
+import { AlertTriangle, BarChart3, BookCopy, CalendarRange, ClipboardList, HandHelping, Library, ScanSearch, Tags, Undo2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth";
 import { ROLES_OPERAR_V2, puedeGestionarV2 } from "@/lib/gratuidadV2/permisos";
@@ -43,6 +43,7 @@ export default async function GratuidadV2Page() {
     { href: "/gratuidad-libros-v2/incidencias", label: "Incidencias", desc: "Deterioros y pérdidas", icon: ClipboardList, show: canManage },
     { href: "/gratuidad-libros-v2/titulos", label: "Títulos", desc: "Catálogo, lotes y alta de ejemplares", icon: Library, show: canManage },
     { href: "/gratuidad-libros-v2/etiquetas", label: "Etiquetas", desc: "Imprimir códigos de barras", icon: Tags, show: canManage },
+    { href: "/gratuidad-libros-v2/curso", label: "Curso escolar", desc: "Cerrar el curso y abrir el siguiente", icon: CalendarRange, show: canManage },
   ].filter((a) => a.show);
 
   return (

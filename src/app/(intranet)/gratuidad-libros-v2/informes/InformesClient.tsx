@@ -43,6 +43,7 @@ export function InformesClient({ stock, grupos, cursoEscolar, inicial }: Props) 
   // Pending returns
   const [grupo, setGrupo] = useState("");
   const [soloBajas, setSoloBajas] = useState(inicial.soloBajas);
+  const [soloAnteriores, setSoloAnteriores] = useState(false);
   const [pendientes, setPendientes] = useState<AlumnoPendienteV2[]>([]);
   const [cargandoPend, setCargandoPend] = useState(false);
 
@@ -95,7 +96,10 @@ export function InformesClient({ stock, grupos, cursoEscolar, inicial }: Props) 
   useEffect(() => { if (tab === "pendientes") cargarPendientes(); }, [tab, cargarPendientes]);
   useEffect(() => { if (tab === "perdidos") cargarProblemas(); }, [tab, cargarProblemas]);
 
-  const pendientesVisibles = useMemo(() => (soloBajas ? pendientes.filter((p) => p.baja) : pendientes), [pendientes, soloBajas]);
+  const pendientesVisibles = useMemo(
+    () => pendientes.filter((p) => (!soloBajas || p.baja) && (!soloAnteriores || p.anteriores > 0)),
+    [pendientes, soloBajas, soloAnteriores],
+  );
   const stockVisible = useMemo(
     () => stock.filter((s) => (incluirInactivos || s.activo) && (!soloFaltan || (faltan(s) ?? 0) > 0)),
     [stock, incluirInactivos, soloFaltan],
@@ -106,9 +110,9 @@ export function InformesClient({ stock, grupos, cursoEscolar, inicial }: Props) 
   function datosTab(): { titulo: string; cabeceras: string[]; filas: Celda[][]; archivo: string } {
     if (tab === "pendientes") {
       return {
-        titulo: `Alumnos con libros pendientes de devolver${grupo ? ` · ${grupo}` : ""}${soloBajas ? " · dados de baja" : ""}`,
-        cabeceras: ["Alumno", "Grupo", "Baja", "Pendientes", "Libros"],
-        filas: pendientesVisibles.map((p) => [p.alumno, p.grupo, p.baja ? "Sí" : "", p.pendientes, p.libros]),
+        titulo: `Alumnos con libros pendientes de devolver${grupo ? ` · ${grupo}` : ""}${soloBajas ? " · dados de baja" : ""}${soloAnteriores ? " · de cursos anteriores" : ""}`,
+        cabeceras: ["Alumno", "Grupo", "Baja", "Pendientes", "De cursos anteriores", "Libros"],
+        filas: pendientesVisibles.map((p) => [p.alumno, p.grupo, p.baja ? "Sí" : "", p.pendientes, p.anteriores, p.libros]),
         archivo: "pendientes_devolver.csv",
       };
     }
@@ -170,6 +174,10 @@ export function InformesClient({ stock, grupos, cursoEscolar, inicial }: Props) 
               <input type="checkbox" checked={soloBajas} onChange={(e) => setSoloBajas(e.target.checked)} className="w-4 h-4 rounded" />
               Solo alumnos dados de baja
             </label>
+            <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+              <input type="checkbox" checked={soloAnteriores} onChange={(e) => setSoloAnteriores(e.target.checked)} className="w-4 h-4 rounded" />
+              Solo con libros de cursos anteriores
+            </label>
             <span className="text-sm text-gray-500 ml-auto">
               {pendientesVisibles.length} alumnos · {pendientesVisibles.reduce((s, p) => s + p.pendientes, 0)} libros
             </span>
@@ -185,6 +193,11 @@ export function InformesClient({ stock, grupos, cursoEscolar, inicial }: Props) 
                     <p className="text-xs text-gray-500">
                       {p.grupo}
                       {p.baja && <span className="ml-2 px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-semibold">Baja</span>}
+                      {p.anteriores > 0 && (
+                        <span className="ml-2 px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 font-semibold" title="Libros entregados en un curso anterior">
+                          {p.anteriores} de cursos anteriores
+                        </span>
+                      )}
                     </p>
                   </div>
                   <p className="text-sm text-gray-600 flex-1"><b className="text-gray-900">{p.pendientes}</b> · {p.libros}</p>
