@@ -6,7 +6,7 @@ import { Download, Loader2, Printer } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { todayMadrid } from "@/lib/dates";
-import { ConservacionText, SituacionBadge } from "@/components/gratuidad-v2/Badges";
+import { ConservacionText, DiversificacionBadge, OptativoBadge, SituacionBadge } from "@/components/gratuidad-v2/Badges";
 import { descargarCsv, type Celda } from "@/lib/gratuidadV2/exportar";
 import { buildListadoHtml, imprimirHtml } from "@/lib/gratuidadV2/documentos";
 import {
@@ -79,7 +79,7 @@ export function InformesClient({ stock, grupos, cursoEscolar, inicial }: Props) 
     for (let from = 0; ; from += 1000) {
       const { data, error } = await supabase
         .from("gplv2_ejemplares")
-        .select("*, titulo:gplv2_titulos(titulo, asignatura), alumno:alumnos(alumno, unidad)")
+        .select("*, titulo:gplv2_titulos(titulo, asignatura, diversificacion), alumno:alumnos(alumno, unidad)")
         .or("situacion.eq.perdido,and(conservacion.eq.deteriorado,situacion.neq.baja)")
         .order("situacion")
         .order("codigo")
@@ -115,8 +115,8 @@ export function InformesClient({ stock, grupos, cursoEscolar, inicial }: Props) 
     if (tab === "stock") {
       return {
         titulo: "Stock de libros por título",
-        cabeceras: ["Título", "Asignatura", "Alumnos del lote", "Disponibles", "En el centro", "Prestados", "Deteriorados", "Perdidos", "Faltan"],
-        filas: stockVisible.map((s) => [s.titulo, s.asignatura ?? "", s.optativo ? "Optativo" : s.alumnos_lote, s.en_centro + s.prestado, s.en_centro, s.prestado, s.deteriorados, s.perdido, faltan(s) ?? ""]),
+        cabeceras: ["Título", "Asignatura", "Diversificación", "Alumnos del lote", "Disponibles", "En el centro", "Prestados", "Deteriorados", "Perdidos", "Faltan"],
+        filas: stockVisible.map((s) => [s.titulo, s.asignatura ?? "", s.diversificacion ? "Sí" : "No", s.optativo ? "Optativo" : s.alumnos_lote, s.en_centro + s.prestado, s.en_centro, s.prestado, s.deteriorados, s.perdido, faltan(s) ?? ""]),
         archivo: "stock_titulos.csv",
       };
     }
@@ -232,7 +232,8 @@ export function InformesClient({ stock, grupos, cursoEscolar, inicial }: Props) 
                       <th scope="row" className="text-left font-normal px-4 py-2.5">
                         <span className="block text-gray-900">{s.titulo}</span>
                         <span className="block text-xs text-gray-400">
-                          {s.optativo && <span className="font-semibold text-purple-700 mr-1.5">OPTATIVO</span>}
+                          {s.diversificacion && <DiversificacionBadge className="mr-1.5" />}
+                          {s.optativo && !s.diversificacion && <OptativoBadge className="mr-1.5" />}
                           {s.asignatura}
                         </span>
                       </th>
@@ -259,7 +260,10 @@ export function InformesClient({ stock, grupos, cursoEscolar, inicial }: Props) 
           {problemas.map((e) => (
             <div key={e.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3">
               <Link href={`/gratuidad-libros-v2/consulta?codigo=${encodeURIComponent(e.codigo)}`} className="font-mono text-sm font-semibold text-blue-700 hover:underline w-24">{e.codigo}</Link>
-              <span className="text-sm text-gray-800 flex-1 min-w-[12rem]">{e.titulo?.titulo}</span>
+              <span className="text-sm text-gray-800 flex-1 min-w-[12rem]">
+                {e.titulo?.titulo}
+                {e.titulo?.diversificacion && <DiversificacionBadge className="ml-1.5 align-middle" />}
+              </span>
               <SituacionBadge situacion={e.situacion} />
               <ConservacionText conservacion={e.conservacion} />
               {e.alumno && <span className="text-sm text-gray-500 w-full sm:w-auto">{e.alumno.alumno} · {e.alumno.unidad}</span>}

@@ -17,7 +17,7 @@ export default async function EntregaV2Page({ searchParams }: Props) {
 
   const [{ data: cursosGratuidad }, { data: titulos }, { data: lotes }, { data: cursoEscolar }, { data: profesor }] = await Promise.all([
     supabase.from("cursos").select("nombre").eq("gratuidad", true).order("nombre"),
-    supabase.from("gplv2_titulos").select("id, titulo, asignatura").eq("activo", true).order("titulo"),
+    supabase.from("gplv2_titulos").select("id, titulo, asignatura, diversificacion, activo").order("titulo"),
     supabase.from("gplv2_titulo_cursos").select("*"),
     supabase.rpc("gplv2_curso_escolar_actual"),
     supabase.from("profesores").select("profesor").ilike("email", user.email ?? "").maybeSingle(),
@@ -30,8 +30,14 @@ export default async function EntregaV2Page({ searchParams }: Props) {
   }
 
   // Lot of each group: active titles assigned to it
-  type TituloRow = Omit<TituloLote, "optativo">;
-  const titulosById = new Map(((titulos ?? []) as TituloRow[]).map((t) => [t.id, t]));
+  type TituloRow = Omit<TituloLote, "optativo"> & { activo: boolean };
+  const todos = (titulos ?? []) as TituloRow[];
+  // Every Diversificación title (also archived ones: a student may still hold a copy)
+  const titulosDiversificacion = todos.filter((t) => t.diversificacion).map((t) => t.id);
+  // Only active titles make up the lots
+  const titulosById = new Map(
+    todos.filter((t) => t.activo).map(({ activo: _activo, ...t }) => [t.id, t]),
+  );
   const lotePorGrupo: Record<string, TituloLote[]> = {};
   for (const l of (lotes ?? []) as TituloCursoV2[]) {
     const t = titulosById.get(l.titulo_id);
@@ -45,6 +51,7 @@ export default async function EntregaV2Page({ searchParams }: Props) {
     <EntregaClient
       grupos={grupos}
       lotePorGrupo={lotePorGrupo}
+      titulosDiversificacion={titulosDiversificacion}
       cursoEscolar={(cursoEscolar as string | null) ?? ""}
       profesorNombre={(profesor as { profesor: string } | null)?.profesor ?? user.email ?? ""}
       inicial={{ grupo: params.grupo ?? "", alumno: params.alumno ?? "" }}

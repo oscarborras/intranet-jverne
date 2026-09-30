@@ -70,6 +70,7 @@ export async function POST() {
       editorial: libro.editorial?.trim() || null,
       asignatura: libro.asignatura?.trim() || null,
       precio: libro.precio,
+      diversificacion: libro.diversificacion,
     })))
     .select();
   if (eIns || !insertados) return NextResponse.json({ error: eIns?.message ?? "Error al importar" }, { status: 500 });

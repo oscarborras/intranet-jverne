@@ -13,6 +13,7 @@ import { CameraScanner } from "@/components/gratuidad-v2/CameraScanner";
 import { useBarcodeScanner, useScanDebounce } from "@/components/gratuidad-v2/useBarcodeScanner";
 import { playFeedback, type TipoFeedback } from "@/components/gratuidad-v2/scanFeedback";
 import { FeedbackBanner, type Feedback } from "@/components/gratuidad-v2/FeedbackBanner";
+import { DiversificacionBadge, OptativoBadge } from "@/components/gratuidad-v2/Badges";
 import { buildJustificanteEntregaHtml, imprimirHtml } from "@/lib/gratuidadV2/documentos";
 import {
   MENSAJES_ERROR_V2,
@@ -25,6 +26,7 @@ export interface TituloLote {
   asignatura: string | null;
   /** Only for some students: does not count for a complete lot */
   optativo: boolean;
+  diversificacion: boolean;
 }
 
 interface AlumnoGrupo {
@@ -54,6 +56,8 @@ interface EntregaSesion {
 interface Props {
   grupos: string[];
   lotePorGrupo: Record<string, TituloLote[]>;
+  /** Ids of Diversificación titles (to tag copies outside the lot) */
+  titulosDiversificacion: string[];
   cursoEscolar: string;
   profesorNombre: string;
   inicial: { grupo: string; alumno: string };
@@ -76,8 +80,9 @@ function fechaHoy(): string {
   return `${d}/${m}/${y}`;
 }
 
-export function EntregaClient({ grupos, lotePorGrupo, cursoEscolar, profesorNombre, inicial }: Props) {
+export function EntregaClient({ grupos, lotePorGrupo, titulosDiversificacion, cursoEscolar, profesorNombre, inicial }: Props) {
   const supabase = useMemo(() => createClient(), []);
+  const esDiversificacion = useMemo(() => new Set(titulosDiversificacion), [titulosDiversificacion]);
 
   const [grupo, setGrupo] = useState("");
   const [alumnos, setAlumnos] = useState<AlumnoGrupo[]>([]);
@@ -483,7 +488,8 @@ export function EntregaClient({ grupos, lotePorGrupo, cursoEscolar, profesorNomb
                         <div className="min-w-0 flex-1">
                           <p className={cn("text-sm", ok || t.optativo ? "text-gray-500" : "text-gray-900 font-medium")}>{t.titulo}</p>
                           <p className="text-xs text-gray-400">
-                            {t.optativo && <span className="font-semibold text-purple-700 mr-1.5">OPTATIVO</span>}
+                            {t.diversificacion && <DiversificacionBadge className="mr-1.5" />}
+                            {t.optativo && !t.diversificacion && <OptativoBadge className="mr-1.5" />}
                             {t.asignatura}
                           </p>
                         </div>
@@ -500,7 +506,10 @@ export function EntregaClient({ grupos, lotePorGrupo, cursoEscolar, profesorNomb
                       {fueraDeLote.map((p) => (
                         <li key={p.id} className="flex items-center gap-3 px-4 py-2.5">
                           <AlertTriangle size={18} className="text-amber-500 flex-shrink-0" />
-                          <span className="flex-1 text-sm text-gray-700">{p.ejemplar?.titulo?.titulo}</span>
+                          <span className="flex-1 text-sm text-gray-700">
+                            {p.ejemplar?.titulo?.titulo}
+                            {p.ejemplar && esDiversificacion.has(p.ejemplar.titulo_id) && <DiversificacionBadge className="ml-1.5 align-middle" />}
+                          </span>
                           <span className="font-mono text-xs text-gray-500">{p.ejemplar?.codigo}</span>
                         </li>
                       ))}

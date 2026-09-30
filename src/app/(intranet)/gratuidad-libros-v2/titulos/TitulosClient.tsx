@@ -8,6 +8,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { Modal } from "@/components/gratuidad-v2/Modal";
 import { CursosSelector } from "@/components/gratuidad-v2/CursosSelector";
+import { DiversificacionBadge, OptativoBadge } from "@/components/gratuidad-v2/Badges";
 import { agruparPorNivel, nivelDeCurso, resumenLote } from "@/lib/gratuidadV2/cursos";
 import {
   ETIQUETAS_CONSERVACION, MENSAJES_ERROR_V2,
@@ -27,9 +28,10 @@ interface FormTitulo {
   editorial: string;
   isbn: string;
   precio: string;
+  diversificacion: boolean;
 }
 
-const emptyForm: FormTitulo = { titulo: "", asignatura: "", editorial: "", isbn: "", precio: "" };
+const emptyForm: FormTitulo = { titulo: "", asignatura: "", editorial: "", isbn: "", precio: "", diversificacion: false };
 
 const RESUMEN_VACIO: Omit<ResumenTituloV2, "titulo_id"> = { total: 0, en_centro: 0, prestado: 0, perdido: 0, baja: 0 };
 
@@ -127,6 +129,7 @@ export function TitulosClient({ titulos: initialTitulos, lotes: initialLotes, re
       editorial: t.editorial ?? "",
       isbn: t.isbn ?? "",
       precio: t.precio != null ? String(t.precio) : "",
+      diversificacion: t.diversificacion,
     });
     setFormCursos(new Set(lotes[t.id] ?? []));
     setFormOptativo(optativos[t.id] ?? false);
@@ -153,6 +156,7 @@ export function TitulosClient({ titulos: initialTitulos, lotes: initialLotes, re
       editorial: form.editorial.trim() || null,
       isbn: form.isbn.replace(/[\s-]/g, "") || null,
       precio,
+      diversificacion: form.diversificacion,
     };
 
     let tituloId: string;
@@ -368,11 +372,8 @@ export function TitulosClient({ titulos: initialTitulos, lotes: initialLotes, re
                       .filter(Boolean).join(" · ")}
                   </p>
                   <p className={`text-xs mt-1 ${lote ? "text-blue-700" : "text-amber-600"}`}>
-                    {optativos[t.id] && lote && (
-                      <span className="inline-block mr-1.5 text-[10px] font-semibold tracking-wide uppercase px-1.5 py-0.5 rounded bg-purple-100 text-purple-700">
-                        Optativo
-                      </span>
-                    )}
+                    {t.diversificacion && <DiversificacionBadge className="mr-1.5" />}
+                    {optativos[t.id] && lote && <OptativoBadge className="mr-1.5" />}
                     {lote || "Sin lote asignado"}
                   </p>
                 </div>
@@ -438,6 +439,22 @@ export function TitulosClient({ titulos: initialTitulos, lotes: initialLotes, re
               <p className="text-sm font-medium text-gray-700 mb-1">Lote: cursos que usan este libro</p>
               <p className="text-xs text-gray-400 mb-2">Pulsa el nivel para marcar todos sus grupos, o elige grupos sueltos.</p>
               <CursosSelector cursos={cursos} seleccion={formCursos} onChange={setFormCursos} />
+              <label className="flex items-start gap-2 mt-3 text-sm text-gray-700 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={form.diversificacion}
+                  onChange={(e) => {
+                    setForm({ ...form, diversificacion: e.target.checked });
+                    // A Diversificación book is only for some students of the course
+                    if (e.target.checked) setFormOptativo(true);
+                  }}
+                  className="w-4 h-4 rounded mt-0.5"
+                />
+                <span>
+                  Diversificación
+                  <span className="block text-xs text-gray-400">Libro del programa de Diversificación curricular. Al marcarlo, también se marca como optativo.</span>
+                </span>
+              </label>
               <label className="flex items-start gap-2 mt-3 text-sm text-gray-700 cursor-pointer">
                 <input type="checkbox" checked={formOptativo} onChange={(e) => setFormOptativo(e.target.checked)} className="w-4 h-4 rounded mt-0.5" />
                 <span>

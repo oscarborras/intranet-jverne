@@ -28,3 +28,15 @@ export function SituacionBadge({ situacion }: { situacion: SituacionV2 }) {
 export function ConservacionText({ conservacion }: { conservacion: ConservacionV2 }) {
   return <span className={cn("text-xs font-medium", conservacionCls[conservacion])}>{ETIQUETAS_CONSERVACION[conservacion]}</span>;
 }
+
+const tagCls = "inline-block text-[10px] font-semibold tracking-wide uppercase px-1.5 py-0.5 rounded whitespace-nowrap";
+
+/** Same tag as the original Gratuidad module */
+export function DiversificacionBadge({ className }: { className?: string }) {
+  return <span className={cn(tagCls, "bg-purple-100 text-purple-700", className)}>Diversificación</span>;
+}
+
+/** Title that only some students of the group use (does not count for a complete lot) */
+export function OptativoBadge({ className }: { className?: string }) {
+  return <span className={cn(tagCls, "bg-slate-100 text-slate-600", className)}>Optativo</span>;
+}

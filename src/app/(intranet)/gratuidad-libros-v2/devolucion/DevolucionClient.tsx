@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { todayMadrid } from "@/lib/dates";
 import { Modal } from "@/components/gratuidad-v2/Modal";
-import { ConservacionText } from "@/components/gratuidad-v2/Badges";
+import { ConservacionText, DiversificacionBadge } from "@/components/gratuidad-v2/Badges";
 import { ScannerInput } from "@/components/gratuidad-v2/ScannerInput";
 import { CameraScanner } from "@/components/gratuidad-v2/CameraScanner";
 import { useBarcodeScanner, useScanDebounce } from "@/components/gratuidad-v2/useBarcodeScanner";
@@ -21,12 +21,15 @@ import {
 interface Props {
   cursoEscolar: string;
   profesorNombre: string;
+  /** Ids of Diversificación titles, to tag them */
+  titulosDiversificacion: string[];
 }
 
 interface Devuelto {
   prestamoId: string;
   codigo: string;
   titulo: string;
+  tituloId: string;
   conservacion: ConservacionV2;
   incidencia: string | null;
 }
@@ -35,6 +38,7 @@ interface Pendiente {
   prestamoId: string;
   codigo: string;
   titulo: string;
+  tituloId: string;
 }
 
 interface AlumnoDevolucion {
@@ -63,8 +67,9 @@ function fechaHoy(): string {
   return `${d}/${m}/${y}`;
 }
 
-export function DevolucionClient({ cursoEscolar, profesorNombre }: Props) {
+export function DevolucionClient({ cursoEscolar, profesorNombre, titulosDiversificacion }: Props) {
   const supabase = useMemo(() => createClient(), []);
+  const esDiversificacion = useMemo(() => new Set(titulosDiversificacion), [titulosDiversificacion]);
 
   const [conservacion, setConservacion] = useState<ConservacionV2>("bueno");
   const [incidenciaSiDeteriorado, setIncidenciaSiDeteriorado] = useState(true);
@@ -95,12 +100,12 @@ export function DevolucionClient({ cursoEscolar, profesorNombre }: Props) {
   const cargarPendientes = useCallback(async (alumnoId: string): Promise<Pendiente[]> => {
     const { data } = await supabase
       .from("gplv2_prestamos")
-      .select("id, ejemplar:gplv2_ejemplares(codigo, titulo:gplv2_titulos(titulo))")
+      .select("id, ejemplar:gplv2_ejemplares(codigo, titulo_id, titulo:gplv2_titulos(titulo))")
       .eq("alumno_id", alumnoId)
       .is("fecha_devolucion", null);
-    type Row = { id: string; ejemplar: { codigo: string; titulo: { titulo: string } | null } | null };
+    type Row = { id: string; ejemplar: { codigo: string; titulo_id: string; titulo: { titulo: string } | null } | null };
     return ((data ?? []) as unknown as Row[])
-      .map((r) => ({ prestamoId: r.id, codigo: r.ejemplar?.codigo ?? "", titulo: r.ejemplar?.titulo?.titulo ?? "" }))
+      .map((r) => ({ prestamoId: r.id, codigo: r.ejemplar?.codigo ?? "", titulo: r.ejemplar?.titulo?.titulo ?? "", tituloId: r.ejemplar?.titulo_id ?? "" }))
       .sort((a, b) => a.titulo.localeCompare(b.titulo, "es"));
   }, [supabase]);
 
@@ -139,6 +144,7 @@ export function DevolucionClient({ cursoEscolar, profesorNombre }: Props) {
       prestamoId: res.prestamo_id,
       codigo: res.ejemplar.codigo,
       titulo: res.ejemplar.titulo,
+      tituloId: res.ejemplar.titulo_id,
       conservacion: res.ejemplar.conservacion,
       incidencia: res.incidencia,
     };
@@ -309,7 +315,10 @@ export function DevolucionClient({ cursoEscolar, profesorNombre }: Props) {
                   <li key={d.prestamoId} className="flex items-center gap-3 px-4 py-2.5">
                     <CheckCircle2 size={17} className="text-emerald-500 flex-shrink-0" />
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm text-gray-800 truncate">{d.titulo}</p>
+                      <p className="text-sm text-gray-800 truncate">
+                        {d.titulo}
+                        {esDiversificacion.has(d.tituloId) && <DiversificacionBadge className="ml-1.5 align-middle" />}
+                      </p>
                       <p className="text-xs text-gray-400">
                         <span className="font-mono">{d.codigo}</span> · <ConservacionText conservacion={d.conservacion} />
                         {d.incidencia && <span className="text-red-600"> · Incidencia {d.incidencia}</span>}
@@ -326,7 +335,10 @@ export function DevolucionClient({ cursoEscolar, profesorNombre }: Props) {
                   <ul className="text-sm text-gray-700 space-y-0.5">
                     {a.pendientes.map((p) => (
                       <li key={p.prestamoId} className="flex justify-between gap-3">
-                        <span className="truncate">{p.titulo}</span>
+                        <span className="truncate">
+                          {p.titulo}
+                          {esDiversificacion.has(p.tituloId) && <DiversificacionBadge className="ml-1.5 align-middle" />}
+                        </span>
                         <span className="font-mono text-xs text-gray-500">{p.codigo}</span>
                       </li>
                     ))}

@@ -9,15 +9,17 @@ export default async function DevolucionV2Page() {
   const { user } = await requireRole(ROLES_OPERAR_V2);
   const supabase = await createClient();
 
-  const [{ data: cursoEscolar }, { data: profesor }] = await Promise.all([
+  const [{ data: cursoEscolar }, { data: profesor }, { data: diversificacion }] = await Promise.all([
     supabase.rpc("gplv2_curso_escolar_actual"),
     supabase.from("profesores").select("profesor").ilike("email", user.email ?? "").maybeSingle(),
+    supabase.from("gplv2_titulos").select("id").eq("diversificacion", true),
   ]);
 
   return (
     <DevolucionClient
       cursoEscolar={(cursoEscolar as string | null) ?? ""}
       profesorNombre={(profesor as { profesor: string } | null)?.profesor ?? user.email ?? ""}
+      titulosDiversificacion={(diversificacion ?? []).map((t: { id: string }) => t.id)}
     />
   );
 }

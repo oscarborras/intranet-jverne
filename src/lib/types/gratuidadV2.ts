@@ -25,6 +25,8 @@ export interface TituloV2 {
   asignatura: string | null;
   precio: number | null;
   activo: boolean;
+  /** Diversificación book (tag shown as in the original module) */
+  diversificacion: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -159,6 +161,7 @@ export interface StockTituloV2 {
   activo: boolean;
   /** Optional in every lot it belongs to: no "faltan" figure */
   optativo: boolean;
+  diversificacion: boolean;
   total: number;
   en_centro: number;
   prestado: number;
@@ -196,7 +199,7 @@ export const ETIQUETAS_TIPO_INCIDENCIA: Record<TipoIncidenciaV2, string> = {
 
 /** Copy with its title and current holder, as listed in the UI */
 export interface EjemplarListadoV2 extends EjemplarV2 {
-  titulo: { titulo: string; asignatura: string | null } | null;
+  titulo: { titulo: string; asignatura: string | null; diversificacion: boolean } | null;
   alumno: { alumno: string; unidad: string } | null;
 }
 

@@ -7,7 +7,7 @@ import { BookCopy, ChevronLeft, ChevronRight, Download, Loader2, Search, Tags, R
 import { createClient } from "@/lib/supabase/client";
 import { Modal } from "@/components/gratuidad-v2/Modal";
 import { descargarCsv } from "@/lib/gratuidadV2/exportar";
-import { ConservacionText, SituacionBadge } from "@/components/gratuidad-v2/Badges";
+import { ConservacionText, DiversificacionBadge, SituacionBadge } from "@/components/gratuidad-v2/Badges";
 import {
   ETIQUETAS_CONSERVACION, ETIQUETAS_SITUACION, MENSAJES_ERROR_V2, MENSAJES_NO_ELIMINADO_V2,
   type CambiarSituacionResult, type EliminarEjemplaresResult, type ConservacionV2, type EjemplarListadoV2, type SituacionV2,
@@ -90,7 +90,7 @@ export function EjemplaresClient({ titulos, grupos, canManage }: Props) {
     const alumnoJoin = filtros.grupo || porAlumno ? "alumno:alumnos!inner(alumno, unidad)" : "alumno:alumnos(alumno, unidad)";
     let q = supabase
       .from("gplv2_ejemplares")
-      .select(`*, titulo:gplv2_titulos(titulo, asignatura), ${alumnoJoin}`, withCount ? { count: "exact" } : undefined);
+      .select(`*, titulo:gplv2_titulos(titulo, asignatura, diversificacion), ${alumnoJoin}`, withCount ? { count: "exact" } : undefined);
     if (filtros.titulo) q = q.eq("titulo_id", filtros.titulo);
     if (filtros.situacion) q = q.eq("situacion", filtros.situacion);
     if (filtros.conservacion) q = q.eq("conservacion", filtros.conservacion);
@@ -157,9 +157,9 @@ export function EjemplaresClient({ titulos, grupos, canManage }: Props) {
     }
     descargarCsv(
       "ejemplares_gratuidad_v2.csv",
-      ["Código", "Título", "Asignatura", "Situación", "Conservación", "Alumno", "Grupo", "Fecha alta", "Observaciones"],
+      ["Código", "Título", "Asignatura", "Diversificación", "Situación", "Conservación", "Alumno", "Grupo", "Fecha alta", "Observaciones"],
       todos.map((r) => [
-        r.codigo, r.titulo?.titulo, r.titulo?.asignatura,
+        r.codigo, r.titulo?.titulo, r.titulo?.asignatura, r.titulo?.diversificacion ? "Sí" : "No",
         ETIQUETAS_SITUACION[r.situacion], ETIQUETAS_CONSERVACION[r.conservacion],
         r.alumno?.alumno, r.alumno?.unidad, r.fecha_alta, r.observaciones,
       ]),
@@ -356,7 +356,10 @@ export function EjemplaresClient({ titulos, grupos, canManage }: Props) {
                     <Link href={`/gratuidad-libros-v2/consulta?codigo=${encodeURIComponent(r.codigo)}`} className="font-mono text-sm font-semibold text-blue-700 hover:underline">{r.codigo}</Link>
                     <span className="md:hidden"><SituacionBadge situacion={r.situacion} /></span>
                   </div>
-                  <span className="text-sm text-gray-700 truncate">{r.titulo?.titulo ?? "—"}</span>
+                  <span className="text-sm text-gray-700 truncate">
+                    {r.titulo?.titulo ?? "—"}
+                    {r.titulo?.diversificacion && <DiversificacionBadge className="ml-1.5 align-middle" />}
+                  </span>
                   <span className="hidden md:block"><SituacionBadge situacion={r.situacion} /></span>
                   <span><ConservacionText conservacion={r.conservacion} /></span>
                   <span className="text-sm text-gray-600 truncate">

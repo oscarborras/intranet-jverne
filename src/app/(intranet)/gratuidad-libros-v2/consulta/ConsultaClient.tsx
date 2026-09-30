@@ -6,7 +6,7 @@ import { BookOpen, Camera, History, Loader2, Search, Tags, User, Settings2 } fro
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { Modal } from "@/components/gratuidad-v2/Modal";
-import { ConservacionText, SituacionBadge } from "@/components/gratuidad-v2/Badges";
+import { ConservacionText, DiversificacionBadge, SituacionBadge } from "@/components/gratuidad-v2/Badges";
 import { ScannerInput } from "@/components/gratuidad-v2/ScannerInput";
 import { CameraScanner } from "@/components/gratuidad-v2/CameraScanner";
 import { useBarcodeScanner, useScanDebounce } from "@/components/gratuidad-v2/useBarcodeScanner";
@@ -29,7 +29,7 @@ interface Ficha {
   conservacion: ConservacionV2;
   fecha_alta: string;
   observaciones: string | null;
-  titulo: { titulo: string; asignatura: string | null; isbn: string | null; editorial: string | null } | null;
+  titulo: { titulo: string; asignatura: string | null; isbn: string | null; editorial: string | null; diversificacion: boolean } | null;
   alumno: { id: string; alumno: string; unidad: string } | null;
 }
 
@@ -65,7 +65,7 @@ interface PrestamoAlumno {
   resultado: ResultadoPrestamoV2 | null;
   conservacion_entrega: ConservacionV2;
   conservacion_devolucion: ConservacionV2 | null;
-  ejemplar: { codigo: string; titulo: { titulo: string } | null } | null;
+  ejemplar: { codigo: string; titulo: { titulo: string; diversificacion: boolean } | null } | null;
 }
 
 const MOVIMIENTO_LABEL: Record<TipoMovimientoV2, string> = {
@@ -157,7 +157,7 @@ export function ConsultaClient({ canManage, inicial }: Props) {
     setNoEncontrado(null);
     const { data } = await supabase
       .from("gplv2_ejemplares")
-      .select("id, codigo, situacion, conservacion, fecha_alta, observaciones, titulo:gplv2_titulos(titulo, asignatura, isbn, editorial), alumno:alumnos(id, alumno, unidad)")
+      .select("id, codigo, situacion, conservacion, fecha_alta, observaciones, titulo:gplv2_titulos(titulo, asignatura, isbn, editorial, diversificacion), alumno:alumnos(id, alumno, unidad)")
       .eq("codigo", codigo)
       .maybeSingle();
     if (!data) {
@@ -207,7 +207,7 @@ export function ConsultaClient({ canManage, inicial }: Props) {
     setCargando(true);
     const { data } = await supabase
       .from("gplv2_prestamos")
-      .select("id, curso_escolar, fecha_entrega, fecha_devolucion, resultado, conservacion_entrega, conservacion_devolucion, ejemplar:gplv2_ejemplares(codigo, titulo:gplv2_titulos(titulo))")
+      .select("id, curso_escolar, fecha_entrega, fecha_devolucion, resultado, conservacion_entrega, conservacion_devolucion, ejemplar:gplv2_ejemplares(codigo, titulo:gplv2_titulos(titulo, diversificacion))")
       .eq("alumno_id", a.id)
       .order("fecha_entrega", { ascending: false });
     setPrestamosAlumno((data ?? []) as unknown as PrestamoAlumno[]);
@@ -355,6 +355,7 @@ export function ConsultaClient({ canManage, inicial }: Props) {
             </div>
             <div>
               <p className="font-semibold text-gray-900">{ficha.titulo?.titulo}</p>
+              {ficha.titulo?.diversificacion && <DiversificacionBadge className="mt-1" />}
               <p className="text-sm text-gray-500">
                 {[ficha.titulo?.asignatura, ficha.titulo?.editorial, ficha.titulo?.isbn && `ISBN ${ficha.titulo.isbn}`].filter(Boolean).join(" · ")}
               </p>
@@ -440,7 +441,10 @@ export function ConsultaClient({ canManage, inicial }: Props) {
               {actuales.map((p) => (
                 <li key={p.id} className="flex items-center gap-3 px-4 py-3">
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm text-gray-900">{p.ejemplar?.titulo?.titulo}</p>
+                    <p className="text-sm text-gray-900">
+                      {p.ejemplar?.titulo?.titulo}
+                      {p.ejemplar?.titulo?.diversificacion && <DiversificacionBadge className="ml-1.5 align-middle" />}
+                    </p>
                     <p className="text-xs text-gray-500">Entregado el {fecha(p.fecha_entrega)} · curso {p.curso_escolar} · {ETIQUETAS_CONSERVACION[p.conservacion_entrega]}</p>
                   </div>
                   {p.ejemplar && (
@@ -459,7 +463,10 @@ export function ConsultaClient({ canManage, inicial }: Props) {
                 {historial.map((p) => (
                   <li key={p.id} className="flex items-center gap-3 px-4 py-2.5">
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm text-gray-800">{p.ejemplar?.titulo?.titulo}</p>
+                      <p className="text-sm text-gray-800">
+                        {p.ejemplar?.titulo?.titulo}
+                        {p.ejemplar?.titulo?.diversificacion && <DiversificacionBadge className="ml-1.5 align-middle" />}
+                      </p>
                       <p className="text-xs text-gray-500">
                         {p.curso_escolar} · {fecha(p.fecha_entrega)} → {p.fecha_devolucion && fecha(p.fecha_devolucion)}
                         {p.resultado && ` · ${RESULTADO_LABEL[p.resultado]}`}
