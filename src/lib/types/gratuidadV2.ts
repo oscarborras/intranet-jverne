@@ -279,6 +279,19 @@ export type CorregirDevolucionResult =
 
 export type AnularDevolucionResult = { ok: true; prestamo_id: string } | RpcErrorV2;
 
+/** Why a copy could not be deleted by gplv2_eliminar_ejemplares */
+export type MotivoNoEliminadoV2 = "no_existe" | "prestado" | "con_historial";
+
+export const MENSAJES_NO_ELIMINADO_V2: Record<MotivoNoEliminadoV2, string> = {
+  no_existe: "no existe",
+  prestado: "está prestado",
+  con_historial: "ya se ha prestado alguna vez o tiene incidencias (usa Baja)",
+};
+
+export type EliminarEjemplaresResult =
+  | { ok: true; eliminados: string[]; rechazados: { codigo: string; error: MotivoNoEliminadoV2 }[] }
+  | RpcErrorV2;
+
 export type CambiarSituacionResult =
   | { ok: true; codigo: string; incidencia?: string | null }
   | RpcErrorV2;

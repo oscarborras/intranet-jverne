@@ -3,14 +3,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { BookCopy, ChevronLeft, ChevronRight, Download, Loader2, Search, Tags, RefreshCw, X } from "lucide-react";
+import { BookCopy, ChevronLeft, ChevronRight, Download, Loader2, Search, Tags, RefreshCw, Trash2, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Modal } from "@/components/gratuidad-v2/Modal";
 import { descargarCsv } from "@/lib/gratuidadV2/exportar";
 import { ConservacionText, SituacionBadge } from "@/components/gratuidad-v2/Badges";
 import {
-  ETIQUETAS_CONSERVACION, ETIQUETAS_SITUACION, MENSAJES_ERROR_V2,
-  type CambiarSituacionResult, type ConservacionV2, type EjemplarListadoV2, type SituacionV2,
+  ETIQUETAS_CONSERVACION, ETIQUETAS_SITUACION, MENSAJES_ERROR_V2, MENSAJES_NO_ELIMINADO_V2,
+  type CambiarSituacionResult, type EliminarEjemplaresResult, type ConservacionV2, type EjemplarListadoV2, type SituacionV2,
 } from "@/lib/types/gratuidadV2";
 
 interface Props {
@@ -35,7 +35,7 @@ function esCodigo(s: string): boolean {
   return /\d/.test(s) && !/\s/.test(s);
 }
 
-type AccionMasiva = "perdido" | "baja" | "en_centro" | "conservacion";
+type AccionMasiva = "perdido" | "baja" | "en_centro" | "conservacion" | "eliminar";
 
 export function EjemplaresClient({ titulos, grupos, canManage }: Props) {
   const supabase = useMemo(() => createClient(), []);
@@ -57,7 +57,7 @@ export function EjemplaresClient({ titulos, grupos, canManage }: Props) {
   const [accionMotivo, setAccionMotivo] = useState("");
   const [accionIncidencia, setAccionIncidencia] = useState(true);
   const [procesando, setProcesando] = useState(false);
-  const [resultadoAccion, setResultadoAccion] = useState<{ ok: number; errores: string[] } | null>(null);
+  const [resultadoAccion, setResultadoAccion] = useState<{ ok: number; errores: string[]; eliminar?: boolean } | null>(null);
 
   useEffect(() => {
     const t = setTimeout(() => setBusquedaDebounced(filtros.busqueda.trim()), 300);
@@ -156,8 +156,30 @@ export function EjemplaresClient({ titulos, grupos, canManage }: Props) {
     setResultadoAccion(null);
   }
 
+  /** Leftover labels: one call deletes every selected copy that was never used */
+  async function eliminarSinUsar() {
+    setProcesando(true);
+    const { data, error } = await supabase.rpc("gplv2_eliminar_ejemplares", { p_codigos: [...seleccion] });
+    setProcesando(false);
+    const res = data as EliminarEjemplaresResult | null;
+    if (error || !res) {
+      setResultadoAccion({ ok: 0, errores: [error?.message ?? "Error al eliminar"], eliminar: true });
+    } else if (!res.ok) {
+      setResultadoAccion({ ok: 0, errores: [MENSAJES_ERROR_V2[res.error]], eliminar: true });
+    } else {
+      setResultadoAccion({
+        ok: res.eliminados.length,
+        errores: res.rechazados.map((r) => `${r.codigo}: ${MENSAJES_NO_ELIMINADO_V2[r.error]}`),
+        eliminar: true,
+      });
+    }
+    setSeleccion(new Set());
+    cargar();
+  }
+
   async function ejecutarAccion() {
     if (!accion) return;
+    if (accion === "eliminar") { await eliminarSinUsar(); return; }
     setProcesando(true);
     let ok = 0;
     const errores: string[] = [];
@@ -185,6 +207,7 @@ export function EjemplaresClient({ titulos, grupos, canManage }: Props) {
     baja: "Dar de baja",
     en_centro: "Recuperar (volver al centro)",
     conservacion: "Cambiar estado de conservación",
+    eliminar: "Eliminar etiquetas sobrantes sin usar",
   };
 
   function imprimirSeleccion() {
@@ -255,13 +278,17 @@ export function EjemplaresClient({ titulos, grupos, canManage }: Props) {
           <BarButton onClick={() => abrirAccion("perdido")}>Perdido</BarButton>
           <BarButton onClick={() => abrirAccion("baja")}>Baja</BarButton>
           <BarButton onClick={() => abrirAccion("en_centro")}><RefreshCw size={14} /> Recuperar</BarButton>
+          <BarButton onClick={() => abrirAccion("eliminar")} label="Eliminar etiquetas sobrantes sin usar."><Trash2 size={14} /> Eliminar</BarButton>
           <button onClick={() => setSeleccion(new Set())} aria-label="Quitar selección" className="p-2 hover:bg-white/10 rounded-lg"><X size={16} /></button>
         </div>
       )}
 
       {resultadoAccion && (
         <div className={`text-sm rounded-lg px-3 py-2 border ${resultadoAccion.errores.length ? "bg-amber-50 border-amber-200 text-amber-800" : "bg-emerald-50 border-emerald-200 text-emerald-800"}`}>
-          <p>{resultadoAccion.ok} ejemplares actualizados{resultadoAccion.errores.length ? `, ${resultadoAccion.errores.length} con errores:` : "."}</p>
+          <p>
+            {resultadoAccion.ok} ejemplares {resultadoAccion.eliminar ? "eliminados" : "actualizados"}
+            {resultadoAccion.errores.length ? `, ${resultadoAccion.errores.length} ${resultadoAccion.eliminar ? "no se han podido eliminar" : "con errores"}:` : "."}
+          </p>
           {resultadoAccion.errores.length > 0 && (
             <ul className="mt-1 list-disc pl-5 text-xs">{resultadoAccion.errores.map((e) => <li key={e}>{e}</li>)}</ul>
           )}
@@ -341,16 +368,37 @@ export function EjemplaresClient({ titulos, grupos, canManage }: Props) {
             ) : (
               <>
                 <button onClick={() => setAccion(null)} disabled={procesando} className="px-4 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg">Cancelar</button>
-                <button onClick={ejecutarAccion} disabled={procesando} className="flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-50">
+                <button
+                  onClick={ejecutarAccion}
+                  disabled={procesando}
+                  className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium text-white rounded-lg disabled:opacity-50 ${accion === "eliminar" ? "bg-red-600 hover:bg-red-700" : "bg-blue-600 hover:bg-blue-700"}`}
+                >
                   {procesando && <Loader2 size={15} className="animate-spin" />}
-                  Aplicar a {seleccion.size}
+                  {accion === "eliminar" ? `Eliminar ${seleccion.size} definitivamente` : `Aplicar a ${seleccion.size}`}
                 </button>
               </>
             )
           }
         >
           {resultadoAccion ? (
-            <p className="text-sm text-gray-700">{resultadoAccion.ok} actualizados{resultadoAccion.errores.length ? `, ${resultadoAccion.errores.length} con errores.` : "."}</p>
+            <p className="text-sm text-gray-700">
+              {resultadoAccion.ok} {accion === "eliminar" ? "eliminados" : "actualizados"}
+              {resultadoAccion.errores.length ? `, ${resultadoAccion.errores.length} ${accion === "eliminar" ? "no se han podido eliminar (el detalle está en la página)" : "con errores"}.` : "."}
+            </p>
+          ) : accion === "eliminar" ? (
+            <div className="space-y-3 text-sm">
+              <p className="text-gray-700">
+                Se eliminarán definitivamente los ejemplares seleccionados que <b>nunca se hayan prestado</b> ni tengan incidencias.
+                Los que tengan historial no se tocan (para esos usa «Baja»).
+              </p>
+              <p className="font-mono text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-lg p-2 max-h-32 overflow-y-auto break-words">
+                {[...seleccion].sort().join(", ")}
+              </p>
+              <p className="text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                Hazlo solo con etiquetas que <b>no estén pegadas en ningún libro</b>. Si se elimina un ejemplar que sí existe,
+                al escanear su etiqueta saldrá «código no encontrado». Esta acción no se puede deshacer y los códigos no se reutilizan.
+              </p>
+            </div>
           ) : (
             <div className="space-y-4 text-sm">
               {accion === "baja" && <p className="text-gray-600">Los ejemplares prestados no se pueden dar de baja: primero hay que devolverlos.</p>}
@@ -385,9 +433,9 @@ const rowGridCls = "grid md:grid-cols-[7rem_minmax(0,1fr)_7rem_6rem_minmax(0,1fr
 const selectCls ="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500";
 const pageBtnCls = "p-2.5 border border-gray-300 rounded-lg bg-white hover:bg-gray-50 disabled:opacity-40";
 
-function BarButton({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
+function BarButton({ onClick, children, label }: { onClick: () => void; children: React.ReactNode; label?: string }) {
   return (
-    <button onClick={onClick} className="flex items-center gap-1.5 text-sm font-medium px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20">
+    <button onClick={onClick} title={label} aria-label={label} className="flex items-center gap-1.5 text-sm font-medium px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20">
       {children}
     </button>
   );
