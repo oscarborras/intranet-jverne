@@ -18,6 +18,7 @@ export type TabInforme = "pendientes" | "stock" | "perdidos";
 
 interface Props {
   stock: StockTituloV2[];
+  /** Groups with books still to return */
   grupos: string[];
   cursoEscolar: string;
   inicial: { tab: TabInforme; soloBajas: boolean };

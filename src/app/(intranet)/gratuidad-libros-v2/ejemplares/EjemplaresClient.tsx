@@ -27,7 +27,20 @@ interface Filtros {
   busqueda: string;
 }
 
-const PAGE_SIZE = 100;
+const PAGE_SIZES = [15, 30, 50] as const;
+type PageSize = (typeof PAGE_SIZES)[number];
+const PAGE_SIZE_DEFAULT: PageSize = 30;
+const PAGE_SIZE_STORAGE_KEY = "gplv2.ejemplares.pageSize";
+
+/** Last page size chosen in this browser (storage may be unavailable) */
+function pageSizeGuardado(): PageSize {
+  try {
+    const v = Number(window.localStorage.getItem(PAGE_SIZE_STORAGE_KEY));
+    return (PAGE_SIZES as readonly number[]).includes(v) ? (v as PageSize) : PAGE_SIZE_DEFAULT;
+  } catch {
+    return PAGE_SIZE_DEFAULT;
+  }
+}
 const FILTROS_VACIOS: Filtros = { titulo: "", situacion: "", conservacion: "", grupo: "", busqueda: "" };
 
 /** A search with digits and no spaces is a barcode; anything else is a student name. */
@@ -44,6 +57,14 @@ export function EjemplaresClient({ titulos, grupos, canManage }: Props) {
   const [filtros, setFiltros] = useState<Filtros>(FILTROS_VACIOS);
   const [busquedaDebounced, setBusquedaDebounced] = useState("");
   const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState<PageSize>(PAGE_SIZE_DEFAULT);
+  useEffect(() => { setPageSize(pageSizeGuardado()); }, []);
+
+  function cambiarPageSize(v: PageSize) {
+    setPageSize(v);
+    setPage(0);
+    try { window.localStorage.setItem(PAGE_SIZE_STORAGE_KEY, String(v)); } catch { /* not persisted */ }
+  }
   const [rows, setRows] = useState<EjemplarListadoV2[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -85,7 +106,7 @@ export function EjemplaresClient({ titulos, grupos, canManage }: Props) {
   const cargar = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
-    const { data, count, error } = await buildQuery(true).range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
+    const { data, count, error } = await buildQuery(true).range(page * pageSize, page * pageSize + pageSize - 1);
     if (error) {
       setLoadError(error.message);
       setRows([]);
@@ -94,7 +115,7 @@ export function EjemplaresClient({ titulos, grupos, canManage }: Props) {
       setTotal(count ?? 0);
     }
     setLoading(false);
-  }, [buildQuery, page]);
+  }, [buildQuery, page, pageSize]);
 
   useEffect(() => { cargar(); }, [cargar]);
 
@@ -104,7 +125,7 @@ export function EjemplaresClient({ titulos, grupos, canManage }: Props) {
   }
 
   const hayFiltros = Object.values(filtros).some(Boolean);
-  const paginas = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const paginas = Math.max(1, Math.ceil(total / pageSize));
   const todosPaginaMarcados = rows.length > 0 && rows.every((r) => seleccion.has(r.codigo));
 
   function toggleSel(codigo: string) {
@@ -349,11 +370,27 @@ export function EjemplaresClient({ titulos, grupos, canManage }: Props) {
       )}
 
       {/* Pagination */}
-      {paginas > 1 && (
-        <div className="flex items-center justify-center gap-3">
-          <button onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0} aria-label="Página anterior" className={pageBtnCls}><ChevronLeft size={18} /></button>
-          <span className="text-sm text-gray-600">Página {page + 1} de {paginas}</span>
-          <button onClick={() => setPage((p) => Math.min(paginas - 1, p + 1))} disabled={page >= paginas - 1} aria-label="Página siguiente" className={pageBtnCls}><ChevronRight size={18} /></button>
+      {total > 0 && (
+        <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-3">
+          {paginas > 1 && (
+            <div className="flex items-center gap-3">
+              <button onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0} aria-label="Página anterior" className={pageBtnCls}><ChevronLeft size={18} /></button>
+              <span className="text-sm text-gray-600">Página {page + 1} de {paginas}</span>
+              <button onClick={() => setPage((p) => Math.min(paginas - 1, p + 1))} disabled={page >= paginas - 1} aria-label="Página siguiente" className={pageBtnCls}><ChevronRight size={18} /></button>
+            </div>
+          )}
+          <label className="flex items-center gap-2 text-sm text-gray-600">
+            Mostrar
+            <select
+              value={pageSize}
+              onChange={(e) => cambiarPageSize(Number(e.target.value) as PageSize)}
+              aria-label="Ejemplares por página"
+              className="border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {PAGE_SIZES.map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
+            por página
+          </label>
         </div>
       )}
 
