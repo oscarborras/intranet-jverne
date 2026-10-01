@@ -28,6 +28,8 @@ interface PeticionOrigen {
   autor_id: string;
   foto_path: string | null;
   foto_nombre: string | null;
+  /** Only maintenance requests have a location */
+  ubicacion?: string;
 }
 
 function withTraza(descripcion: string, traza: string): string {
@@ -57,7 +59,7 @@ export async function POST(req: NextRequest) {
 
   const { data: original } = await admin
     .from(tablaOrigen)
-    .select("id, codigo, titulo, descripcion, prioridad, estado, autor_id, foto_path, foto_nombre")
+    .select(`id, codigo, titulo, descripcion, prioridad, estado, autor_id, foto_path, foto_nombre${origen === "mantenimiento" ? ", ubicacion" : ""}`)
     .eq("id", body.id)
     .maybeSingle<PeticionOrigen>();
 
@@ -66,9 +68,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Solo se pueden traspasar peticiones abiertas" }, { status: 409 });
   }
 
+  // TIC requests have no location field: keep it at the top of the description instead
+  const ubicacionOrigen = original.ubicacion?.trim();
+  const descripcionBase = ubicacionOrigen
+    ? `Ubicación: ${ubicacionOrigen}${original.descripcion.trim() ? `\n\n${original.descripcion.trim()}` : ""}`
+    : original.descripcion;
+
   const comun = {
     titulo: original.titulo,
-    descripcion: withTraza(original.descripcion, `Traspasada desde ${original.codigo}.`),
+    descripcion: withTraza(descripcionBase, `Traspasada desde ${original.codigo}.`),
     prioridad: original.prioridad,
     autor_id: original.autor_id,
     foto_path: original.foto_path,
