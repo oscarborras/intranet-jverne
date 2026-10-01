@@ -4,13 +4,13 @@ import { useState, useEffect, useCallback } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   X, Monitor, ArrowLeftRight, UserCheck, FileEdit,
-  MessageCircle, Plus, Clock, User, Users, Loader2, Send, Trash2, Flag,
+  MessageCircle, Plus, Clock, User, Users, Loader2, Send, Trash2, Flag, Wrench,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { resolveAutorNames } from "@/lib/resolveAutorNames";
 import { VerFotoButton } from "@/components/VerFotoButton";
-import { notifyPeticionTICFinalizada, TIC_ESTADO_LABELS } from "@/lib/peticiones";
+import { notifyPeticionTICFinalizada, traspasarPeticion, TIC_ESTADO_LABELS } from "@/lib/peticiones";
 import type { PeticionTIC, PeticionTICEstado, PeticionTICActividadTipo, PeticionPrioridad } from "@/lib/types";
 
 interface ActivityEntry {
@@ -79,6 +79,11 @@ export function PeticionTICModal({ peticion, canManage, canDelete, canChangePrio
   const [addingObs, setAddingObs] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  // Move to the maintenance board (the target board requires a location)
+  const [showTraspaso, setShowTraspaso] = useState(false);
+  const [ubicacion, setUbicacion] = useState("");
+  const [traspasando, setTraspasando] = useState(false);
+  const [traspasoError, setTraspasoError] = useState<string | null>(null);
 
   const isAuthor = peticion.autor_id === userId;
 
@@ -251,6 +256,23 @@ export function PeticionTICModal({ peticion, canManage, canDelete, canChangePrio
     });
     onUpdate({ ...peticion, estado: "eliminada" });
     setDeleting(false);
+    onClose();
+  }
+
+  async function handleTraspaso() {
+    if (!ubicacion.trim()) {
+      setTraspasoError("Indica la ubicación para mantenimiento.");
+      return;
+    }
+    setTraspasando(true);
+    setTraspasoError(null);
+    const result = await traspasarPeticion("tic", peticion.id, ubicacion);
+    if (!result.ok) {
+      setTraspasoError(result.error);
+      setTraspasando(false);
+      return;
+    }
+    onUpdate({ ...peticion, estado: "eliminada" });
     onClose();
   }
 
@@ -522,6 +544,47 @@ export function PeticionTICModal({ peticion, canManage, canDelete, canChangePrio
           </div>
         </div>
 
+        {/* ── Move to maintenance ── */}
+        {showTraspaso && (
+          <div className="flex-shrink-0 px-6 py-4 border-t border-gray-100 bg-red-50/60 space-y-3">
+            <p className="text-sm text-gray-700">
+              Se creará una petición de mantenimiento con los mismos datos y esta se retirará del tablero TIC.
+            </p>
+            <div>
+              <label htmlFor="traspaso-ubicacion" className="block text-sm font-medium text-gray-700 mb-1">
+                Ubicación <span className="text-red-500">*</span>
+              </label>
+              <input
+                id="traspaso-ubicacion"
+                value={ubicacion}
+                onChange={(e) => setUbicacion(e.target.value)}
+                placeholder="Aula, planta, zona..."
+                autoFocus
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            {traspasoError && (
+              <p role="alert" className="text-sm text-red-600">{traspasoError}</p>
+            )}
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => { setShowTraspaso(false); setTraspasoError(null); }}
+                className="px-4 py-2 text-sm text-gray-600 bg-white border border-gray-300 hover:bg-gray-50 rounded-lg transition-colors font-medium"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleTraspaso}
+                disabled={traspasando}
+                className="flex items-center gap-2 px-4 py-2 text-sm bg-red-600 hover:bg-red-700 disabled:bg-red-300 text-white rounded-lg font-semibold transition-colors"
+              >
+                {traspasando && <Loader2 size={14} className="animate-spin" />}
+                Pasar a Mantenimiento
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* ── Footer ── */}
         <div className="flex-shrink-0 px-6 py-4 border-t border-gray-100 flex items-center justify-between gap-3 bg-white">
           <div>
@@ -554,7 +617,16 @@ export function PeticionTICModal({ peticion, canManage, canDelete, canChangePrio
               )
             )}
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center justify-end gap-3">
+            {canManage && peticion.estado !== "finalizada" && !showTraspaso && (
+              <button
+                onClick={() => setShowTraspaso(true)}
+                className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 rounded-lg transition-colors font-medium"
+              >
+                <Wrench size={14} className="text-red-500" />
+                Pasar a Mantenimiento
+              </button>
+            )}
             <button
               onClick={onClose}
               className="px-4 py-2 text-sm text-gray-600 bg-white border border-gray-300 hover:bg-gray-50 rounded-lg transition-colors font-medium"

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import Link from "next/link";
-import { Wrench, Plus, Camera, X, BarChart3, MessageSquare, EyeOff } from "lucide-react";
+import { Wrench, Plus, Camera, X, BarChart3, MessageSquare, EyeOff, Monitor } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { KanbanBoard } from "@/components/kanban/KanbanBoard";
 import { KanbanFilters } from "@/components/kanban/KanbanFilters";
@@ -12,7 +12,7 @@ import { useAutoRefresh } from "@/lib/useAutoRefresh";
 import { filterKanbanItems, isKanbanFilterActive } from "@/lib/kanbanFilters";
 import { VerFotoButton } from "@/components/VerFotoButton";
 import { uploadIncidenciaFoto } from "@/lib/uploadIncidenciaFoto";
-import { applyFinalizadaAt, finalizadasColumnInfo } from "@/lib/peticiones";
+import { applyFinalizadaAt, finalizadasColumnInfo, traspasarPeticion } from "@/lib/peticiones";
 import type { PeticionMantenimiento, PeticionMantenimientoEstado, PeticionPrioridad } from "@/lib/types";
 import type { KanbanItem, ColumnConfig } from "@/components/kanban/KanbanBoard";
 
@@ -79,6 +79,8 @@ export function PeticionesMantenimientoClient({
   const [estado, setEstado] = useState<PeticionMantenimientoEstado>("por_validar");
   // "Ocultar al técnico externo" (only shown to and saved by Admin/Directiva)
   const [ocultaExterno, setOcultaExterno] = useState(false);
+  // Confirmation step before moving the request to the TIC board
+  const [confirmTraspaso, setConfirmTraspaso] = useState(false);
 
   useEffect(() => {
     if (searchParams.get("nueva") === "1") {
@@ -96,6 +98,7 @@ export function PeticionesMantenimientoClient({
     setEditing(null);
     setForm(EMPTY_FORM);
     setOcultaExterno(false);
+    setConfirmTraspaso(false);
     setFoto(null);
     if (fotoInputRef.current) fotoInputRef.current.value = "";
   }
@@ -152,6 +155,20 @@ export function PeticionesMantenimientoClient({
     const supabase = createClient();
     await supabase.from("peticiones_mantenimiento").update({ estado: "eliminada" }).eq("id", item.id);
     setPeticiones((prev) => prev.map((p) => (p.id === item.id ? { ...p, estado: "eliminada" } : p)));
+  }
+
+  async function handleTraspaso() {
+    if (!editing) return;
+    setSaving(true);
+    setFormError(null);
+    const result = await traspasarPeticion("mantenimiento", editing.id);
+    setSaving(false);
+    if (!result.ok) {
+      setFormError(result.error);
+      return;
+    }
+    setPeticiones((prev) => prev.map((p) => (p.id === editing.id ? { ...p, estado: "eliminada" } : p)));
+    closeForm();
   }
 
   async function handleSave() {
@@ -412,16 +429,47 @@ export function PeticionesMantenimientoClient({
                 {formError}
               </p>
             )}
-            <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
-              <button onClick={closeForm} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Cancelar</button>
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg font-medium"
-              >
-                {saving ? "Guardando..." : editing ? "Guardar Cambios" : "Crear Petición"}
-              </button>
-            </div>
+            {confirmTraspaso ? (
+              <div className="px-6 py-4 border-t border-gray-100 bg-blue-50/60 space-y-3">
+                <p className="text-sm text-gray-700">
+                  Se creará una petición TIC con los mismos datos y esta se retirará del tablero de mantenimiento. Los cambios sin guardar se perderán.
+                </p>
+                <div className="flex justify-end gap-3">
+                  <button onClick={() => setConfirmTraspaso(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Cancelar</button>
+                  <button
+                    onClick={handleTraspaso}
+                    disabled={saving}
+                    className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg font-medium"
+                  >
+                    {saving ? "Traspasando..." : "Sí, pasar a TIC"}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="px-6 py-4 border-t border-gray-100 flex flex-wrap justify-between gap-3">
+                <div>
+                  {editing && canValidate && editing.estado !== "finalizada" && (
+                    <button
+                      onClick={() => setConfirmTraspaso(true)}
+                      className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-700 border border-gray-300 hover:bg-gray-50 rounded-lg font-medium"
+                    >
+                      <Monitor size={14} className="text-blue-600" />
+                      Pasar a TIC
+                    </button>
+                  )}
+                </div>
+                <div className="flex gap-3">
+                  <button onClick={closeForm} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Cancelar</button>
+                  <button
+                    onClick={handleSave}
+                    disabled={saving}
+                    className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg font-medium"
+                  >
+                    {saving ? "Guardando..." : editing ? "Guardar Cambios" : "Crear Petición"}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

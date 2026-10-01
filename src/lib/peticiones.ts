@@ -73,3 +73,21 @@ export function finalizadasColumnInfo(dias: number, recientes: number, antiguas:
     footerLabel: "Ver histórico",
   };
 }
+
+// Moves an open request to the other board (TIC ⇄ maintenance). The server re-checks the role.
+export async function traspasarPeticion(
+  origen: "tic" | "mantenimiento",
+  id: number,
+  ubicacion?: string
+): Promise<{ ok: true; codigo: string } | { ok: false; error: string }> {
+  const res = await fetch("/api/peticiones/traspasar", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ origen, id, ubicacion }),
+  }).catch(() => null);
+  const data = (await res?.json().catch(() => ({}))) as { codigo?: string; error?: string } | undefined;
+  if (!res?.ok || !data?.codigo) {
+    return { ok: false, error: data?.error ?? "No se ha podido traspasar la petición. Inténtalo de nuevo." };
+  }
+  return { ok: true, codigo: data.codigo };
+}

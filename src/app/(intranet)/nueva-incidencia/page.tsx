@@ -38,10 +38,17 @@ export default async function NuevaIncidenciaPage() {
                 <Monitor size={22} className="text-blue-600" />
               </div>
               <div>
-                <p className="font-semibold text-gray-900">Un equipo o programa</p>
-                <p className="text-sm text-gray-500 mt-1">
-                  Email corporativo, Ordenador, impresora, fotocopiadora, pizarra digital, proyector, red, Internet, aplicación...
-                </p>
+                <p className="font-semibold text-gray-900">De tipo TIC</p>
+                <ul className="text-sm text-gray-500 mt-1 list-disc list-inside space-y-0.5">
+                  <li>Email corporativo</li>
+                  <li>Ordenador</li>
+                  <li>Impresora</li>
+                  <li>Fotocopiadora</li>
+                  <li>Pizarra digital</li>
+                  <li>Proyector</li>
+                  <li>Red / Internet</li>
+                  <li>Aplicación...</li>
+                </ul>
               </div>
             </Link>
           )}
@@ -55,7 +62,7 @@ export default async function NuevaIncidenciaPage() {
                 <Wrench size={22} className="text-red-500" />
               </div>
               <div>
-                <p className="font-semibold text-gray-900">Las instalaciones o el mobiliario</p>
+                <p className="font-semibold text-gray-900">Del mobiliario o de las instalaciones del Centro</p>
                 <p className="text-sm text-gray-500 mt-1">
                   Aulas, puertas, mobiliario, limpieza, luz, climatización, ...
                 </p>
