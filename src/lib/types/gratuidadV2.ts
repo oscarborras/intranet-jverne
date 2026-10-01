@@ -127,6 +127,8 @@ export interface PlantillaEtiqueta {
   sep_vertical_mm: number;
   campos: CamposEtiqueta;
   predeterminada: boolean;
+  /** Printer settings to remember for this template (scale, margins, tray…) */
+  notas: string | null;
   activo: boolean;
   created_at: string;
   updated_at: string;

@@ -18,8 +18,11 @@ interface Form {
   nombre: string;
   tipo: TipoPlantillaEtiqueta;
   predeterminada: boolean;
+  notas: string;
   nums: Record<NumKey, string>;
 }
+
+const MAX_NOTAS = 2000;
 
 /** Margins also calibrate the printer: they may be negative to shift the sheet up / left */
 const MARGEN_MIN = -20;
@@ -70,6 +73,7 @@ function toForm(p: PlantillaEtiqueta | null, copia = false): Form {
     nombre: p ? (copia ? `${p.nombre} (copia)` : p.nombre) : "",
     tipo: p?.tipo ?? "a4",
     predeterminada: copia ? false : (p?.predeterminada ?? false),
+    notas: p?.notas ?? "",
     nums: {
       ancho_mm: n(p?.ancho_mm, "70"),
       alto_mm: n(p?.alto_mm, "37"),
@@ -111,7 +115,8 @@ export function PlantillasModal({ plantillas, onChange, onClose }: Props) {
     if (v.ancho_mm <= 0 || v.alto_mm <= 0) return "El ancho y el alto deben ser mayores que 0.";
     if (v.columnas < 1 || v.filas < 1) return "Debe haber al menos una fila y una columna.";
     // A grid slightly larger than A4 is allowed (calibration): the form shows how much is cut
-    return { nombre: f.nombre.trim(), tipo: f.tipo, predeterminada: f.predeterminada, ...v };
+    if (f.notas.length > MAX_NOTAS) return `Las notas no pueden superar ${MAX_NOTAS} caracteres.`;
+    return { nombre: f.nombre.trim(), tipo: f.tipo, predeterminada: f.predeterminada, notas: f.notas.trim() || null, ...v };
   }
 
   async function guardar() {
@@ -217,6 +222,18 @@ export function PlantillasModal({ plantillas, onChange, onClose }: Props) {
               </p>
             );
           })()}
+          <label className="block">
+            <span className="block font-medium text-gray-700 mb-1">Notas de impresión</span>
+            <textarea
+              value={form.notas}
+              onChange={(e) => setForm({ ...form, notas: e.target.value })}
+              rows={3}
+              maxLength={MAX_NOTAS}
+              placeholder={"Ej.: Escala 100 % (tamaño real), márgenes «Ninguno», bandeja manual, papel «Etiquetas»…"}
+              className={`${inputCls} resize-y`}
+            />
+            <span className="block text-xs text-gray-400 mt-1">Se mostrarán al imprimir con esta plantilla.</span>
+          </label>
           <label className="flex items-center gap-2 cursor-pointer">
             <input type="checkbox" checked={form.predeterminada} onChange={(e) => setForm({ ...form, predeterminada: e.target.checked })} className="w-4 h-4 rounded" />
             Plantilla predeterminada para este tipo
@@ -253,6 +270,7 @@ export function PlantillasModal({ plantillas, onChange, onClose }: Props) {
                 {p.tipo === "a4" ? `A4 · ${p.columnas}×${p.filas} · ` : "Zebra · "}
                 {p.ancho_mm}×{p.alto_mm} mm
               </p>
+              {p.notas && <p className="text-xs text-gray-400 truncate" title={p.notas}>{p.notas}</p>}
             </div>
             <button onClick={() => abrir(p)} title="Editar" aria-label={`Editar ${p.nombre}`} className={iconBtn}><Pencil size={15} /></button>
             <button onClick={() => abrir(p, true)} title="Duplicar" aria-label={`Duplicar ${p.nombre}`} className={iconBtn}><Copy size={15} /></button>
