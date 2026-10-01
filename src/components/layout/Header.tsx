@@ -23,6 +23,8 @@ import {
   Settings,
   CalendarClock,
   UserX,
+  GraduationCap,
+  ScanBarcode,
   Clock,
   BookMarked,
   Upload,
@@ -65,6 +67,7 @@ const navGroups: NavGroup[] = [
       { label: "Tablón de Anuncios", href: "/anuncios", icon: <Megaphone size={18} />, slug: "anuncios" },
       { label: "Citas con Familias", href: "/citas-familias", icon: <CalendarClock size={18} />, slug: "citas-familias" },
       { label: "Ausencias", href: "/ausencias", icon: <UserX size={18} />, slug: "ausencias" },
+      { label: "Alumnado", href: "/alumnado", icon: <GraduationCap size={18} />, slug: "alumnado" },
       { label: "Horarios", href: "/horarios", icon: <Clock size={18} />, urlKey: "horarios" },
     ],
   },
@@ -87,6 +90,7 @@ const navGroups: NavGroup[] = [
     title: "PRÉSTAMOS",
     items: [
       { label: "Gratuidad de Libros", href: "/gratuidad-libros", icon: <BookMarked size={18} />, slug: "gratuidad-libros" },
+      { label: "Gratuidad de Libros v2", href: "/gratuidad-libros-v2", icon: <ScanBarcode size={18} />, slug: "gratuidad-libros-v2" },
     ],
   },
   {
@@ -277,6 +281,21 @@ export function Header({ userName, userEmail, userRoles, inactiveModuleSlugs, ex
                     <span className="flex-shrink-0"><CalendarClock size={18} /></span>
                     <span>Citas del día</span>
                   </Link>
+                  {!inactiveModuleSlugs.includes("alumnado") && (
+                    <Link
+                      href="/alumnado"
+                      onClick={() => setDrawerOpen(false)}
+                      className={cn(
+                        "flex items-center gap-3 px-3 py-3 rounded-lg text-sm transition-colors",
+                        pathname.startsWith("/alumnado")
+                          ? "bg-blue-600 text-white font-medium"
+                          : "text-blue-100 hover:bg-blue-800/60"
+                      )}
+                    >
+                      <span className="flex-shrink-0"><GraduationCap size={18} /></span>
+                      <span>Alumnado</span>
+                    </Link>
+                  )}
                   <Link
                     href="/ayuda"
                     onClick={() => setDrawerOpen(false)}

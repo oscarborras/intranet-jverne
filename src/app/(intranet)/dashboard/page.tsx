@@ -97,6 +97,14 @@ const moduleCards = [
     href: "/ausencias",
   },
   {
+    slug: "alumnado",
+    nombre: "Alumnado",
+    descripcion: "Datos del alumnado y contacto de las familias",
+    icono: GraduationCap,
+    color: "bg-indigo-500",
+    href: "/alumnado",
+  },
+  {
     slug: "gratuidad-libros",
     nombre: "Gratuidad de Libros",
     descripcion: "Préstamos y devoluciones de libros",

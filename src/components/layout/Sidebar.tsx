@@ -18,6 +18,7 @@ import {
   Settings,
   CalendarClock,
   UserX,
+  GraduationCap,
   Clock,
   BookMarked,
   Upload,
@@ -51,6 +52,7 @@ const navGroups: NavGroup[] = [
       { label: "Tablón de Anuncios", href: "/anuncios", icon: <Megaphone size={18} />, slug: "anuncios" },
       { label: "Citas con Familias", href: "/citas-familias", icon: <CalendarClock size={18} />, slug: "citas-familias" },
       { label: "Ausencias", href: "/ausencias", icon: <UserX size={18} />, slug: "ausencias" },
+      { label: "Alumnado", href: "/alumnado", icon: <GraduationCap size={18} />, slug: "alumnado" },
       { label: "Horarios", href: "/horarios", icon: <Clock size={18} />, urlKey: "horarios" },
     ],
   },
@@ -168,6 +170,20 @@ export function Sidebar({ userRoles, userName, inactiveModuleSlugs, externalUrls
               <span className="flex-shrink-0"><CalendarClock size={18} /></span>
               <span>Citas del día</span>
             </Link>
+            {!inactiveModuleSlugs.includes("alumnado") && (
+              <Link
+                href="/alumnado"
+                className={cn(
+                  "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors",
+                  pathname.startsWith("/alumnado")
+                    ? "bg-blue-600 text-white font-medium"
+                    : "text-blue-100 hover:bg-blue-800/60"
+                )}
+              >
+                <span className="flex-shrink-0"><GraduationCap size={18} /></span>
+                <span>Alumnado</span>
+              </Link>
+            )}
             <Link
               href="/ayuda"
               className={cn(
