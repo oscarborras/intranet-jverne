@@ -21,6 +21,12 @@ interface Form {
   nums: Record<NumKey, string>;
 }
 
+/** Margins also calibrate the printer: they may be negative to shift the sheet up / left */
+const MARGEN_MIN = -20;
+const MARGEN_MAX = 100;
+const A4_ANCHO = 210;
+const A4_ALTO = 297;
+
 const NUM_FIELDS: { key: NumKey; label: string; a4Only?: boolean }[] = [
   { key: "ancho_mm", label: "Ancho etiqueta (mm)" },
   { key: "alto_mm", label: "Alto etiqueta (mm)" },
@@ -31,6 +37,32 @@ const NUM_FIELDS: { key: NumKey; label: string; a4Only?: boolean }[] = [
   { key: "sep_horizontal_mm", label: "Separación entre columnas (mm)", a4Only: true },
   { key: "sep_vertical_mm", label: "Separación entre filas (mm)", a4Only: true },
 ];
+
+function esMargen(key: NumKey): boolean {
+  return key === "margen_sup_mm" || key === "margen_izq_mm";
+}
+
+function numero(raw: string): number {
+  return Number(raw.trim().replace(",", "."));
+}
+
+/**
+ * Part of the label grid that falls outside the A4 sheet (it would be cut when printing).
+ * Returns null when the values are not numbers yet.
+ */
+function recorteA4(f: Form): { izquierda: number; derecha: number; arriba: number; abajo: number } | null {
+  if (f.tipo !== "a4") return null;
+  const n = Object.fromEntries((Object.keys(f.nums) as NumKey[]).map((k) => [k, numero(f.nums[k])])) as Record<NumKey, number>;
+  if (Object.values(n).some((v) => Number.isNaN(v))) return null;
+  const derechaGrid = n.margen_izq_mm + n.columnas * n.ancho_mm + (n.columnas - 1) * n.sep_horizontal_mm;
+  const abajoGrid = n.margen_sup_mm + n.filas * n.alto_mm + (n.filas - 1) * n.sep_vertical_mm;
+  return {
+    izquierda: Math.max(0, -n.margen_izq_mm),
+    derecha: Math.max(0, derechaGrid - A4_ANCHO),
+    arriba: Math.max(0, -n.margen_sup_mm),
+    abajo: Math.max(0, abajoGrid - A4_ALTO),
+  };
+}
 
 function toForm(p: PlantillaEtiqueta | null, copia = false): Form {
   const n = (v: number | undefined, def: string) => (v != null ? String(v).replace(".", ",") : def);
@@ -69,17 +101,16 @@ export function PlantillasModal({ plantillas, onChange, onClose }: Props) {
     const v = {} as Record<NumKey, number>;
     for (const { key, label, a4Only } of NUM_FIELDS) {
       const raw = f.tipo === "zebra" && a4Only ? (key === "columnas" || key === "filas" ? "1" : "0") : f.nums[key];
-      const num = Number(raw.replace(",", "."));
-      if (Number.isNaN(num) || num < 0) return `${label}: valor no válido.`;
+      const num = numero(raw);
+      if (Number.isNaN(num)) return `${label}: valor no válido.`;
+      if (esMargen(key) ? num < MARGEN_MIN || num > MARGEN_MAX : num < 0) {
+        return esMargen(key) ? `${label}: debe estar entre ${MARGEN_MIN} y ${MARGEN_MAX} mm.` : `${label}: valor no válido.`;
+      }
       v[key] = key === "columnas" || key === "filas" ? Math.round(num) : num;
     }
     if (v.ancho_mm <= 0 || v.alto_mm <= 0) return "El ancho y el alto deben ser mayores que 0.";
     if (v.columnas < 1 || v.filas < 1) return "Debe haber al menos una fila y una columna.";
-    if (f.tipo === "a4") {
-      const w = v.margen_izq_mm + v.columnas * v.ancho_mm + (v.columnas - 1) * v.sep_horizontal_mm;
-      const h = v.margen_sup_mm + v.filas * v.alto_mm + (v.filas - 1) * v.sep_vertical_mm;
-      if (w > 210.5 || h > 297.5) return `Las etiquetas no caben en un A4 (ocupan ${w.toFixed(1)} × ${h.toFixed(1)} mm).`;
-    }
+    // A grid slightly larger than A4 is allowed (calibration): the form shows how much is cut
     return { nombre: f.nombre.trim(), tipo: f.tipo, predeterminada: f.predeterminada, ...v };
   }
 
@@ -157,12 +188,35 @@ export function PlantillasModal({ plantillas, onChange, onClose }: Props) {
                 <input
                   value={form.nums[key]}
                   onChange={(e) => setForm({ ...form, nums: { ...form.nums, [key]: e.target.value } })}
-                  inputMode="decimal"
+                  // Mobile decimal keypads often lack the minus sign needed for negative margins
+                  inputMode={esMargen(key) ? "text" : "decimal"}
                   className={inputCls}
                 />
+                {esMargen(key) && (
+                  <span className="block text-xs text-gray-400 mt-1">
+                    Admite negativos para desplazar la hoja {key === "margen_sup_mm" ? "hacia arriba" : "hacia la izquierda"}.
+                  </span>
+                )}
               </label>
             ))}
           </div>
+          {(() => {
+            const r = recorteA4(form);
+            if (!r) return null;
+            const partes = [
+              r.izquierda > 0.05 && `${r.izquierda.toFixed(1)} mm por la izquierda`,
+              r.derecha > 0.05 && `${r.derecha.toFixed(1)} mm por la derecha`,
+              r.arriba > 0.05 && `${r.arriba.toFixed(1)} mm por arriba`,
+              r.abajo > 0.05 && `${r.abajo.toFixed(1)} mm por abajo`,
+            ].filter(Boolean);
+            if (partes.length === 0) return null;
+            return (
+              <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                Las etiquetas se salen del A4: se recortarán {partes.join(", ")}. Es normal al calibrar hojas que ocupan
+                todo el ancho (como Apli 3×8); si el recorte es grande, revisa las medidas.
+              </p>
+            );
+          })()}
           <label className="flex items-center gap-2 cursor-pointer">
             <input type="checkbox" checked={form.predeterminada} onChange={(e) => setForm({ ...form, predeterminada: e.target.checked })} className="w-4 h-4 rounded" />
             Plantilla predeterminada para este tipo
