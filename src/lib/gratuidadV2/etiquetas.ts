@@ -56,14 +56,21 @@ function labelHtml(e: EtiquetaDatos, p: PlantillaEtiqueta, o: OpcionesEtiquetas,
   return `<div class="label${o.bordes ? " bordes" : ""}" style="${posicion}width:${p.ancho_mm}mm;height:${p.alto_mm}mm">${top}${titulo}<div class="bc">${barcodeSvg(e.codigo)}</div>${bottom}</div>`;
 }
 
+/** Inner margin of a label in mm (older rows without the columns use the former fixed values) */
+export function rellenoEtiqueta(p: PlantillaEtiqueta): { sup: number; inf: number; lat: number } {
+  const n = (v: number | string | null | undefined, def: number) => (v == null || v === "" ? def : Number(v));
+  return { sup: n(p.relleno_sup_mm, 1.5), inf: n(p.relleno_inf_mm, 1.5), lat: n(p.relleno_lat_mm, 3) };
+}
+
 function baseCss(p: PlantillaEtiqueta): string {
+  const r = rellenoEtiqueta(p);
   // Font size scales with the label height so small labels stay readable
   const fs = Math.min(3.2, Math.max(1.8, p.alto_mm / 11));
   return `
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { background: #fff; color: #000; font-family: Arial, Helvetica, sans-serif; }
   .label { display: flex; flex-direction: column; justify-content: space-between; gap: 0.4mm;
-           padding: 1.5mm 3mm; overflow: hidden; font-size: ${fs}mm; line-height: 1.15; }
+           padding: ${r.sup}mm ${r.lat}mm ${r.inf}mm; overflow: hidden; font-size: ${fs}mm; line-height: 1.15; }
   .label.bordes { outline: 0.2mm dashed #999; outline-offset: -0.1mm; }
   .row { display: flex; justify-content: space-between; align-items: baseline; gap: 1mm; white-space: nowrap; }
   .small { font-size: ${(fs * 0.8).toFixed(2)}mm; }
@@ -168,8 +175,10 @@ export function buildZpl(etiquetas: EtiquetaDatos[], p: PlantillaEtiqueta, o: Op
   const d = (mm: number) => Math.round(mm * dpm);
   const w = d(p.ancho_mm);
   const h = d(p.alto_mm);
-  const padX = d(3);
-  const padY = d(1.5);
+  const r = rellenoEtiqueta(p);
+  const padX = d(r.lat);
+  const padTop = d(r.sup);
+  const padBottom = d(r.inf);
   const fs = d(Math.min(3.2, Math.max(1.8, p.alto_mm / 11)));
   const fsSmall = Math.round(fs * 0.8);
   const innerW = w - 2 * padX;
@@ -179,7 +188,7 @@ export function buildZpl(etiquetas: EtiquetaDatos[], p: PlantillaEtiqueta, o: Op
 
   return etiquetas.map((e) => {
     const lines: string[] = ["^XA", "^CI28", `^PW${w}`, `^LL${h}`, "^LH0,0"];
-    let y = padY;
+    let y = padTop;
 
     if (campos.centro || campos.curso_escolar) {
       if (campos.centro) lines.push(`^FO${padX},${y}^A0N,${fsSmall},${fsSmall}^FD${NOMBRE_CENTRO}^FS`);
@@ -194,14 +203,14 @@ export function buildZpl(etiquetas: EtiquetaDatos[], p: PlantillaEtiqueta, o: Op
     }
 
     const bottomH = fs + d(0.4);
-    const barH = Math.max(d(5), h - y - padY - bottomH - d(0.6));
+    const barH = Math.max(d(5), h - y - padBottom - bottomH - d(0.6));
     // Code128 width ≈ 35 + 11 × characters modules (worst case, subset B)
     const modules = 35 + 11 * e.codigo.length;
     const moduleW = Math.max(1, Math.min(4, Math.floor(innerW / modules)));
     const barX = Math.max(padX, Math.round((w - moduleW * modules) / 2));
     lines.push(`^FO${barX},${y}^BY${moduleW},2,${barH}^BCN,${barH},N,N,N,A^FD${zplText(e.codigo)}^FS`);
 
-    const yb = h - padY - fs;
+    const yb = h - padBottom - fs;
     lines.push(`^FO${padX},${yb}^A0N,${fs},${fs}^FD${zplText(e.codigo)}^FS`);
     if (campos.curso && e.curso) {
       lines.push(`^FO${padX},${yb + (fs - fsSmall)}^A0N,${fsSmall},${fsSmall}^FB${innerW},1,0,R^FD${zplText(e.curso)}^FS`);

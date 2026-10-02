@@ -12,7 +12,9 @@ interface Props {
   onClose: () => void;
 }
 
-type NumKey = "ancho_mm" | "alto_mm" | "columnas" | "filas" | "margen_sup_mm" | "margen_izq_mm" | "sep_horizontal_mm" | "sep_vertical_mm";
+type NumKey =
+  | "ancho_mm" | "alto_mm" | "columnas" | "filas" | "margen_sup_mm" | "margen_izq_mm" | "sep_horizontal_mm" | "sep_vertical_mm"
+  | "relleno_sup_mm" | "relleno_inf_mm" | "relleno_lat_mm";
 
 interface Form {
   nombre: string;
@@ -40,6 +42,18 @@ const NUM_FIELDS: { key: NumKey; label: string; a4Only?: boolean }[] = [
   { key: "sep_horizontal_mm", label: "Separación entre columnas (mm)", a4Only: true },
   { key: "sep_vertical_mm", label: "Separación entre filas (mm)", a4Only: true },
 ];
+
+/** Inner margin of each label (all printer types) */
+const RELLENO_MAX = 15;
+const RELLENO_FIELDS: { key: NumKey; label: string }[] = [
+  { key: "relleno_sup_mm", label: "Interior superior (mm)" },
+  { key: "relleno_inf_mm", label: "Interior inferior (mm)" },
+  { key: "relleno_lat_mm", label: "Interior lateral (mm)" },
+];
+
+/** Minimum label area left for the content once the inner margins are applied */
+const MIN_CONTENIDO_ALTO = 8;
+const MIN_CONTENIDO_ANCHO = 20;
 
 function esMargen(key: NumKey): boolean {
   return key === "margen_sup_mm" || key === "margen_izq_mm";
@@ -83,6 +97,9 @@ function toForm(p: PlantillaEtiqueta | null, copia = false): Form {
       margen_izq_mm: n(p?.margen_izq_mm, "0"),
       sep_horizontal_mm: n(p?.sep_horizontal_mm, "0"),
       sep_vertical_mm: n(p?.sep_vertical_mm, "0"),
+      relleno_sup_mm: n(p?.relleno_sup_mm, "1,5"),
+      relleno_inf_mm: n(p?.relleno_inf_mm, "1,5"),
+      relleno_lat_mm: n(p?.relleno_lat_mm, "3"),
     },
   };
 }
@@ -112,7 +129,18 @@ export function PlantillasModal({ plantillas, onChange, onClose }: Props) {
       }
       v[key] = key === "columnas" || key === "filas" ? Math.round(num) : num;
     }
+    for (const { key, label } of RELLENO_FIELDS) {
+      const num = numero(f.nums[key]);
+      if (Number.isNaN(num) || num < 0 || num > RELLENO_MAX) return `Margen ${label.toLowerCase()}: debe estar entre 0 y ${RELLENO_MAX} mm.`;
+      v[key] = num;
+    }
     if (v.ancho_mm <= 0 || v.alto_mm <= 0) return "El ancho y el alto deben ser mayores que 0.";
+    if (v.alto_mm - v.relleno_sup_mm - v.relleno_inf_mm < MIN_CONTENIDO_ALTO) {
+      return `Con esos márgenes interiores quedan menos de ${MIN_CONTENIDO_ALTO} mm de alto para el contenido de la etiqueta.`;
+    }
+    if (v.ancho_mm - 2 * v.relleno_lat_mm < MIN_CONTENIDO_ANCHO) {
+      return `Con ese margen interior lateral quedan menos de ${MIN_CONTENIDO_ANCHO} mm de ancho para el código de barras.`;
+    }
     if (v.columnas < 1 || v.filas < 1) return "Debe haber al menos una fila y una columna.";
     // A grid slightly larger than A4 is allowed (calibration): the form shows how much is cut
     if (f.notas.length > MAX_NOTAS) return `Las notas no pueden superar ${MAX_NOTAS} caracteres.`;
@@ -205,6 +233,26 @@ export function PlantillasModal({ plantillas, onChange, onClose }: Props) {
               </label>
             ))}
           </div>
+          <fieldset className="border border-gray-200 rounded-lg p-3">
+            <legend className="px-1 font-medium text-gray-700">Margen interior de cada etiqueta</legend>
+            <p className="text-xs text-gray-400 mb-2">
+              Separa el texto y el código de barras de los bordes de la etiqueta. Auméntalo, por ejemplo el inferior a 4 mm,
+              si la impresora no llega a imprimir la última línea de la fila de abajo.
+            </p>
+            <div className="grid grid-cols-3 gap-3">
+              {RELLENO_FIELDS.map(({ key, label }) => (
+                <label key={key} className="block">
+                  <span className="block font-medium text-gray-700 mb-1 text-xs sm:text-sm">{label}</span>
+                  <input
+                    value={form.nums[key]}
+                    onChange={(e) => setForm({ ...form, nums: { ...form.nums, [key]: e.target.value } })}
+                    inputMode="decimal"
+                    className={inputCls}
+                  />
+                </label>
+              ))}
+            </div>
+          </fieldset>
           {(() => {
             const r = recorteA4(form);
             if (!r) return null;

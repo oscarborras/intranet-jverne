@@ -125,6 +125,10 @@ export interface PlantillaEtiqueta {
   margen_izq_mm: number;
   sep_horizontal_mm: number;
   sep_vertical_mm: number;
+  /** Inner margin of each label: keeps content away from its edges (printer's dead zone) */
+  relleno_sup_mm: number;
+  relleno_inf_mm: number;
+  relleno_lat_mm: number;
   campos: CamposEtiqueta;
   predeterminada: boolean;
   /** Printer settings to remember for this template (scale, margins, tray…) */
