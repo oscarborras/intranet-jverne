@@ -27,7 +27,7 @@ export function GratuidadV2Progreso({ progreso }: Props) {
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <ChartCard
-        title="Entrega por grupo"
+        title="Entrega por grupo (sin optativas)"
         subtitle="Porcentaje de libros del lote ya entregados"
         ariaLabel="Gráfico de barras con el porcentaje de libros del lote entregados en cada grupo"
         table={{
