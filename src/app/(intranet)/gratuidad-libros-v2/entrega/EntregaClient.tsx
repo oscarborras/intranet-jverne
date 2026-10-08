@@ -15,9 +15,12 @@ import { playFeedback, type TipoFeedback } from "@/components/gratuidad-v2/scanF
 import { FeedbackBanner, type Feedback } from "@/components/gratuidad-v2/FeedbackBanner";
 import { DiversificacionBadge, OptativoBadge } from "@/components/gratuidad-v2/Badges";
 import { buildJustificanteEntregaHtml, imprimirHtml } from "@/lib/gratuidadV2/documentos";
+import { itinerarioEfectivo, titulosDelItinerario, titulosRequeridos } from "@/lib/gratuidadV2/itinerario";
 import {
   MENSAJES_ERROR_V2,
-  type AnularEntregaResult, type AvisoEntregaV2, type ConservacionV2, type EntregarResult, type RenovarPrestamoResult,
+  ETIQUETAS_ITINERARIO,
+  type AnularEntregaResult, type AvisoEntregaV2, type ConservacionV2, type EntregarResult, type ItinerarioV2,
+  type MarcarItinerarioResult, type RenovarPrestamoResult,
 } from "@/lib/types/gratuidadV2";
 
 export interface TituloLote {
@@ -67,6 +70,7 @@ interface Props {
 
 const AVISOS: Record<AvisoEntregaV2, string> = {
   fuera_de_lote: "Este libro no está en el lote de su curso",
+  otro_itinerario: "Este libro no corresponde a su itinerario (ordinario / Diversificación)",
   conservacion_deteriorado: "El ejemplar está marcado como deteriorado",
 };
 
@@ -106,6 +110,10 @@ export function EntregaClient({ grupos, lotePorGrupo, titulosDiversificacion, cu
   // Queued scans read the latest values through refs
   const alumnoRef = useRef<AlumnoGrupo | null>(null);
   useEffect(() => { alumnoRef.current = alumnoActual; }, [alumnoActual]);
+  // Manual itinerary marks of the group's students for the active school year
+  const [itinerarios, setItinerarios] = useState<Record<string, ItinerarioV2>>({});
+  const itinerariosRef = useRef(itinerarios);
+  useEffect(() => { itinerariosRef.current = itinerarios; }, [itinerarios]);
   const prestamosRef = useRef(prestamos);
   useEffect(() => { prestamosRef.current = prestamos; }, [prestamos]);
 
@@ -116,6 +124,7 @@ export function EntregaClient({ grupos, lotePorGrupo, titulosDiversificacion, cu
     setAlumnoId(null);
     setAlumnos([]);
     setPrestamos({});
+    setItinerarios({});
     if (!g) return;
     setCargandoGrupo(true);
     const { data: al } = await supabase
@@ -127,15 +136,21 @@ export function EntregaClient({ grupos, lotePorGrupo, titulosDiversificacion, cu
     const lista = (al ?? []) as AlumnoGrupo[];
     const ids = lista.map((a) => a.id);
     const map: Record<string, PrestamoActivo[]> = {};
+    const marcas: Record<string, ItinerarioV2> = {};
     if (ids.length > 0) {
-      const { data: pr } = await supabase.from("gplv2_prestamos").select(PRESTAMO_SELECT).is("fecha_devolucion", null).in("alumno_id", ids);
+      const [{ data: pr }, { data: it }] = await Promise.all([
+        supabase.from("gplv2_prestamos").select(PRESTAMO_SELECT).is("fecha_devolucion", null).in("alumno_id", ids),
+        supabase.from("gplv2_alumnos_itinerario").select("alumno_id, itinerario").eq("curso_escolar", cursoEscolar).in("alumno_id", ids),
+      ]);
       for (const p of (pr ?? []) as unknown as PrestamoActivo[]) (map[p.alumno_id] ??= []).push(p);
+      for (const m of (it ?? []) as { alumno_id: string; itinerario: ItinerarioV2 }[]) marcas[m.alumno_id] = m.itinerario;
     }
     setAlumnos(lista);
     setPrestamos(map);
+    setItinerarios(marcas);
     setCargandoGrupo(false);
     if (seleccionar && lista.some((a) => a.id === seleccionar)) setAlumnoId(seleccionar);
-  }, [supabase]);
+  }, [supabase, cursoEscolar]);
 
   const initDone = useRef(false);
   useEffect(() => {
@@ -173,12 +188,22 @@ export function EntregaClient({ grupos, lotePorGrupo, titulosDiversificacion, cu
 
   // ── Derived data ────────────────────────────────────────────────────────────
 
+  /** Titles the student holds now */
+  const titulosDe = useCallback((a: AlumnoGrupo): string[] =>
+    (prestamos[a.id] ?? []).map((p) => p.ejemplar?.titulo_id).filter((id): id is string => Boolean(id)),
+  [prestamos]);
+
+  const itinerarioDe = useCallback(
+    (a: AlumnoGrupo): ItinerarioV2 => itinerarioEfectivo(itinerarios[a.id], titulosDe(a), esDiversificacion),
+    [itinerarios, titulosDe, esDiversificacion],
+  );
+
   const progreso = useCallback((a: AlumnoGrupo) => {
-    const lote = (lotePorGrupo[a.unidad] ?? []).filter((t) => !t.optativo);
+    const lote = titulosRequeridos(lotePorGrupo[a.unidad] ?? [], itinerarioDe(a));
     const tiene = new Set((prestamos[a.id] ?? []).map((p) => p.ejemplar?.titulo_id));
     const entregados = lote.filter((t) => tiene.has(t.id)).length;
     return { entregados, total: lote.length, completo: lote.length > 0 && entregados === lote.length };
-  }, [lotePorGrupo, prestamos]);
+  }, [lotePorGrupo, prestamos, itinerarioDe]);
 
   const alumnosFiltrados = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
@@ -237,8 +262,10 @@ export function EntregaClient({ grupos, lotePorGrupo, titulosDiversificacion, cu
     ].slice(0, 20));
 
     // Lot complete after this delivery?
-    const lote = (lotePorGrupo[alumno.unidad] ?? []).filter((t) => !t.optativo);
-    const tiene = new Set([...(prestamosRef.current[alumno.id] ?? []).map((p) => p.ejemplar?.titulo_id), res.ejemplar.titulo_id]);
+    const titulosAntes = (prestamosRef.current[alumno.id] ?? []).map((p) => p.ejemplar?.titulo_id).filter((id): id is string => Boolean(id));
+    const tiene = new Set([...titulosAntes, res.ejemplar.titulo_id]);
+    const itinerario = itinerarioEfectivo(itinerariosRef.current[alumno.id], tiene, esDiversificacion);
+    const lote = titulosRequeridos(lotePorGrupo[alumno.unidad] ?? [], itinerario);
     const completo = lote.length > 0 && lote.every((t) => tiene.has(t.id));
 
     if (res.avisos.length > 0) {
@@ -246,7 +273,7 @@ export function EntregaClient({ grupos, lotePorGrupo, titulosDiversificacion, cu
     } else {
       mostrar("ok", `Entregado: ${res.ejemplar.titulo}`, completo ? "¡Lote completo!" : res.ejemplar.codigo);
     }
-  }, [supabase, mostrar, lotePorGrupo]);
+  }, [supabase, mostrar, lotePorGrupo, esDiversificacion]);
 
   // Scans are processed one after another, in the order they arrive
   const colaRef = useRef<Promise<void>>(Promise.resolve());
@@ -297,6 +324,29 @@ export function EntregaClient({ grupos, lotePorGrupo, titulosDiversificacion, cu
     });
     if (errores.length > 0) mostrar("error", `${ok} renovados, ${errores.length} con errores`, errores.join(" · "));
     else mostrar("ok", ok === 1 ? "Préstamo renovado" : `${ok} préstamos renovados`, `Ahora constan en el curso ${cursoEscolar}`);
+  }
+
+  // ── Itinerary (ordinario / Diversificación) ─────────────────────────────────
+
+  const [cambiandoItinerario, setCambiandoItinerario] = useState(false);
+
+  /** Manual itinerary for the active school year; null goes back to automatic. */
+  async function cambiarItinerario(a: AlumnoGrupo, valor: ItinerarioV2 | null) {
+    setCambiandoItinerario(true);
+    const { data, error } = await supabase.rpc("gplv2_marcar_itinerario", { p_alumno_id: a.id, p_itinerario: valor });
+    setCambiandoItinerario(false);
+    const res = data as MarcarItinerarioResult | null;
+    if (error || !res || !res.ok) {
+      mostrar("error", "No se pudo cambiar el itinerario", res && !res.ok ? MENSAJES_ERROR_V2[res.error] : error?.message);
+      return;
+    }
+    setItinerarios((prev) => {
+      const next = { ...prev };
+      if (valor) next[a.id] = valor; else delete next[a.id];
+      return next;
+    });
+    mostrar("ok", `Itinerario: ${ETIQUETAS_ITINERARIO[res.itinerario]}`, res.manual ? "Marcado para este curso escolar" : "Automático según sus libros");
+    scannerRef.current?.focus();
   }
 
   async function deshacer(s: EntregaSesion) {
@@ -360,7 +410,12 @@ export function EntregaClient({ grupos, lotePorGrupo, titulosDiversificacion, cu
 
   // ── Render ──────────────────────────────────────────────────────────────────
 
-  const loteActual = alumnoActual ? lotePorGrupo[alumnoActual.unidad] ?? [] : [];
+  const loteGrupoActual = alumnoActual ? lotePorGrupo[alumnoActual.unidad] ?? [] : [];
+  const itinerarioActual: ItinerarioV2 = alumnoActual ? itinerarioDe(alumnoActual) : "ordinario";
+  const esDivActual = itinerarioActual === "diversificacion";
+  // The group's lot only offers a Diversificación itinerary when it has such titles
+  const hayDiversificacion = loteGrupoActual.some((t) => t.diversificacion);
+  const loteActual = titulosDelItinerario(loteGrupoActual, itinerarioActual);
   const prestamosActual = alumnoActual ? prestamos[alumnoActual.id] ?? [] : [];
   const porTitulo = new Map<string, PrestamoActivo[]>();
   for (const p of prestamosActual) if (p.ejemplar) porTitulo.set(p.ejemplar.titulo_id, [...(porTitulo.get(p.ejemplar.titulo_id) ?? []), p]);
@@ -466,6 +521,25 @@ export function EntregaClient({ grupos, lotePorGrupo, titulosDiversificacion, cu
                   <div className="min-w-0 flex-1">
                     <h2 className="font-bold text-gray-900 text-lg leading-tight">{alumnoActual.alumno}</h2>
                     <p className="text-sm text-gray-500">{alumnoActual.unidad}{alumnoActual.nie && ` · NIE ${alumnoActual.nie}`}</p>
+                    {hayDiversificacion && (
+                      <label className="mt-2 flex flex-wrap items-center gap-2 text-sm text-gray-600">
+                        <span>Itinerario:</span>
+                        <select
+                          value={itinerarios[alumnoActual.id] ?? ""}
+                          onChange={(e) => cambiarItinerario(alumnoActual, (e.target.value || null) as ItinerarioV2 | null)}
+                          disabled={cambiandoItinerario}
+                          aria-label="Itinerario del alumno"
+                          className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                        >
+                          <option value="">
+                            Automático ({ETIQUETAS_ITINERARIO[itinerarioEfectivo(undefined, titulosDe(alumnoActual), esDiversificacion)]})
+                          </option>
+                          <option value="ordinario">Ordinario</option>
+                          <option value="diversificacion">Diversificación</option>
+                        </select>
+                        {esDivActual && <DiversificacionBadge />}
+                      </label>
+                    )}
                   </div>
                   <div className="text-right">
                     <p className={cn("text-2xl font-bold tabular-nums", progActual?.completo ? "text-emerald-600" : "text-gray-900")}>
@@ -522,19 +596,23 @@ export function EntregaClient({ grupos, lotePorGrupo, titulosDiversificacion, cu
 
               {/* Lot checklist */}
               <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-                <h3 className="px-4 py-3 border-b bg-gray-50 text-sm font-semibold text-gray-700">Lote de {alumnoActual.unidad}</h3>
+                <h3 className="px-4 py-3 border-b bg-gray-50 text-sm font-semibold text-gray-700">
+                  Lote de {alumnoActual.unidad}{esDivActual && " · Diversificación"}
+                </h3>
                 <ul className="divide-y divide-gray-100">
                   {loteActual.map((t, i) => {
                     const entregas = porTitulo.get(t.id) ?? [];
                     const ok = entregas.length > 0;
-                    const primerOptativo = t.optativo && (i === 0 || !loteActual[i - 1].optativo);
+                    // Diversificación books are all required for a Diversificación student
+                    const opcional = !esDivActual && t.optativo;
+                    const primerOptativo = opcional && (i === 0 || !loteActual[i - 1].optativo);
                     return (
-                      <li key={t.id} className={cn("flex items-center gap-3 px-4 py-3", !ok && !t.optativo && "bg-amber-50/40", primerOptativo && "border-t-4 border-gray-100")}>
+                      <li key={t.id} className={cn("flex items-center gap-3 px-4 py-3", !ok && !opcional && "bg-amber-50/40", primerOptativo && "border-t-4 border-gray-100")}>
                         {ok
                           ? <CheckCircle2 size={20} className="text-emerald-600 flex-shrink-0" />
-                          : <Circle size={20} className={cn("flex-shrink-0", t.optativo ? "text-gray-300" : "text-amber-400")} />}
+                          : <Circle size={20} className={cn("flex-shrink-0", opcional ? "text-gray-300" : "text-amber-400")} />}
                         <div className="min-w-0 flex-1">
-                          <p className={cn("text-sm", ok || t.optativo ? "text-gray-500" : "text-gray-900 font-medium")}>{t.titulo}</p>
+                          <p className={cn("text-sm", ok || opcional ? "text-gray-500" : "text-gray-900 font-medium")}>{t.titulo}</p>
                           <p className="text-xs text-gray-400">
                             {t.diversificacion && <DiversificacionBadge className="mr-1.5" />}
                             {t.optativo && !t.diversificacion && <OptativoBadge className="mr-1.5" />}
@@ -562,7 +640,9 @@ export function EntregaClient({ grupos, lotePorGrupo, titulosDiversificacion, cu
                 </ul>
                 {fueraDeLote.length > 0 && (
                   <>
-                    <h3 className="px-4 py-2 border-y bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wider">Fuera de lote</h3>
+                    <h3 className="px-4 py-2 border-y bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                      {hayDiversificacion ? "Fuera de su lote o itinerario" : "Fuera de lote"}
+                    </h3>
                     <ul className="divide-y divide-gray-100">
                       {fueraDeLote.map((p) => (
                         <li key={p.id} className="flex items-center gap-3 px-4 py-2.5">

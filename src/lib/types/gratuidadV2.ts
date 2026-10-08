@@ -245,9 +245,22 @@ export type ErrorRpcV2 =
   | "ya_renovado"
   | "curso_no_coincide"
   | "curso_invalido"
-  | "ya_cerrado";
+  | "ya_cerrado"
+  | "itinerario_invalido";
 
-export type AvisoEntregaV2 = "fuera_de_lote" | "conservacion_deteriorado";
+export type AvisoEntregaV2 = "fuera_de_lote" | "conservacion_deteriorado" | "otro_itinerario";
+
+/** Student's itinerary in a school year: which books of the lot they take */
+export type ItinerarioV2 = "ordinario" | "diversificacion";
+
+export const ETIQUETAS_ITINERARIO: Record<ItinerarioV2, string> = {
+  ordinario: "Ordinario",
+  diversificacion: "Diversificación",
+};
+
+export type MarcarItinerarioResult =
+  | { ok: true; itinerario: ItinerarioV2; manual: boolean }
+  | RpcErrorV2;
 
 export interface RpcErrorV2 {
   ok: false;
@@ -366,4 +379,5 @@ export const MENSAJES_ERROR_V2: Record<ErrorRpcV2, string> = {
   curso_no_coincide: "El curso escolar ha cambiado mientras tanto: recarga la página",
   curso_invalido: "El curso escolar activo no tiene el formato AAAA-AAAA",
   ya_cerrado: "Este curso escolar ya está cerrado",
+  itinerario_invalido: "Itinerario no válido",
 };
