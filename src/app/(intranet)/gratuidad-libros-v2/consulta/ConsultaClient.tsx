@@ -6,7 +6,7 @@ import { BookOpen, Camera, History, Loader2, Search, Tags, User, Settings2 } fro
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { Modal } from "@/components/gratuidad-v2/Modal";
-import { ConservacionText, DiversificacionBadge, SituacionBadge } from "@/components/gratuidad-v2/Badges";
+import { ConservacionText, DiversificacionBadge, OptativoBadge, SituacionBadge } from "@/components/gratuidad-v2/Badges";
 import { ScannerInput } from "@/components/gratuidad-v2/ScannerInput";
 import { CameraScanner } from "@/components/gratuidad-v2/CameraScanner";
 import { useBarcodeScanner, useScanDebounce } from "@/components/gratuidad-v2/useBarcodeScanner";
@@ -65,7 +65,7 @@ interface PrestamoAlumno {
   resultado: ResultadoPrestamoV2 | null;
   conservacion_entrega: ConservacionV2;
   conservacion_devolucion: ConservacionV2 | null;
-  ejemplar: { codigo: string; titulo: { titulo: string; diversificacion: boolean } | null } | null;
+  ejemplar: { codigo: string; titulo_id: string; titulo: { titulo: string; diversificacion: boolean } | null } | null;
 }
 
 const MOVIMIENTO_LABEL: Record<TipoMovimientoV2, string> = {
@@ -138,6 +138,8 @@ export function ConsultaClient({ canManage, inicial }: Props) {
   const [resultados, setResultados] = useState<AlumnoBusqueda[]>([]);
   const [alumno, setAlumno] = useState<AlumnoBusqueda | null>(null);
   const [prestamosAlumno, setPrestamosAlumno] = useState<PrestamoAlumno[]>([]);
+  /** Titles marked optional in the lot of the student's current group */
+  const [optativosAlumno, setOptativosAlumno] = useState<Set<string>>(new Set());
 
   // Manager actions
   const [editando, setEditando] = useState(false);
@@ -209,12 +211,18 @@ export function ConsultaClient({ canManage, inicial }: Props) {
     setResultados([]);
     setBusqueda("");
     setCargando(true);
-    const { data } = await supabase
-      .from("gplv2_prestamos")
-      .select("id, curso_escolar, fecha_entrega, fecha_devolucion, resultado, conservacion_entrega, conservacion_devolucion, ejemplar:gplv2_ejemplares(codigo, titulo:gplv2_titulos(titulo, diversificacion))")
-      .eq("alumno_id", a.id)
-      .order("fecha_entrega", { ascending: false });
+    const [{ data }, { data: optativos }] = await Promise.all([
+      supabase
+        .from("gplv2_prestamos")
+        .select("id, curso_escolar, fecha_entrega, fecha_devolucion, resultado, conservacion_entrega, conservacion_devolucion, ejemplar:gplv2_ejemplares(codigo, titulo_id, titulo:gplv2_titulos(titulo, diversificacion))")
+        .eq("alumno_id", a.id)
+        .order("fecha_entrega", { ascending: false }),
+      a.unidad
+        ? supabase.from("gplv2_titulo_cursos").select("titulo_id").eq("curso", a.unidad).eq("optativo", true)
+        : Promise.resolve({ data: [] as { titulo_id: string }[] }),
+    ]);
     setPrestamosAlumno((data ?? []) as unknown as PrestamoAlumno[]);
+    setOptativosAlumno(new Set((optativos ?? []).map((o: { titulo_id: string }) => o.titulo_id)));
     setCargando(false);
     actualizarUrl({ alumno: a.id });
   }, [supabase, actualizarUrl]);
@@ -448,6 +456,7 @@ export function ConsultaClient({ canManage, inicial }: Props) {
                     <p className="text-sm text-gray-900">
                       {p.ejemplar?.titulo?.titulo}
                       {p.ejemplar?.titulo?.diversificacion && <DiversificacionBadge className="ml-1.5 align-middle" />}
+                      {p.ejemplar && !p.ejemplar.titulo?.diversificacion && optativosAlumno.has(p.ejemplar.titulo_id) && <OptativoBadge className="ml-1.5 align-middle" />}
                     </p>
                     <p className="text-xs text-gray-500">Entregado el {fecha(p.fecha_entrega)} · curso {p.curso_escolar} · {ETIQUETAS_CONSERVACION[p.conservacion_entrega]}</p>
                   </div>
@@ -470,6 +479,7 @@ export function ConsultaClient({ canManage, inicial }: Props) {
                       <p className="text-sm text-gray-800">
                         {p.ejemplar?.titulo?.titulo}
                         {p.ejemplar?.titulo?.diversificacion && <DiversificacionBadge className="ml-1.5 align-middle" />}
+                      {p.ejemplar && !p.ejemplar.titulo?.diversificacion && optativosAlumno.has(p.ejemplar.titulo_id) && <OptativoBadge className="ml-1.5 align-middle" />}
                       </p>
                       <p className="text-xs text-gray-500">
                         {p.curso_escolar} · {fecha(p.fecha_entrega)} → {p.fecha_devolucion && fecha(p.fecha_devolucion)}

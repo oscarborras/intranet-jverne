@@ -38,5 +38,5 @@ export function DiversificacionBadge({ className }: { className?: string }) {
 
 /** Title that only some students of the group use (does not count for a complete lot) */
 export function OptativoBadge({ className }: { className?: string }) {
-  return <span className={cn(tagCls, "bg-slate-100 text-slate-600", className)}>Optativo</span>;
+  return <span className={cn(tagCls, "bg-orange-100 text-orange-800", className)}>Optativo</span>;
 }

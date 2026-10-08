@@ -199,10 +199,15 @@ export function EntregaClient({ grupos, lotePorGrupo, titulosDiversificacion, cu
   );
 
   const progreso = useCallback((a: AlumnoGrupo) => {
-    const lote = titulosRequeridos(lotePorGrupo[a.unidad] ?? [], itinerarioDe(a));
+    const itinerario = itinerarioDe(a);
+    const loteGrupo = lotePorGrupo[a.unidad] ?? [];
+    const lote = titulosRequeridos(loteGrupo, itinerario);
+    const idsRequeridos = new Set(lote.map((t) => t.id));
     const tiene = new Set((prestamos[a.id] ?? []).map((p) => p.ejemplar?.titulo_id));
     const entregados = lote.filter((t) => tiene.has(t.id)).length;
-    return { entregados, total: lote.length, completo: lote.length > 0 && entregados === lote.length };
+    // Optional titles of the student's itinerary already delivered (not part of the count above)
+    const optativos = titulosDelItinerario(loteGrupo, itinerario).filter((t) => !idsRequeridos.has(t.id) && tiene.has(t.id)).length;
+    return { entregados, total: lote.length, optativos, completo: lote.length > 0 && entregados === lote.length };
   }, [lotePorGrupo, prestamos, itinerarioDe]);
 
   const alumnosFiltrados = useMemo(() => {
@@ -502,6 +507,11 @@ export function EntregaClient({ grupos, lotePorGrupo, titulosDiversificacion, cu
                         <span className="flex-1 min-w-0 text-sm text-gray-900 truncate">{a.alumno}</span>
                         <span className={cn("text-xs font-semibold tabular-nums", p.completo ? "text-emerald-700" : p.entregados > 0 ? "text-blue-700" : "text-gray-400")}>
                           {p.entregados}/{p.total}
+                          {p.optativos > 0 && (
+                            <span className="ml-1 font-normal text-slate-500" title={`${p.optativos} ${p.optativos === 1 ? "libro optativo" : "libros optativos"}`}>
+                              +{p.optativos}
+                            </span>
+                          )}
                         </span>
                       </button>
                     </li>
@@ -546,6 +556,11 @@ export function EntregaClient({ grupos, lotePorGrupo, titulosDiversificacion, cu
                       {progActual?.entregados}/{progActual?.total}
                     </p>
                     <p className="text-xs text-gray-400">libros del lote</p>
+                    {(progActual?.optativos ?? 0) > 0 && (
+                      <p className="text-xs font-medium text-slate-600 mt-0.5">
+                        + {progActual?.optativos} {progActual?.optativos === 1 ? "optativo" : "optativos"}
+                      </p>
+                    )}
                   </div>
                 </div>
                 {progActual && progActual.total > 0 && (
