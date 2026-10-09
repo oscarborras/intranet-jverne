@@ -82,6 +82,7 @@ export interface CalendarEvento {
   hora_fin: string | null;
   todo_el_dia: boolean;
   tipo: string;
+  grupos: string[]; // groups taking part (only for extracurricular activities)
   autor_id: string;
   created_at: string;
   autor?: { full_name: string };

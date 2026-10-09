@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, Plus, X, Pencil, Calendar, Lock, LockOpen } 
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { resolveAutorNames } from "@/lib/resolveAutorNames";
+import { GruposSelector } from "@/components/calendar/GruposSelector";
 import type { CalendarEvento, TipoEventoIntranet, AsuntoPropios, DiaBloqueadoAsuntos } from "@/lib/types";
 
 const DAYS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
@@ -49,6 +50,7 @@ interface Props {
   maxAsuntosPropios: number;
   profesores: { id: string; profesor: string }[];
   canManageAsuntos: boolean;
+  grupos: string[];
 }
 
 interface EventForm {
@@ -60,6 +62,7 @@ interface EventForm {
   todo_el_dia: boolean;
   hora_inicio: string;
   hora_fin: string;
+  grupos: string[];
 }
 
 function formatTime(t: string | null): string {
@@ -82,7 +85,7 @@ function toDateStr(year: number, month: number, day: number) {
 
 export function CalendarioClient({
   initialEventos, tiposEvento, userId, myDisplayName, canManageEvents, canCreateExtraescolar,
-  initialAsuntos, initialBloqueos, maxAsuntosPropios, profesores, canManageAsuntos,
+  initialAsuntos, initialBloqueos, maxAsuntosPropios, profesores, canManageAsuntos, grupos,
 }: Props) {
   const canCreateEvents = canManageEvents || canCreateExtraescolar;
   const today = new Date();
@@ -96,7 +99,7 @@ export function CalendarioClient({
   const defaultTipo = tiposEvento[0]?.nombre ?? "";
   const [form, setForm] = useState<EventForm>({
     titulo: "", descripcion: "", fecha_inicio: "", fecha_fin: "", tipo: defaultTipo,
-    todo_el_dia: true, hora_inicio: "", hora_fin: "",
+    todo_el_dia: true, hora_inicio: "", hora_fin: "", grupos: [],
   });
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
@@ -200,7 +203,7 @@ export function CalendarioClient({
     setForm({
       titulo: "", descripcion: "", fecha_inicio: dateStr, fecha_fin: dateStr,
       tipo: canManageEvents ? defaultTipo : EXTRAESCOLAR_TIPO,
-      todo_el_dia: true, hora_inicio: "", hora_fin: "",
+      todo_el_dia: true, hora_inicio: "", hora_fin: "", grupos: [],
     });
     setModalEvento("new");
   }
@@ -215,6 +218,7 @@ export function CalendarioClient({
       todo_el_dia: evento.todo_el_dia,
       hora_inicio: formatTime(evento.hora_inicio),
       hora_fin: formatTime(evento.hora_fin),
+      grupos: evento.grupos ?? [],
     });
     setModalEvento(evento);
   }
@@ -223,7 +227,7 @@ export function CalendarioClient({
     setModalEvento(null);
     setForm({
       titulo: "", descripcion: "", fecha_inicio: "", fecha_fin: "", tipo: defaultTipo,
-      todo_el_dia: true, hora_inicio: "", hora_fin: "",
+      todo_el_dia: true, hora_inicio: "", hora_fin: "", grupos: [],
     });
   }
 
@@ -235,18 +239,20 @@ export function CalendarioClient({
     const timePayload = form.todo_el_dia
       ? { todo_el_dia: true, hora_inicio: null, hora_fin: null }
       : { todo_el_dia: false, hora_inicio: form.hora_inicio || null, hora_fin: form.hora_fin || null };
+    // Groups only apply to extracurricular activities
+    const gruposPayload = form.tipo === EXTRAESCOLAR_TIPO ? form.grupos : [];
 
     if (modalEvento === "new") {
       const { data } = await supabase
         .from("calendar_eventos")
-        .insert({ titulo: form.titulo, descripcion: form.descripcion, fecha_inicio: form.fecha_inicio, fecha_fin: form.fecha_fin, tipo: form.tipo, autor_id: userId, ...timePayload })
+        .insert({ titulo: form.titulo, descripcion: form.descripcion, fecha_inicio: form.fecha_inicio, fecha_fin: form.fecha_fin, tipo: form.tipo, grupos: gruposPayload, autor_id: userId, ...timePayload })
         .select()
         .single();
       if (data) setEventos((prev) => [...prev, { ...(data as CalendarEvento), autor: { full_name: myDisplayName } }]);
     } else if (modalEvento) {
       const { data } = await supabase
         .from("calendar_eventos")
-        .update({ titulo: form.titulo, descripcion: form.descripcion, fecha_inicio: form.fecha_inicio, fecha_fin: form.fecha_fin, tipo: form.tipo, ...timePayload })
+        .update({ titulo: form.titulo, descripcion: form.descripcion, fecha_inicio: form.fecha_inicio, fecha_fin: form.fecha_fin, tipo: form.tipo, grupos: gruposPayload, ...timePayload })
         .eq("id", modalEvento.id)
         .select()
         .single();
@@ -541,6 +547,13 @@ export function CalendarioClient({
                           </p>
                         )}
                         {e.descripcion && <p className="text-xs text-gray-500 mt-0.5">{e.descripcion}</p>}
+                        {e.grupos?.length > 0 && (
+                          <ul className="flex flex-wrap gap-1 mt-1.5" aria-label="Grupos participantes">
+                            {e.grupos.map((g) => (
+                              <li key={g} className="text-xs px-2 py-0.5 rounded-md border border-gray-200 bg-gray-50 text-gray-700">{g}</li>
+                            ))}
+                          </ul>
+                        )}
                         <div className="flex items-center gap-2 mt-1.5">
                           <span className={cn("inline-block text-xs px-2 py-0.5 rounded-full", tipoClasses(e.tipo, tipoMap))}>
                             {e.tipo}
@@ -805,13 +818,13 @@ export function CalendarioClient({
       {/* Create / Edit event modal */}
       {modalEvento !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={closeModal}>
-          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-2xl w-full max-w-md max-h-[90vh] flex flex-col shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="px-6 py-4 border-b border-gray-100">
               <h2 className="font-semibold text-gray-900">
                 {isEditing ? "Editar evento" : `Nuevo evento — ${newEventDate}`}
               </h2>
             </div>
-            <div className="px-6 py-4 space-y-3">
+            <div className="px-6 py-4 space-y-3 overflow-y-auto">
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Título</label>
                 <input
@@ -905,6 +918,17 @@ export function CalendarioClient({
                   </div>
                 )}
               </div>
+
+              {form.tipo === EXTRAESCOLAR_TIPO && (
+                <div>
+                  <p className="block text-xs text-gray-500 mb-1">Grupos que participan</p>
+                  <GruposSelector
+                    grupos={grupos}
+                    selected={form.grupos}
+                    onChange={(selected) => setForm((f) => ({ ...f, grupos: selected }))}
+                  />
+                </div>
+              )}
             </div>
             <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
               <button

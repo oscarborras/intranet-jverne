@@ -19,12 +19,14 @@ export default async function CalendarioPage() {
     { data: asuntos },
     { data: configRows },
     { data: bloqueos },
+    { data: cursos },
   ] = await Promise.all([
     supabase.from("calendar_eventos").select("*").lte("fecha_inicio", lastDay).gte("fecha_fin", firstDay),
     supabase.from("tipos_eventos_intranet").select("*").eq("activo", true).order("orden"),
     supabase.from("asuntos_propios").select("*").gte("fecha", firstDay).lte("fecha", lastDay),
     supabase.from("config_intranet").select("clave, valor"),
     supabase.from("dias_bloqueados_asuntos").select("*").gte("fecha", firstDay).lte("fecha", lastDay),
+    supabase.from("cursos").select("nombre").not("nombre", "in", "(Guardia,Otros)").order("nombre"),
   ]);
 
   const canManageEvents = roleNames.some((r) => ["Admin", "Directiva", "TDE"].includes(r));
@@ -73,6 +75,7 @@ export default async function CalendarioPage() {
       maxAsuntosPropios={maxAsuntosPropios}
       profesores={profesores}
       canManageAsuntos={canManageAsuntos}
+      grupos={(cursos ?? []).map((c) => c.nombre as string)}
     />
   );
 }
