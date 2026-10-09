@@ -5,12 +5,15 @@ import Link from "next/link";
 import { ArrowLeft, Search, X, Upload, Users2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { AlumnoDbRow } from "@/lib/import/alumnos";
+import { useTextFilter } from "@/lib/useTextFilter";
 
 interface Props {
   alumnos: AlumnoDbRow[];
 }
 
 type Filtro = "activos" | "bajas" | "todos";
+
+const textoAlumno = (a: AlumnoDbRow) => `${a.alumno} ${a.unidad} ${a.nie ?? ""}`;
 
 export function ConsultarAlumnosClient({ alumnos }: Props) {
   const [filtro, setFiltro] = useState<Filtro>("activos");
@@ -19,18 +22,12 @@ export function ConsultarAlumnosClient({ alumnos }: Props) {
 
   const esActivo = (a: AlumnoDbRow) => a.estado_matricula === null;
 
-  const listado = useMemo(() => {
-    const terminos = busqueda.trim().toLowerCase().split(/\s+/).filter(Boolean);
-    return alumnos
-      .filter((a) => (filtro === "todos" ? true : filtro === "activos" ? esActivo(a) : !esActivo(a)))
-      .filter((a) => !soloSinUnidad || !a.unidad)
-      .filter((a) => {
-        if (terminos.length === 0) return true;
-        const texto = `${a.alumno} ${a.unidad} ${a.nie ?? ""}`.toLowerCase();
-        return terminos.every((t) => texto.includes(t));
-      });
+  const porFiltros = useMemo(() => alumnos
+    .filter((a) => (filtro === "todos" ? true : filtro === "activos" ? esActivo(a) : !esActivo(a)))
+    .filter((a) => !soloSinUnidad || !a.unidad),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [alumnos, filtro, soloSinUnidad, busqueda]);
+  [alumnos, filtro, soloSinUnidad]);
+  const listado = useTextFilter(porFiltros, textoAlumno, busqueda);
 
   const activos = alumnos.filter(esActivo).length;
   const sinUnidad = alumnos.filter((a) => !a.unidad).length;

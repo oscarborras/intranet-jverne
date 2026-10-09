@@ -6,12 +6,15 @@ import { ArrowLeft, Search, X, Upload, MailX } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ProfesorDbRow } from "@/lib/import/profesores";
 import { todayMadrid } from "@/lib/dates";
+import { useTextFilter } from "@/lib/useTextFilter";
 
 interface Props {
   profesores: ProfesorDbRow[];
 }
 
 type Filtro = "activos" | "cesados" | "todos";
+
+const textoProfesor = (p: ProfesorDbRow) => `${p.profesor} ${p.puesto} ${p.email ?? ""}`;
 
 function formatFecha(iso: string | null): string {
   if (!iso) return "—";
@@ -27,18 +30,12 @@ export function ConsultarProfesoresClient({ profesores }: Props) {
   const hoy = todayMadrid();
   const esActivo = (p: ProfesorDbRow) => p.fecha_cese === null || p.fecha_cese > hoy;
 
-  const listado = useMemo(() => {
-    const terminos = busqueda.trim().toLowerCase().split(/\s+/).filter(Boolean);
-    return profesores
-      .filter((p) => (filtro === "todos" ? true : filtro === "activos" ? esActivo(p) : !esActivo(p)))
-      .filter((p) => !soloSinEmail || !p.email)
-      .filter((p) => {
-        if (terminos.length === 0) return true;
-        const texto = `${p.profesor} ${p.puesto} ${p.email ?? ""}`.toLowerCase();
-        return terminos.every((t) => texto.includes(t));
-      });
+  const porFiltros = useMemo(() => profesores
+    .filter((p) => (filtro === "todos" ? true : filtro === "activos" ? esActivo(p) : !esActivo(p)))
+    .filter((p) => !soloSinEmail || !p.email),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profesores, filtro, soloSinEmail, busqueda]);
+  [profesores, filtro, soloSinEmail]);
+  const listado = useTextFilter(porFiltros, textoProfesor, busqueda);
 
   const activos = profesores.filter(esActivo).length;
   const sinEmail = profesores.filter((p) => !p.email).length;

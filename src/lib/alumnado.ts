@@ -42,11 +42,6 @@ export function nombreTutor(a: AlumnoFicha, n: 1 | 2): string {
   return partes.filter((p) => p && p.trim()).join(" ");
 }
 
-/** Lower case, no accents: "José Ñúñez" → "jose nunez" */
-export function normalizar(texto: string): string {
-  return texto.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-}
-
 /**
  * Searchable text of a student: name, group, NIE and both guardians' names,
  * phones and emails. Phones are also added without spaces so "600 12" and
@@ -54,14 +49,8 @@ export function normalizar(texto: string): string {
  */
 export function textoBusqueda(a: AlumnoFicha): string {
   const telefonos = [a.tutor1_telefono, a.tutor2_telefono].filter(Boolean).map((t) => (t as string).replace(/\s+/g, ""));
-  return normalizar([
+  return [
     a.alumno, a.unidad, a.nie, nombreTutor(a, 1), nombreTutor(a, 2),
     a.tutor1_telefono, a.tutor2_telefono, ...telefonos, a.tutor1_email, a.tutor2_email,
-  ].filter(Boolean).join(" "));
-}
-
-/** Every word typed must appear somewhere (any order, case and accents ignored). */
-export function coincide(texto: string, consulta: string): boolean {
-  const palabras = normalizar(consulta).split(/\s+/).filter(Boolean);
-  return palabras.every((p) => texto.includes(p));
+  ].filter(Boolean).join(" ");
 }

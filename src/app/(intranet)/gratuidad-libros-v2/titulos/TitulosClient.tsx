@@ -10,6 +10,7 @@ import { Modal } from "@/components/gratuidad-v2/Modal";
 import { CursosSelector } from "@/components/gratuidad-v2/CursosSelector";
 import { DiversificacionBadge, OptativoBadge } from "@/components/gratuidad-v2/Badges";
 import { agruparPorNivel, nivelDeCurso, resumenLote } from "@/lib/gratuidadV2/cursos";
+import { useTextFilter } from "@/lib/useTextFilter";
 import {
   ETIQUETAS_CONSERVACION, MENSAJES_ERROR_V2,
   type ConservacionV2, type CrearEjemplaresResult, type ResumenTituloV2, type TituloCursoV2, type TituloV2,
@@ -32,6 +33,8 @@ interface FormTitulo {
 }
 
 const emptyForm: FormTitulo = { titulo: "", asignatura: "", editorial: "", isbn: "", precio: "", diversificacion: false };
+
+const textoTitulo = (t: TituloV2) => [t.titulo, t.asignatura, t.isbn, t.editorial].filter(Boolean).join(" ");
 
 const RESUMEN_VACIO: Omit<ResumenTituloV2, "titulo_id"> = { total: 0, en_centro: 0, prestado: 0, perdido: 0, baja: 0 };
 
@@ -87,17 +90,14 @@ export function TitulosClient({ titulos: initialTitulos, lotes: initialLotes, re
 
   const niveles = useMemo(() => agruparPorNivel(cursos).map((n) => n.nivel), [cursos]);
 
-  const visibles = useMemo(() => {
-    const q = busqueda.trim().toLowerCase();
+  const porFiltros = useMemo(() => {
     return titulos.filter((t) => {
       if (!mostrarArchivados && !t.activo) return false;
       if (filtroNivel !== "todos" && !(lotes[t.id] ?? []).some((c) => nivelDeCurso(c) === filtroNivel)) return false;
-      if (q) {
-        return [t.titulo, t.asignatura ?? "", t.isbn ?? "", t.editorial ?? ""].some((v) => v.toLowerCase().includes(q));
-      }
       return true;
     });
-  }, [titulos, lotes, busqueda, filtroNivel, mostrarArchivados]);
+  }, [titulos, lotes, filtroNivel, mostrarArchivados]);
+  const visibles = useTextFilter(porFiltros, textoTitulo, busqueda);
 
   const stats = useMemo(() => {
     const activos = titulos.filter((t) => t.activo);

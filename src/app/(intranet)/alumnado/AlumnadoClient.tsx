@@ -4,8 +4,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { GraduationCap, Mail, Phone, Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
-  coincide, cursoDeUnidad, esBaja, nombreTutor, textoBusqueda, type AlumnoFicha,
+  cursoDeUnidad, esBaja, nombreTutor, textoBusqueda, type AlumnoFicha,
 } from "@/lib/alumnado";
+import { useTextFilter } from "@/lib/useTextFilter";
 
 interface Props {
   alumnos: AlumnoFicha[];
@@ -28,9 +29,6 @@ export function AlumnadoClient({ alumnos }: Props) {
     if (window.matchMedia("(pointer: fine)").matches) inputRef.current?.focus();
   }, []);
 
-  // Search text is built once per student
-  const indexados = useMemo(() => alumnos.map((a) => ({ a, texto: textoBusqueda(a), baja: esBaja(a) })), [alumnos]);
-
   const grupos = useMemo(
     () => [...new Set(alumnos.filter((a) => incluirBajas || !esBaja(a)).map((a) => a.unidad).filter(Boolean))]
       .sort((x, y) => x.localeCompare(y, "es")),
@@ -39,12 +37,12 @@ export function AlumnadoClient({ alumnos }: Props) {
   const cursos = useMemo(() => [...new Set(grupos.map(cursoDeUnidad))].sort((x, y) => x.localeCompare(y, "es")), [grupos]);
   const gruposDelCurso = useMemo(() => (curso ? grupos.filter((g) => cursoDeUnidad(g) === curso) : grupos), [grupos, curso]);
 
-  const resultados = useMemo(() => indexados.filter(({ a, texto, baja }) =>
-    (incluirBajas || !baja)
+  const porFiltros = useMemo(() => alumnos.filter((a) =>
+    (incluirBajas || !esBaja(a))
     && (!curso || cursoDeUnidad(a.unidad) === curso)
-    && (!grupo || a.unidad === grupo)
-    && coincide(texto, busqueda),
-  ), [indexados, incluirBajas, curso, grupo, busqueda]);
+    && (!grupo || a.unidad === grupo),
+  ), [alumnos, incluirBajas, curso, grupo]);
+  const resultados = useTextFilter(porFiltros, textoBusqueda, busqueda);
 
   // Back to the first page of results whenever the filters change
   useEffect(() => { setMostrar(PASO); }, [busqueda, curso, grupo, incluirBajas]);
@@ -106,7 +104,7 @@ export function AlumnadoClient({ alumnos }: Props) {
           <p className="text-sm text-gray-500" aria-live="polite">
             {hayFiltros
               ? `${resultados.length} ${resultados.length === 1 ? "alumno" : "alumnos"}`
-              : `${indexados.filter((x) => incluirBajas || !x.baja).length} alumnos en total`}
+              : `${alumnos.filter((a) => incluirBajas || !esBaja(a)).length} alumnos en total`}
           </p>
           {hayFiltros && (
             <button onClick={limpiar} className="flex items-center gap-1 text-sm text-blue-600 hover:underline">
@@ -132,12 +130,12 @@ export function AlumnadoClient({ alumnos }: Props) {
       ) : (
         <>
           <ul className="grid gap-3 lg:grid-cols-2">
-            {resultados.slice(0, mostrar).map(({ a, baja }) => (
-              <li key={a.id} className={cn("bg-white border border-gray-200 rounded-xl p-4", baja && "opacity-75")}>
+            {resultados.slice(0, mostrar).map((a) => (
+              <li key={a.id} className={cn("bg-white border border-gray-200 rounded-xl p-4", esBaja(a) && "opacity-75")}>
                 <div className="flex flex-wrap items-start gap-x-3 gap-y-1">
                   <h2 className="font-semibold text-gray-900 flex-1 min-w-0">{a.alumno}</h2>
                   {a.unidad && <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">{a.unidad}</span>}
-                  {baja && <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">Baja</span>}
+                  {esBaja(a) && <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">Baja</span>}
                 </div>
                 <dl className="mt-1 text-sm text-gray-600 flex flex-wrap gap-x-4 gap-y-0.5">
                   {a.unidad && (<div><dt className="inline text-gray-400">Curso: </dt><dd className="inline">{cursoDeUnidad(a.unidad)}</dd></div>)}

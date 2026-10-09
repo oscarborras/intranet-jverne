@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Search, MapPin, RefreshCw, User, GraduationCap, Users } from "lucide-react";
 import { CARGOS_DIRECTIVOS, type CargoDirectivoClave } from "@/lib/types";
 import { CITA_THEMES, CitaBlock, CitaField } from "@/components/citas/CitaBlocks";
+import { useTextFilter } from "@/lib/useTextFilter";
 
 interface CitaOrdenanza {
   id: number;
@@ -31,6 +32,8 @@ interface Props {
   todayStr: string;
 }
 
+const textoCita = (c: CitaOrdenanza) => `${c.alumno_nombre} ${c.familiar_nombre} ${c.profesor_nombre}`;
+
 export default function OrdenanzasClient({ citas, profesores, todayStr }: Props) {
   const router = useRouter();
   const [search, setSearch] = useState("");
@@ -40,15 +43,7 @@ export default function OrdenanzasClient({ citas, profesores, todayStr }: Props)
     weekday: "long", day: "numeric", month: "long", year: "numeric",
   });
 
-  const filtered = citas.filter((c) => {
-    if (!search.trim()) return true;
-    const q = search.toLowerCase();
-    return (
-      c.alumno_nombre.toLowerCase().includes(q) ||
-      c.familiar_nombre.toLowerCase().includes(q) ||
-      c.profesor_nombre.toLowerCase().includes(q)
-    );
-  });
+  const filtered = useTextFilter(citas, textoCita, search);
 
   const profesoresFiltrados = profesores.filter((p) =>
     filtered.some((c) => c.profesor_id === p.id)

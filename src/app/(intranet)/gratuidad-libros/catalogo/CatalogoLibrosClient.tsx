@@ -4,6 +4,7 @@ import { useState, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { BookOpen, Plus, Pencil, Archive, ArchiveRestore, X, ChevronDown, ChevronUp, Download, Search } from "lucide-react";
 import type { LibroCatalogo, PrestamoLibro } from "@/lib/types";
+import { useTextFilter } from "@/lib/useTextFilter";
 
 const NIVELES = [
   "1º ESO", "2º ESO", "3º ESO", "4º ESO",
@@ -12,6 +13,8 @@ const NIVELES = [
 ];
 
 const STOCK_BAJO_UMBRAL = 5;
+
+const textoLibro = (l: LibroCatalogo) => `${l.titulo} ${l.isbn ?? ""}`;
 
 interface Props {
   libros: LibroCatalogo[];
@@ -48,20 +51,14 @@ export function CatalogoLibrosClient({ libros: initial, prestamos }: Props) {
     return NIVELES.filter((n) => set.has(n));
   }, [libros]);
 
-  const librosVisibles = useMemo(() => {
+  const librosPorFiltros = useMemo(() => {
     return libros.filter((l) => {
       if (!mostrarArchivados && !l.activo) return false;
       if (filtroNivel !== "todos" && l.nivel !== filtroNivel) return false;
-      if (busqueda) {
-        const q = busqueda.toLowerCase();
-        return (
-          l.titulo.toLowerCase().includes(q) ||
-          (l.isbn ?? "").toLowerCase().includes(q)
-        );
-      }
       return true;
     });
-  }, [libros, filtroNivel, busqueda, mostrarArchivados]);
+  }, [libros, filtroNivel, mostrarArchivados]);
+  const librosVisibles = useTextFilter(librosPorFiltros, textoLibro, busqueda);
 
   // Active loans count per libro_id
   const loanCountsPerLibro = useMemo(() =>

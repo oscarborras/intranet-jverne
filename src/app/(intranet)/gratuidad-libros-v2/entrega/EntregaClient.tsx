@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
+import { useTextFilter } from "@/lib/useTextFilter";
 import { todayMadrid } from "@/lib/dates";
 import { Modal } from "@/components/gratuidad-v2/Modal";
 import { ScannerInput, type ScannerInputHandle } from "@/components/gratuidad-v2/ScannerInput";
@@ -76,6 +77,8 @@ const AVISOS: Record<AvisoEntregaV2, string> = {
 
 const PRESTAMO_SELECT =
   "id, alumno_id, curso_escolar, fecha_entrega, conservacion_entrega, ejemplar:gplv2_ejemplares(codigo, titulo_id, titulo:gplv2_titulos(titulo))";
+
+const textoAlumno = (a: AlumnoGrupo) => `${a.alumno} ${a.nie ?? ""}`;
 
 function esCodigo(s: string): boolean {
   return /\d/.test(s) && !/\s/.test(s);
@@ -210,11 +213,8 @@ export function EntregaClient({ grupos, lotePorGrupo, titulosDiversificacion, cu
     return { entregados, total: lote.length, optativos, completo: lote.length > 0 && entregados === lote.length };
   }, [lotePorGrupo, prestamos, itinerarioDe]);
 
-  const alumnosFiltrados = useMemo(() => {
-    const q = busqueda.trim().toLowerCase();
-    if (!q || esCodigo(q)) return alumnos;
-    return alumnos.filter((a) => a.alumno.toLowerCase().includes(q) || (a.nie ?? "").toLowerCase().includes(q));
-  }, [alumnos, busqueda]);
+  // A scanned copy code does not filter the list
+  const alumnosFiltrados = useTextFilter(alumnos, textoAlumno, esCodigo(busqueda.trim()) ? "" : busqueda);
 
   const completos = useMemo(() => alumnos.filter((a) => progreso(a).completo).length, [alumnos, progreso]);
 

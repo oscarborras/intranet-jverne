@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { matchesAllWords, searchWords } from "@/lib/text";
 import {
   AlertTriangle, BookOpen, CheckCircle, ChevronDown, Clock, Plus, Printer, Search, Users, X,
 } from "lucide-react";
@@ -52,13 +53,6 @@ function localDateStr(): string {
 
 function formatDate(iso: string): string {
   return iso.slice(0, 10);
-}
-
-function normalize(value: string): string {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase();
 }
 
 function initialsFromNombre(nombre: string): string {
@@ -170,12 +164,9 @@ export function TabIncidencias({ libros, alumnos, cursoEscolar, myProfesorId, ca
   );
 
   const grouped = useMemo(() => {
-    const terminos = normalize(busqueda).split(/\s+/).filter(Boolean);
-    const source = terminos.length > 0
-      ? filtered.filter((i) => {
-          const texto = normalize(`${i.alumno_nombre} ${i.alumno_grupo}`);
-          return terminos.every((t) => texto.includes(t));
-        })
+    const words = searchWords(busqueda);
+    const source = words.length > 0
+      ? filtered.filter((i) => matchesAllWords(`${i.alumno_nombre} ${i.alumno_grupo}`, words))
       : filtered;
     const map = new Map<string, { alumnoKey: string; alumno_nombre: string; alumno_grupo: string; incidencias: Incidencia[] }>();
     for (const inc of source) {
@@ -201,9 +192,9 @@ export function TabIncidencias({ libros, alumnos, cursoEscolar, myProfesorId, ca
   }, [incidencias]);
 
   const alumnosSugeridos = useMemo(() => {
-    if (!alumnoSearch.trim()) return [];
-    const q = alumnoSearch.toLowerCase();
-    return alumnos.filter((a) => a.alumno.toLowerCase().includes(q)).slice(0, 8);
+    const words = searchWords(alumnoSearch);
+    if (words.length === 0) return [];
+    return alumnos.filter((a) => matchesAllWords(a.alumno, words)).slice(0, 8);
   }, [alumnos, alumnoSearch]);
 
   // ── Handlers: detalle ────────────────────────────────────────────────────

@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { todayMadrid } from "@/lib/dates";
 import { Modal } from "@/components/gratuidad-v2/Modal";
 import { descargarCsv } from "@/lib/gratuidadV2/exportar";
+import { useTextFilter } from "@/lib/useTextFilter";
 import { buildCartaIncidenciaHtml, imprimirHtml } from "@/lib/gratuidadV2/documentos";
 import {
   ETIQUETAS_ESTADO_INCIDENCIA, ETIQUETAS_TIPO_INCIDENCIA,
@@ -31,6 +32,9 @@ const estadoCls: Record<EstadoIncidenciaV2, string> = {
   resuelta: "bg-emerald-50 text-emerald-700 border-emerald-200",
   archivada: "bg-gray-100 text-gray-500 border-gray-200",
 };
+
+const textoIncidencia = (i: IncidenciaListadoV2) =>
+  [i.codigo, i.alumno_nombre, i.alumno_grupo, i.ejemplar?.codigo, i.ejemplar?.titulo?.titulo].filter(Boolean).join(" ");
 
 function fecha(iso: string): string {
   return new Date(iso).toLocaleDateString("es-ES", { timeZone: "Europe/Madrid", day: "2-digit", month: "2-digit", year: "numeric" });
@@ -56,20 +60,16 @@ export function IncidenciasClient({ incidencias: initial, cursoEscolar }: Props)
 
   const cursos = useMemo(() => [...new Set(incidencias.map((i) => i.curso_escolar))].sort().reverse(), [incidencias]);
 
-  const visibles = useMemo(() => {
-    const q = busqueda.trim().toLowerCase();
+  const porFiltros = useMemo(() => {
     return incidencias.filter((i) => {
       if (filtroEstado === "pendientes" && !(i.estado === "abierta" || i.estado === "en_gestion")) return false;
       if (filtroEstado !== "pendientes" && filtroEstado !== "todas" && i.estado !== filtroEstado) return false;
       if (filtroTipo && i.tipo !== filtroTipo) return false;
       if (filtroCurso && i.curso_escolar !== filtroCurso) return false;
-      if (q) {
-        return [i.codigo, i.alumno_nombre ?? "", i.alumno_grupo ?? "", i.ejemplar?.codigo ?? "", i.ejemplar?.titulo?.titulo ?? ""]
-          .some((v) => v.toLowerCase().includes(q));
-      }
       return true;
     });
-  }, [incidencias, filtroEstado, filtroTipo, filtroCurso, busqueda]);
+  }, [incidencias, filtroEstado, filtroTipo, filtroCurso]);
+  const visibles = useTextFilter(porFiltros, textoIncidencia, busqueda);
 
   const totalCoste = visibles.reduce((s, i) => s + (i.coste ?? 0), 0);
 
