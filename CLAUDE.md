@@ -75,7 +75,7 @@ npm run start        # Start production server
 
 ## Production Deployment
 
-See `doc/Install_produccion_frontend.md` for full PM2 setup. Key steps:
+See `doc/Install_produccion_frontend.md` for full PM2 setup. Routine deployments use `scripts/deploy.sh` (steps 2-5, only reinstalls deps when the lockfile changed). Key steps:
 1. Copy `.env_local` via SSH (not in git)
 2. `git pull`
 3. `npm ci --include=dev` — on the server ALWAYS `npm ci`, NEVER `npm install`: `npm install` can rewrite `package-lock.json` and that local change makes the next `git pull` fail
