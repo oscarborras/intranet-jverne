@@ -8,6 +8,7 @@ import { HistorialPaginacion } from "@/components/peticiones/HistorialPaginacion
 import { HistorialTICClient } from "./HistorialTICClient";
 import type { PeticionTIC } from "@/lib/types";
 import { requireAuth } from "@/lib/auth";
+import { ilikePatterns } from "@/lib/text";
 
 export const dynamic = "force-dynamic";
 
@@ -42,7 +43,8 @@ export default async function HistorialPeticionesTICPage({ searchParams }: PageP
 
   // Same visibility rule as the kanban
   if (!canManage) query = query.or(`solo_usuario.eq.false,autor_id.eq.${user.id}`);
-  if (q) query = query.or(`titulo.ilike.*${q}*,codigo.ilike.*${q}*,descripcion.ilike.*${q}*`);
+  // Every word in code, title or description, ignoring case and accents
+  for (const p of ilikePatterns(q)) query = query.ilike("search_text", p);
   // Timestamps without offset are read in the DB timezone (Europe/Madrid)
   if (desde) query = query.gte("finalizada_at", `${desde}T00:00:00`);
   if (hasta) query = query.lte("finalizada_at", `${hasta}T23:59:59.999`);

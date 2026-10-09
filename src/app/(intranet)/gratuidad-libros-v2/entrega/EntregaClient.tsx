@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
+import { ilikePatterns } from "@/lib/text";
 import { useTextFilter } from "@/lib/useTextFilter";
 import { todayMadrid } from "@/lib/dates";
 import { Modal } from "@/components/gratuidad-v2/Modal";
@@ -173,20 +174,22 @@ export function EntregaClient({ grupos, lotePorGrupo, titulosDiversificacion, cu
 
   // Search across the whole school when no group is chosen
   useEffect(() => {
+    const patrones = ilikePatterns(busqueda);
     const q = busqueda.trim();
-    if (grupo || q.length < 3 || esCodigo(q)) { setResultadosGlobales([]); return; }
+    if (grupo || q.length < 3 || patrones.length === 0 || esCodigo(q)) { setResultadosGlobales([]); return; }
+    // A newer keystroke aborts the pending request so a slow answer cannot overwrite it
+    const ctrl = new AbortController();
     const t = setTimeout(async () => {
-      const { data } = await supabase
+      let consulta = supabase
         .from("alumnos")
         .select("id, alumno, unidad, nie")
         .is("estado_matricula", null)
-        .neq("unidad", "")
-        .or(`alumno.ilike.%${q.replace(/[,()]/g, " ")}%,nie.ilike.%${q.replace(/[,()]/g, " ")}%`)
-        .order("alumno")
-        .limit(20);
-      setResultadosGlobales((data ?? []) as AlumnoGrupo[]);
+        .neq("unidad", "");
+      for (const p of patrones) consulta = consulta.ilike("search_text", p);
+      const { data } = await consulta.order("alumno").limit(20).abortSignal(ctrl.signal);
+      if (!ctrl.signal.aborted) setResultadosGlobales((data ?? []) as AlumnoGrupo[]);
     }, 300);
-    return () => clearTimeout(t);
+    return () => { clearTimeout(t); ctrl.abort(); };
   }, [busqueda, grupo, supabase]);
 
   // ── Derived data ────────────────────────────────────────────────────────────

@@ -14,3 +14,12 @@ export function matchesAllWords(haystack: string, words: string[]): boolean {
   const text = normalizeText(haystack);
   return words.every((w) => text.includes(w));
 }
+
+/**
+ * One ILIKE pattern per normalized word, for the `search_text` computed fields of
+ * the database (doc/sql/busqueda_sin_acentos.sql). Chain one `.ilike("search_text", p)`
+ * per pattern: PostgREST ANDs them. Wildcard and PostgREST-reserved characters are dropped.
+ */
+export function ilikePatterns(query: string): string[] {
+  return searchWords(query.replace(/[%_*\\()"]/g, " ")).map((w) => `%${w}%`);
+}

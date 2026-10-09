@@ -58,3 +58,11 @@ const host = headersList.get("x-forwarded-host") ?? headersList.get("host");
 const proto = headersList.get("x-forwarded-proto") ?? "https";
 const origin = `${proto}://${host}`;
 ```
+
+## Búsquedas de texto
+
+Toda búsqueda que escribe el usuario debe ignorar mayúsculas y acentos, y aceptar varias palabras en cualquier orden (todas deben aparecer).
+
+- **Datos ya cargados en el cliente:** usa `useTextFilter(items, getText, query)` de `src/lib/useTextFilter.ts`, con `getText` definido fuera del componente. Aplica primero los demás filtros y pasa el resultado al hook. Nunca uses `toLowerCase().includes(q)`.
+- **Búsqueda en el servidor (Supabase):** filtra por el campo calculado `search_text` de la tabla (ver `doc/sql/busqueda_sin_acentos.sql`), una condición por palabra: `for (const p of ilikePatterns(q)) query = query.ilike("search_text", p);`. Si la tabla no lo tiene, créalo con el mismo patrón (`public.f_unaccent(lower(concat_ws(' ', ...)))` + índice GIN trigram). No uses `ilike` sobre columnas sueltas dentro de `.or()`.
+- **Búsquedas al escribir contra el servidor:** debounce de ~300 ms y cancela la petición anterior (`AbortController` + `.abortSignal()`) o descarta respuestas que no sean la última, para que una respuesta lenta no sobrescriba a la nueva.

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { BookOpen, Camera, History, Loader2, Search, Tags, User, Settings2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
+import { ilikePatterns } from "@/lib/text";
 import { Modal } from "@/components/gratuidad-v2/Modal";
 import { ConservacionText, DiversificacionBadge, OptativoBadge, SituacionBadge } from "@/components/gratuidad-v2/Badges";
 import { ScannerInput } from "@/components/gratuidad-v2/ScannerInput";
@@ -227,19 +228,19 @@ export function ConsultaClient({ canManage, inicial }: Props) {
     actualizarUrl({ alumno: a.id });
   }, [supabase, actualizarUrl]);
 
+  // Every word in name, group or NIE (case and accents ignored).
+  // A newer keystroke aborts the pending request so a slow answer cannot overwrite it.
   useEffect(() => {
-    const q = busqueda.trim().replace(/[,()]/g, " ");
-    if (q.length < 3) { setResultados([]); return; }
+    const patrones = ilikePatterns(busqueda);
+    if (busqueda.trim().length < 3 || patrones.length === 0) { setResultados([]); return; }
+    const ctrl = new AbortController();
     const t = setTimeout(async () => {
-      const { data } = await supabase
-        .from("alumnos")
-        .select("id, alumno, unidad, nie")
-        .or(`alumno.ilike.%${q}%,nie.ilike.%${q}%`)
-        .order("alumno")
-        .limit(20);
-      setResultados((data ?? []) as AlumnoBusqueda[]);
+      let consulta = supabase.from("alumnos").select("id, alumno, unidad, nie");
+      for (const p of patrones) consulta = consulta.ilike("search_text", p);
+      const { data } = await consulta.order("alumno").limit(20).abortSignal(ctrl.signal);
+      if (!ctrl.signal.aborted) setResultados((data ?? []) as AlumnoBusqueda[]);
     }, 300);
-    return () => clearTimeout(t);
+    return () => { clearTimeout(t); ctrl.abort(); };
   }, [busqueda, supabase]);
 
   // Initial load from the URL (links from Ejemplares, or reload)

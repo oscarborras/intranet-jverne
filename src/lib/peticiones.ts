@@ -28,7 +28,7 @@ export async function getFinalizadasCutoff(
   return { dias, cutoff };
 }
 
-// Strips characters with meaning in PostgREST filter syntax so user input can go inside .or()
+// Cleans the search text of the history pages: trimmed, max 100 chars, no PostgREST-reserved characters
 export function sanitizeSearch(value: string | undefined): string {
   return (value ?? "").replace(/[,()*%\\:"]/g, " ").trim().slice(0, 100);
 }

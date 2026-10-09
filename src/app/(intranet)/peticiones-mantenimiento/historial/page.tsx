@@ -8,6 +8,7 @@ import { HistorialPaginacion } from "@/components/peticiones/HistorialPaginacion
 import { HistorialCard } from "@/components/peticiones/HistorialCard";
 import type { PeticionMantenimiento } from "@/lib/types";
 import { requireUser } from "@/lib/auth";
+import { ilikePatterns } from "@/lib/text";
 
 export const dynamic = "force-dynamic";
 
@@ -35,7 +36,8 @@ export default async function HistorialPeticionesMantenimientoPage({ searchParam
     .order("finalizada_at", { ascending: false })
     .range(from, from + HISTORIAL_PAGE_SIZE - 1);
 
-  if (q) query = query.or(`titulo.ilike.*${q}*,codigo.ilike.*${q}*,ubicacion.ilike.*${q}*,descripcion.ilike.*${q}*`);
+  // Every word in code, title, location or description, ignoring case and accents
+  for (const p of ilikePatterns(q)) query = query.ilike("search_text", p);
   // Timestamps without offset are read in the DB timezone (Europe/Madrid)
   if (desde) query = query.gte("finalizada_at", `${desde}T00:00:00`);
   if (hasta) query = query.lte("finalizada_at", `${hasta}T23:59:59.999`);

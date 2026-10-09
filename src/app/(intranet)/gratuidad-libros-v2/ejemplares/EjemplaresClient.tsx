@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { BookCopy, ChevronLeft, ChevronRight, Download, Loader2, Search, Tags, RefreshCw, Trash2, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Modal } from "@/components/gratuidad-v2/Modal";
 import { descargarCsv } from "@/lib/gratuidadV2/exportar";
+import { ilikePatterns } from "@/lib/text";
 import { ConservacionText, DiversificacionBadge, SituacionBadge } from "@/components/gratuidad-v2/Badges";
 import {
   ETIQUETAS_CONSERVACION, ETIQUETAS_SITUACION, MENSAJES_ERROR_V2, MENSAJES_NO_ELIMINADO_V2,
@@ -95,18 +96,23 @@ export function EjemplaresClient({ titulos, grupos, canManage }: Props) {
     if (filtros.situacion) q = q.eq("situacion", filtros.situacion);
     if (filtros.conservacion) q = q.eq("conservacion", filtros.conservacion);
     if (filtros.grupo) q = q.eq("alumno.unidad", filtros.grupo);
-    if (busquedaDebounced) {
-      q = porAlumno
-        ? q.ilike("alumno.alumno", `%${busquedaDebounced}%`)
-        : q.ilike("codigo", `%${busquedaDebounced}%`);
+    if (porAlumno) {
+      // Every word in the student's name, group or NIE (case and accents ignored)
+      for (const p of ilikePatterns(busquedaDebounced)) q = q.ilike("alumno.search_text", p);
+    } else if (busquedaDebounced) {
+      q = q.ilike("codigo", `%${busquedaDebounced.replace(/[%_*\\]/g, "")}%`);
     }
     return q.order("codigo");
   }, [supabase, filtros.titulo, filtros.situacion, filtros.conservacion, filtros.grupo, busquedaDebounced]);
 
+  // Only the latest load may update the list (a slow earlier one would overwrite it)
+  const ultimaCarga = useRef(0);
   const cargar = useCallback(async () => {
+    const id = ++ultimaCarga.current;
     setLoading(true);
     setLoadError(null);
     const { data, count, error } = await buildQuery(true).range(page * pageSize, page * pageSize + pageSize - 1);
+    if (id !== ultimaCarga.current) return;
     if (error) {
       setLoadError(error.message);
       setRows([]);
