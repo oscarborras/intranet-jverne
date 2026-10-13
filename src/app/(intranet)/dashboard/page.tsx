@@ -267,7 +267,7 @@ export default async function DashboardPage() {
       ? supabase.from("peticiones_mantenimiento").select("id, codigo, titulo, estado, prioridad, created_at").eq("autor_id", user.id).not("estado", "in", '("finalizada","rechazada","eliminada")').order("created_at", { ascending: false }).limit(5)
       : Promise.resolve({ data: [] }),
     showCalendario
-      ? supabase.from("calendar_eventos").select("id, titulo, descripcion, fecha_inicio, fecha_fin, todo_el_dia, hora_inicio, hora_fin").eq("tipo", "Activ. Extraescolar").gte("fecha_inicio", todayStr).lte("fecha_inicio", limitStr).order("fecha_inicio", { ascending: true })
+      ? supabase.from("calendar_eventos").select("id, titulo, descripcion, fecha_inicio, fecha_fin, todo_el_dia, hora_inicio, hora_fin, grupos").eq("tipo", "Activ. Extraescolar").gte("fecha_inicio", todayStr).lte("fecha_inicio", limitStr).order("fecha_inicio", { ascending: true })
       : Promise.resolve({ data: [] }),
     showCitasFamilias && profesorId && !isOrdenanzaView
       ? supabase.from("citas_familias").select("id, codigo, alumno_nombre, alumno_curso, familiar_nombre, fecha, hora_inicio, lugar, estado, cargo").eq("profesor_id", profesorId).in("estado", ["pendiente", "confirmada"]).or(`fecha.lte.${citasLimitStr},fecha.is.null`).order("fecha", { ascending: true, nullsFirst: true }).limit(5)
@@ -443,6 +443,7 @@ export default async function DashboardPage() {
     todo_el_dia: boolean;
     hora_inicio: string | null;
     hora_fin: string | null;
+    grupos: string[] | null;
   }
   const extraescolares = (extraescolaresResult.data ?? []) as EventoExtraescolar[];
 
@@ -729,6 +730,13 @@ export default async function DashboardPage() {
                             <p className="text-xs text-gray-400 mt-0.5">
                               {e.hora_inicio.slice(0, 5)}{e.hora_fin ? ` – ${e.hora_fin.slice(0, 5)}` : ""}
                             </p>
+                          )}
+                          {e.grupos && e.grupos.length > 0 && (
+                            <ul className="flex flex-wrap gap-1 mt-1.5" aria-label="Grupos participantes">
+                              {e.grupos.map((g) => (
+                                <li key={g} className="text-xs px-2 py-0.5 rounded-md border border-gray-200 bg-gray-50 text-gray-700">{g}</li>
+                              ))}
+                            </ul>
                           )}
                         </div>
                       </div>
