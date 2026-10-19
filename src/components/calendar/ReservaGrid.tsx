@@ -381,10 +381,23 @@ export function ReservaGrid({
           <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl">
             <div className="px-6 py-4 border-b border-gray-100">
               <h2 className="font-semibold text-gray-900">Confirmar Reserva</h2>
-              <p className="text-sm text-gray-500 mt-0.5">
-                {resources.find((r) => r.id === reserveModal.resourceId)?.nombre} ·{" "}
-                {tramos.find((t) => t.id === reserveModal.tramoId)?.nombre}
-              </p>
+              {(() => {
+                const tramo = tramos.find((t) => t.id === reserveModal.tramoId);
+                return (
+                  <>
+                    {/* Day and time slot, then the space/resource being booked */}
+                    <p className="text-sm text-gray-700 mt-1 first-letter:uppercase">
+                      {new Date(selectedDate + "T12:00:00").toLocaleDateString("es-ES", {
+                        weekday: "long", day: "numeric", month: "long", year: "numeric",
+                      })}
+                      {tramo && <> · {tramo.nombre}</>}
+                    </p>
+                    <p className="text-sm font-medium text-blue-700 mt-0.5">
+                      {resources.find((r) => r.id === reserveModal.resourceId)?.nombre}
+                    </p>
+                  </>
+                );
+              })()}
             </div>
             <div className="px-6 py-4 space-y-3">
               <div>
@@ -423,9 +436,14 @@ export function ReservaGrid({
           <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl">
             <div className="px-6 py-4 border-b border-gray-100">
               <h2 className="font-semibold text-gray-900">Reserva de tarde</h2>
-              <p className="text-sm text-gray-500 mt-0.5">
-                {resources.find((r) => r.id === freeModal.resourceId)?.nombre} ·{" "}
-                {new Date(selectedDate + "T12:00:00").toLocaleDateString("es-ES", { day: "numeric", month: "short", year: "numeric" })}
+              {/* Day (the time range is chosen below), then the space/resource being booked */}
+              <p className="text-sm text-gray-700 mt-1 first-letter:uppercase">
+                {new Date(selectedDate + "T12:00:00").toLocaleDateString("es-ES", {
+                  weekday: "long", day: "numeric", month: "long", year: "numeric",
+                })}
+              </p>
+              <p className="text-sm font-medium text-blue-700 mt-0.5">
+                {resources.find((r) => r.id === freeModal.resourceId)?.nombre}
               </p>
             </div>
             <div className="px-6 py-4 space-y-3">
