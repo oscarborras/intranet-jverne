@@ -495,7 +495,7 @@ export function CalendarioClient({
           <div className="rounded-xl border border-gray-200 overflow-hidden shadow-sm">
             {/* ── Header: selected date ── */}
             <div className="bg-gray-700 px-5 py-3 flex items-center justify-between">
-              <h3 className="font-semibold text-white text-sm capitalize tracking-wide">
+              <h3 className="font-semibold text-white text-sm first-letter:uppercase tracking-wide">
                 {new Date(selectedDay + "T12:00:00").toLocaleDateString("es-ES", {
                   weekday: "long", day: "numeric", month: "long", year: "numeric",
                 })}

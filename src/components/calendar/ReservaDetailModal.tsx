@@ -82,7 +82,7 @@ export function ReservaDetailModal({ data, onClose, onCancel }: Props) {
             <Calendar size={15} className="text-gray-400 mt-0.5 flex-shrink-0" />
             <div>
               <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Fecha</p>
-              <p className="text-sm text-gray-800 capitalize">{fechaDisplay}</p>
+              <p className="text-sm text-gray-800 first-letter:uppercase">{fechaDisplay}</p>
             </div>
           </div>
 

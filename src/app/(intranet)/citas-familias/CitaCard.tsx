@@ -101,7 +101,7 @@ export default function CitaCard({ cita, showProfesor, actions }: Props) {
         <CitaBlock title="Fecha, hora y lugar" icon={CalendarClock} theme={CITA_THEMES.cuando}>
           {cita.fecha ? (
             <>
-              <CitaField label="Fecha"><span className="capitalize">{formatFecha(cita.fecha)}</span></CitaField>
+              <CitaField label="Fecha"><span className="inline-block first-letter:uppercase">{formatFecha(cita.fecha)}</span></CitaField>
               {cita.hora_inicio && <CitaField label="Hora">{cita.hora_inicio.slice(0, 5)}</CitaField>}
               {cita.lugar && <CitaField label="Lugar">{cita.lugar}</CitaField>}
             </>

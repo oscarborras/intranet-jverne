@@ -68,7 +68,7 @@ export default function OrdenanzasClient({ citas, profesores, todayStr }: Props)
       <div className="bg-blue-700 rounded-xl px-6 py-5 flex items-center justify-between">
         <div>
           <h1 className="text-white font-bold text-xl">Citas del Día</h1>
-          <p className="text-blue-200 text-sm mt-0.5 capitalize">{fechaLabel}</p>
+          <p className="text-blue-200 text-sm mt-0.5 first-letter:uppercase">{fechaLabel}</p>
         </div>
         <button
           onClick={handleRefresh}
