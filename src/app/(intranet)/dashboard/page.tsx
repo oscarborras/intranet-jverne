@@ -285,7 +285,7 @@ export default async function DashboardPage() {
       ? supabase.from("ausencias_profesorado").select("id").eq("fecha", todayStr).eq("estado", "activa")
       : Promise.resolve({ data: [] }),
     showSanciones
-      ? supabase.from("v_sanciones_detalladas").select("id, alumno, unidad, fecha_inicio, fecha_fin").gte("fecha_fin", todayStr).order("fecha_inicio", { ascending: true }).order("alumno", { ascending: true })
+      ? supabase.from("v_sanciones_detalladas").select("id, alumno, unidad, fecha_inicio, fecha_fin, tipo").gte("fecha_fin", todayStr).order("fecha_inicio", { ascending: true }).order("alumno", { ascending: true })
       : Promise.resolve({ data: [] }),
   ]);
 
@@ -425,7 +425,18 @@ export default async function DashboardPage() {
     unidad: string | null;
     fecha_inicio: string;
     fecha_fin: string;
+    tipo: "biblioteca" | "casa" | "otros_centro" | null;
   }
+  const TIPO_SANCION_LABEL: Record<NonNullable<SancionDashboard["tipo"]>, string> = {
+    biblioteca: "Biblioteca",
+    casa: "Casa",
+    otros_centro: "Otros en Centro",
+  };
+  const TIPO_SANCION_COLOR: Record<NonNullable<SancionDashboard["tipo"]>, string> = {
+    biblioteca: "bg-blue-100 text-blue-700",
+    casa: "bg-red-600 text-white",
+    otros_centro: "bg-purple-100 text-purple-700",
+  };
   const sancionesVigentes = (sancionesResult.data ?? []) as SancionDashboard[];
   const sancionesEnCursoCount = sancionesVigentes.filter((s) => s.fecha_inicio <= todayStr).length;
   // "YYYY-MM-DD" -> "DD/MM/YY" without going through Date (no timezone shifts)
@@ -508,8 +519,9 @@ export default async function DashboardPage() {
                 <p className="text-center text-gray-400 text-sm py-8">No hay expulsiones en curso ni próximas</p>
               ) : (
                 <>
-                  <div className="hidden sm:grid grid-cols-[1fr_auto_auto_auto] gap-x-4 px-5 py-2 bg-gray-50 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
+                  <div className="hidden sm:grid grid-cols-[1fr_auto_auto_auto_auto] gap-x-4 px-5 py-2 bg-gray-50 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
                     <span>Alumno/a</span>
+                    <span className="w-24 text-center">Tipo</span>
                     <span className="w-16 text-center">Inicio</span>
                     <span className="w-16 text-center">Fin</span>
                     <span className="w-20 text-center">Estado</span>
@@ -520,12 +532,21 @@ export default async function DashboardPage() {
                       return (
                         <li
                           key={s.id}
-                          className="px-5 py-3 grid grid-cols-[1fr_auto] sm:grid-cols-[1fr_auto_auto_auto] items-center gap-x-4 gap-y-1"
+                          className="px-5 py-3 grid grid-cols-[1fr_auto] sm:grid-cols-[1fr_auto_auto_auto_auto] items-center gap-x-4 gap-y-1"
                         >
                           <div className="min-w-0">
                             <p className="text-sm font-medium text-gray-900 truncate">{s.alumno}</p>
                             {s.unidad && <p className="text-xs font-medium text-blue-600 truncate">{s.unidad}</p>}
                           </div>
+                          <span className="hidden sm:flex w-24 justify-center">
+                            {s.tipo ? (
+                              <span className={`text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap ${TIPO_SANCION_COLOR[s.tipo]}`}>
+                                {TIPO_SANCION_LABEL[s.tipo]}
+                              </span>
+                            ) : (
+                              <span className="text-sm text-gray-400">—</span>
+                            )}
+                          </span>
                           <span className="hidden sm:block w-16 text-center text-sm text-gray-600 tabular-nums">
                             {formatFechaCorta(s.fecha_inicio)}
                           </span>
@@ -537,10 +558,15 @@ export default async function DashboardPage() {
                               {enCurso ? "En curso" : "Próxima"}
                             </span>
                           </span>
-                          {/* Mobile: dates on their own line below the name */}
-                          <p className="sm:hidden col-span-2 text-xs text-gray-500 tabular-nums">
-                            {formatFechaCorta(s.fecha_inicio)} → {formatFechaCorta(s.fecha_fin)}
-                          </p>
+                          {/* Mobile: dates and type on their own line below the name */}
+                          <div className="sm:hidden col-span-2 flex items-center gap-2 text-xs text-gray-500 tabular-nums">
+                            <span>{formatFechaCorta(s.fecha_inicio)} → {formatFechaCorta(s.fecha_fin)}</span>
+                            {s.tipo && (
+                              <span className={`px-2 py-0.5 rounded-full font-medium whitespace-nowrap ${TIPO_SANCION_COLOR[s.tipo]}`}>
+                                {TIPO_SANCION_LABEL[s.tipo]}
+                              </span>
+                            )}
+                          </div>
                         </li>
                       );
                     })}
