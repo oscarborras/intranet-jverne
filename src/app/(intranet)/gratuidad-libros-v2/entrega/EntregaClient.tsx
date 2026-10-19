@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowLeft, Camera, CheckCircle2, ChevronRight, Circle, FileText, Loader2, RefreshCw, Search, Undo2, Users, AlertTriangle,
+  ArrowLeft, Camera, CheckCircle2, ChevronRight, Circle, FileText, Loader2, MinusCircle, RefreshCw, Search, ShieldCheck, ShieldOff, Undo2, Users, AlertTriangle,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -21,7 +21,7 @@ import { itinerarioEfectivo, titulosDelItinerario, titulosRequeridos } from "@/l
 import {
   MENSAJES_ERROR_V2,
   ETIQUETAS_ITINERARIO,
-  type AnularEntregaResult, type AvisoEntregaV2, type ConservacionV2, type EntregarResult, type ItinerarioV2,
+  type AnularEntregaResult, type AvisoEntregaV2, type ConservacionV2, type EntregarResult, type ExencionResult, type ItinerarioV2,
   type MarcarItinerarioResult, type RenovarPrestamoResult,
 } from "@/lib/types/gratuidadV2";
 
@@ -67,8 +67,13 @@ interface Props {
   titulosDiversificacion: string[];
   cursoEscolar: string;
   profesorNombre: string;
+  /** Managers can exempt a student from a title */
+  canManage: boolean;
   inicial: { grupo: string; alumno: string };
 }
+
+/** Exemptions of the group's students: alumno_id → titulo_id → reason */
+type ExencionesGrupo = Record<string, Record<string, string>>;
 
 const AVISOS: Record<AvisoEntregaV2, string> = {
   fuera_de_lote: "Este libro no está en el lote de su curso",
@@ -90,7 +95,7 @@ function fechaHoy(): string {
   return `${d}/${m}/${y}`;
 }
 
-export function EntregaClient({ grupos, lotePorGrupo, titulosDiversificacion, cursoEscolar, profesorNombre, inicial }: Props) {
+export function EntregaClient({ grupos, lotePorGrupo, titulosDiversificacion, cursoEscolar, profesorNombre, canManage, inicial }: Props) {
   const supabase = useMemo(() => createClient(), []);
   const esDiversificacion = useMemo(() => new Set(titulosDiversificacion), [titulosDiversificacion]);
 
@@ -108,6 +113,11 @@ export function EntregaClient({ grupos, lotePorGrupo, titulosDiversificacion, cu
   const [sesion, setSesion] = useState<EntregaSesion[]>([]);
   const [camara, setCamara] = useState(false);
   const [procesando, setProcesando] = useState(false);
+  // Exemption dialog (managers)
+  const [eximiendo, setEximiendo] = useState<{ alumno: AlumnoGrupo; tituloId: string; titulo: string } | null>(null);
+  const [motivoExencion, setMotivoExencion] = useState("");
+  const [guardandoExencion, setGuardandoExencion] = useState(false);
+  const [errorExencion, setErrorExencion] = useState<string | null>(null);
 
   const scannerRef = useRef<ScannerInputHandle>(null);
   const alumnoActual = alumnos.find((a) => a.id === alumnoId) ?? null;
@@ -120,6 +130,10 @@ export function EntregaClient({ grupos, lotePorGrupo, titulosDiversificacion, cu
   useEffect(() => { itinerariosRef.current = itinerarios; }, [itinerarios]);
   const prestamosRef = useRef(prestamos);
   useEffect(() => { prestamosRef.current = prestamos; }, [prestamos]);
+  // Titles each student is exempt from in the active school year
+  const [exenciones, setExenciones] = useState<ExencionesGrupo>({});
+  const exencionesRef = useRef(exenciones);
+  useEffect(() => { exencionesRef.current = exenciones; }, [exenciones]);
 
   // ── Data loading ────────────────────────────────────────────────────────────
 
@@ -129,6 +143,7 @@ export function EntregaClient({ grupos, lotePorGrupo, titulosDiversificacion, cu
     setAlumnos([]);
     setPrestamos({});
     setItinerarios({});
+    setExenciones({});
     if (!g) return;
     setCargandoGrupo(true);
     const { data: al } = await supabase
@@ -141,17 +156,21 @@ export function EntregaClient({ grupos, lotePorGrupo, titulosDiversificacion, cu
     const ids = lista.map((a) => a.id);
     const map: Record<string, PrestamoActivo[]> = {};
     const marcas: Record<string, ItinerarioV2> = {};
+    const exentos: ExencionesGrupo = {};
     if (ids.length > 0) {
-      const [{ data: pr }, { data: it }] = await Promise.all([
+      const [{ data: pr }, { data: it }, { data: ex }] = await Promise.all([
         supabase.from("gplv2_prestamos").select(PRESTAMO_SELECT).is("fecha_devolucion", null).in("alumno_id", ids),
         supabase.from("gplv2_alumnos_itinerario").select("alumno_id, itinerario").eq("curso_escolar", cursoEscolar).in("alumno_id", ids),
+        supabase.from("gplv2_exenciones").select("alumno_id, titulo_id, motivo").eq("curso_escolar", cursoEscolar).in("alumno_id", ids),
       ]);
       for (const p of (pr ?? []) as unknown as PrestamoActivo[]) (map[p.alumno_id] ??= []).push(p);
       for (const m of (it ?? []) as { alumno_id: string; itinerario: ItinerarioV2 }[]) marcas[m.alumno_id] = m.itinerario;
+      for (const x of (ex ?? []) as { alumno_id: string; titulo_id: string; motivo: string }[]) (exentos[x.alumno_id] ??= {})[x.titulo_id] = x.motivo;
     }
     setAlumnos(lista);
     setPrestamos(map);
     setItinerarios(marcas);
+    setExenciones(exentos);
     setCargandoGrupo(false);
     if (seleccionar && lista.some((a) => a.id === seleccionar)) setAlumnoId(seleccionar);
   }, [supabase, cursoEscolar]);
@@ -207,14 +226,19 @@ export function EntregaClient({ grupos, lotePorGrupo, titulosDiversificacion, cu
   const progreso = useCallback((a: AlumnoGrupo) => {
     const itinerario = itinerarioDe(a);
     const loteGrupo = lotePorGrupo[a.unidad] ?? [];
-    const lote = titulosRequeridos(loteGrupo, itinerario);
-    const idsRequeridos = new Set(lote.map((t) => t.id));
+    const requeridos = titulosRequeridos(loteGrupo, itinerario);
+    const idsRequeridos = new Set(requeridos.map((t) => t.id));
+    const exento = exenciones[a.id] ?? {};
+    const lote = requeridos.filter((t) => !(t.id in exento));
+    const exentos = requeridos.length - lote.length;
     const tiene = new Set((prestamos[a.id] ?? []).map((p) => p.ejemplar?.titulo_id));
     const entregados = lote.filter((t) => tiene.has(t.id)).length;
     // Optional titles of the student's itinerary already delivered (not part of the count above)
     const optativos = titulosDelItinerario(loteGrupo, itinerario).filter((t) => !idsRequeridos.has(t.id) && tiene.has(t.id)).length;
-    return { entregados, total: lote.length, optativos, completo: lote.length > 0 && entregados === lote.length };
-  }, [lotePorGrupo, prestamos, itinerarioDe]);
+    // Exempt from every required title also counts as complete
+    const completo = entregados === lote.length && (lote.length > 0 || exentos > 0);
+    return { entregados, total: lote.length, optativos, exentos, completo };
+  }, [lotePorGrupo, prestamos, itinerarioDe, exenciones]);
 
   // A scanned copy code does not filter the list
   const alumnosFiltrados = useTextFilter(alumnos, textoAlumno, esCodigo(busqueda.trim()) ? "" : busqueda);
@@ -273,8 +297,10 @@ export function EntregaClient({ grupos, lotePorGrupo, titulosDiversificacion, cu
     const titulosAntes = (prestamosRef.current[alumno.id] ?? []).map((p) => p.ejemplar?.titulo_id).filter((id): id is string => Boolean(id));
     const tiene = new Set([...titulosAntes, res.ejemplar.titulo_id]);
     const itinerario = itinerarioEfectivo(itinerariosRef.current[alumno.id], tiene, esDiversificacion);
-    const lote = titulosRequeridos(lotePorGrupo[alumno.unidad] ?? [], itinerario);
-    const completo = lote.length > 0 && lote.every((t) => tiene.has(t.id));
+    const exento = exencionesRef.current[alumno.id] ?? {};
+    const requeridos = titulosRequeridos(lotePorGrupo[alumno.unidad] ?? [], itinerario);
+    const lote = requeridos.filter((t) => !(t.id in exento));
+    const completo = lote.every((t) => tiene.has(t.id)) && (lote.length > 0 || requeridos.length > 0);
 
     if (res.avisos.length > 0) {
       mostrar("aviso", `Entregado: ${res.ejemplar.titulo}`, res.avisos.map((a) => AVISOS[a]).join(" · "));
@@ -291,7 +317,7 @@ export function EntregaClient({ grupos, lotePorGrupo, titulosDiversificacion, cu
     colaRef.current = colaRef.current.then(() => entregar(codigo, false));
   }, [aceptar, entregar]);
 
-  useBarcodeScanner(handleScan, !confirmRepetido);
+  useBarcodeScanner(handleScan, !confirmRepetido && !eximiendo);
 
   async function confirmarRepetido() {
     if (!confirmRepetido) return;
@@ -355,6 +381,51 @@ export function EntregaClient({ grupos, lotePorGrupo, titulosDiversificacion, cu
     });
     mostrar("ok", `Itinerario: ${ETIQUETAS_ITINERARIO[res.itinerario]}`, res.manual ? "Marcado para este curso escolar" : "Automático según sus libros");
     scannerRef.current?.focus();
+  }
+
+  // ── Exemptions (managers): student does not need a title this school year ──
+
+
+  function abrirExencion(alumno: AlumnoGrupo, tituloId: string, titulo: string) {
+    setEximiendo({ alumno, tituloId, titulo });
+    setMotivoExencion("");
+    setErrorExencion(null);
+  }
+
+  async function guardarExencion() {
+    if (!eximiendo) return;
+    if (!motivoExencion.trim()) { setErrorExencion(MENSAJES_ERROR_V2.motivo_obligatorio); return; }
+    setGuardandoExencion(true);
+    setErrorExencion(null);
+    const { alumno, tituloId, titulo } = eximiendo;
+    const { data, error } = await supabase.rpc("gplv2_marcar_exencion", {
+      p_alumno_id: alumno.id, p_titulo_id: tituloId, p_motivo: motivoExencion.trim(),
+    });
+    setGuardandoExencion(false);
+    const res = data as ExencionResult | null;
+    if (error || !res || !res.ok) {
+      setErrorExencion(res && !res.ok ? MENSAJES_ERROR_V2[res.error] : (error?.message ?? "Error al guardar"));
+      return;
+    }
+    setExenciones((prev) => ({ ...prev, [alumno.id]: { ...(prev[alumno.id] ?? {}), [tituloId]: motivoExencion.trim() } }));
+    setEximiendo(null);
+    mostrar("ok", "Exención registrada", `${titulo}: no se le exige este curso`);
+    scannerRef.current?.focus();
+  }
+
+  async function quitarExencion(alumno: AlumnoGrupo, tituloId: string, titulo: string) {
+    const { data, error } = await supabase.rpc("gplv2_quitar_exencion", { p_alumno_id: alumno.id, p_titulo_id: tituloId });
+    const res = data as ExencionResult | null;
+    if (error || !res || !res.ok) {
+      mostrar("error", "No se pudo quitar la exención", res && !res.ok ? MENSAJES_ERROR_V2[res.error] : error?.message);
+      return;
+    }
+    setExenciones((prev) => {
+      const delAlumno = { ...(prev[alumno.id] ?? {}) };
+      delete delAlumno[tituloId];
+      return { ...prev, [alumno.id]: delAlumno };
+    });
+    mostrar("aviso", "Exención quitada", `${titulo} vuelve a ser necesario`);
   }
 
   async function deshacer(s: EntregaSesion) {
@@ -596,7 +667,7 @@ export function EntregaClient({ grupos, lotePorGrupo, titulosDiversificacion, cu
               <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
                 <div className="flex gap-2">
                   <div className="flex-1">
-                    <ScannerInput ref={scannerRef} onScan={handleScan} onEmptyEnter={siguienteAlumno} disabled={!!confirmRepetido} />
+                    <ScannerInput ref={scannerRef} onScan={handleScan} onEmptyEnter={siguienteAlumno} disabled={!!confirmRepetido || !!eximiendo} />
                   </div>
                   <button
                     onClick={() => setCamara((c) => !c)}
@@ -624,19 +695,50 @@ export function EntregaClient({ grupos, lotePorGrupo, titulosDiversificacion, cu
                     // Diversificación books are all required for a Diversificación student
                     const opcional = !esDivActual && t.optativo;
                     const primerOptativo = opcional && (i === 0 || !loteActual[i - 1].optativo);
+                    const motivoExento = exenciones[alumnoActual.id]?.[t.id];
+                    const exento = motivoExento !== undefined && !opcional;
                     return (
-                      <li key={t.id} className={cn("flex items-center gap-3 px-4 py-3", !ok && !opcional && "bg-amber-50/40", primerOptativo && "border-t-4 border-gray-100")}>
+                      <li key={t.id} className={cn("flex items-center gap-3 px-4 py-3", !ok && !opcional && !exento && "bg-amber-50/40", primerOptativo && "border-t-4 border-gray-100")}>
                         {ok
                           ? <CheckCircle2 size={20} className="text-emerald-600 flex-shrink-0" />
-                          : <Circle size={20} className={cn("flex-shrink-0", opcional ? "text-gray-300" : "text-amber-400")} />}
+                          : exento
+                            ? <MinusCircle size={20} className="text-slate-400 flex-shrink-0" aria-label="Exento" />
+                            : <Circle size={20} className={cn("flex-shrink-0", opcional ? "text-gray-300" : "text-amber-400")} />}
                         <div className="min-w-0 flex-1">
-                          <p className={cn("text-sm", ok || opcional ? "text-gray-500" : "text-gray-900 font-medium")}>{t.titulo}</p>
+                          <p className={cn("text-sm", ok || opcional || exento ? "text-gray-500" : "text-gray-900 font-medium")}>{t.titulo}</p>
                           <p className="text-xs text-gray-400">
                             {t.diversificacion && <DiversificacionBadge className="mr-1.5" />}
                             {t.optativo && !t.diversificacion && <OptativoBadge className="mr-1.5" />}
+                            {exento && (
+                              <span className="inline-block mr-1.5 text-[10px] font-semibold tracking-wide uppercase px-1.5 py-0.5 rounded bg-slate-200 text-slate-700" title={`Motivo: ${motivoExento}`}>
+                                Exento
+                              </span>
+                            )}
                             {t.asignatura}
                           </p>
+                          {exento && <p className="text-xs text-slate-500 mt-0.5">Motivo: {motivoExento}</p>}
                         </div>
+                        {canManage && !ok && !opcional && (
+                          exento ? (
+                            <button
+                              onClick={() => quitarExencion(alumnoActual, t.id, t.titulo)}
+                              title="Volver a exigir este libro al alumno"
+                              aria-label={`Quitar exención de ${t.titulo}`}
+                              className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 hover:border-red-300 transition-colors"
+                            >
+                              <ShieldOff size={14} /> Quitar exención
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => abrirExencion(alumnoActual, t.id, t.titulo)}
+                              title="No exigir este libro a este alumno durante este curso (caso excepcional)"
+                              aria-label={`Eximir de ${t.titulo}`}
+                              className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 hover:border-indigo-300 transition-colors"
+                            >
+                              <ShieldCheck size={14} /> Eximir
+                            </button>
+                          )
+                        )}
                         {ok && (
                           <span className="text-right">
                             <span className="block font-mono text-xs text-gray-500">{entregas.map((e) => e.ejemplar?.codigo).join(", ")}</span>
@@ -704,6 +806,41 @@ export function EntregaClient({ grupos, lotePorGrupo, titulosDiversificacion, cu
             </div>
           )}
         </div>
+      )}
+
+      {eximiendo && (
+        <Modal
+          titulo="Eximir de un libro"
+          onClose={() => !guardandoExencion && setEximiendo(null)}
+          footer={
+            <>
+              <button onClick={() => setEximiendo(null)} disabled={guardandoExencion} className="px-4 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg">Cancelar</button>
+              <button onClick={guardarExencion} disabled={guardandoExencion} className="flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-50">
+                {guardandoExencion && <Loader2 size={15} className="animate-spin" />} Eximir
+              </button>
+            </>
+          }
+        >
+          <div className="space-y-3 text-sm">
+            <p className="text-gray-700">
+              <b>{eximiendo.alumno.alumno}</b> no necesitará <b>{eximiendo.titulo}</b> durante el curso {cursoEscolar}.
+              Contará como lote completo cuando tenga el resto de libros.
+            </p>
+            <label className="block">
+              <span className="block font-medium text-gray-700 mb-1">Motivo *</span>
+              <textarea
+                value={motivoExencion}
+                onChange={(e) => setMotivoExencion(e.target.value)}
+                rows={2}
+                maxLength={500}
+                autoFocus
+                placeholder="Ej.: trae su propio libro, exento de la materia…"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </label>
+            {errorExencion && <p className="text-red-600">{errorExencion}</p>}
+          </div>
+        </Modal>
       )}
 
       {confirmRepetido && (

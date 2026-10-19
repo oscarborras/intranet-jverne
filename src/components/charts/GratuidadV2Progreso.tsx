@@ -31,8 +31,8 @@ export function GratuidadV2Progreso({ progreso }: Props) {
         subtitle="Porcentaje de libros del lote ya entregados"
         ariaLabel="Gráfico de barras con el porcentaje de libros del lote entregados en cada grupo"
         table={{
-          columns: ["Grupo", "Alumnos", "Lote completo", "Libros entregados", "%"],
-          rows: grupos.map((g) => [g.grupo, g.alumnos, g.completos, `${g.entregados} / ${g.esperados}`, pct(porcentaje(g.entregados, g.esperados))]),
+          columns: ["Grupo", "Alumnos", "Lote completo", "Libros entregados", "Exenciones", "%"],
+          rows: grupos.map((g) => [g.grupo, g.alumnos, g.completos, `${g.entregados} / ${g.esperados}`, g.exenciones ?? 0, pct(porcentaje(g.entregados, g.esperados))]),
         }}
       >
         <HorizontalBarChart data={entrega} seriesName="Entregado" color="var(--chart-1)" valueFormatter={pct} labelWidth={90} />

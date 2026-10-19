@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth";
-import { ROLES_OPERAR_V2 } from "@/lib/gratuidadV2/permisos";
+import { ROLES_OPERAR_V2, puedeGestionarV2 } from "@/lib/gratuidadV2/permisos";
 import type { TituloCursoV2 } from "@/lib/types/gratuidadV2";
 import { EntregaClient, type TituloLote } from "./EntregaClient";
 
@@ -11,7 +11,7 @@ interface Props {
 }
 
 export default async function EntregaV2Page({ searchParams }: Props) {
-  const { user } = await requireRole(ROLES_OPERAR_V2);
+  const { user, roleNames } = await requireRole(ROLES_OPERAR_V2);
   const params = await searchParams;
   const supabase = await createClient();
 
@@ -53,6 +53,7 @@ export default async function EntregaV2Page({ searchParams }: Props) {
       lotePorGrupo={lotePorGrupo}
       titulosDiversificacion={titulosDiversificacion}
       cursoEscolar={(cursoEscolar as string | null) ?? ""}
+      canManage={puedeGestionarV2(roleNames)}
       profesorNombre={(profesor as { profesor: string } | null)?.profesor ?? user.email ?? ""}
       inicial={{ grupo: params.grupo ?? "", alumno: params.alumno ?? "" }}
     />

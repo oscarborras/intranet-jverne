@@ -158,6 +158,8 @@ export interface ProgresoGrupoV2 {
   esperados: number;
   prestados: number;
   devueltos: number;
+  /** Exempt titles of the group's students (exceptional cases) */
+  exenciones: number;
 }
 
 /** Row of gplv2_stock_titulos() */
@@ -246,7 +248,8 @@ export type ErrorRpcV2 =
   | "curso_no_coincide"
   | "curso_invalido"
   | "ya_cerrado"
-  | "itinerario_invalido";
+  | "itinerario_invalido"
+  | "motivo_obligatorio";
 
 export type AvisoEntregaV2 = "fuera_de_lote" | "conservacion_deteriorado" | "otro_itinerario";
 
@@ -257,6 +260,9 @@ export const ETIQUETAS_ITINERARIO: Record<ItinerarioV2, string> = {
   ordinario: "Ordinario",
   diversificacion: "Diversificación",
 };
+
+/** Result of gplv2_marcar_exencion / gplv2_quitar_exencion */
+export type ExencionResult = { ok: true } | RpcErrorV2;
 
 export type MarcarItinerarioResult =
   | { ok: true; itinerario: ItinerarioV2; manual: boolean }
@@ -380,4 +386,5 @@ export const MENSAJES_ERROR_V2: Record<ErrorRpcV2, string> = {
   curso_invalido: "El curso escolar activo no tiene el formato AAAA-AAAA",
   ya_cerrado: "Este curso escolar ya está cerrado",
   itinerario_invalido: "Itinerario no válido",
+  motivo_obligatorio: "Indica el motivo de la exención",
 };
