@@ -24,7 +24,7 @@ export default async function ReservaEspaciosPage() {
     supabase.from("config_intranet").select("clave, valor").in("clave", ["horario_tarde_inicio", "horario_tarde_fin"]),
   ]);
   const horarioTarde = {
-    inicio: horarioTardeRows?.find((r) => r.clave === "horario_tarde_inicio")?.valor ?? "15:00",
+    inicio: horarioTardeRows?.find((r) => r.clave === "horario_tarde_inicio")?.valor ?? "14:45",
     fin: horarioTardeRows?.find((r) => r.clave === "horario_tarde_fin")?.valor ?? "19:00",
   };
 

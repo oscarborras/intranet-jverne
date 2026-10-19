@@ -21,7 +21,7 @@ import type { Anuncio, PeticionTIC, PeticionMantenimiento } from "@/lib/types";
 import { ProximasReservas, type ReservaDashboard } from "./ProximasReservas";
 import { todayMadrid, addDaysToDateStr } from "@/lib/dates";
 import { requireAuth } from "@/lib/auth";
-import { CARGOS_DIRECTIVOS, type CargoDirectivoClave } from "@/lib/types";
+import { CARGOS_DIRECTIVOS, type CargoDirectivoClave, type CitaTipo } from "@/lib/types";
 
 const moduleCards = [
   {
@@ -270,11 +270,11 @@ export default async function DashboardPage() {
       ? supabase.from("calendar_eventos").select("id, titulo, descripcion, fecha_inicio, fecha_fin, todo_el_dia, hora_inicio, hora_fin, grupos").eq("tipo", "Activ. Extraescolar").gte("fecha_inicio", todayStr).lte("fecha_inicio", limitStr).order("fecha_inicio", { ascending: true })
       : Promise.resolve({ data: [] }),
     showCitasFamilias && profesorId && !isOrdenanzaView
-      ? supabase.from("citas_familias").select("id, codigo, alumno_nombre, alumno_curso, familiar_nombre, fecha, hora_inicio, lugar, estado, cargo").eq("profesor_id", profesorId).in("estado", ["pendiente", "confirmada"]).or(`fecha.lte.${citasLimitStr},fecha.is.null`).order("fecha", { ascending: true, nullsFirst: true }).limit(5)
+      ? supabase.from("citas_familias").select("id, codigo, tipo, entidad, alumno_nombre, alumno_curso, familiar_nombre, fecha, hora_inicio, lugar, estado, cargo").eq("profesor_id", profesorId).in("estado", ["pendiente", "confirmada"]).or(`fecha.is.null,and(fecha.gte.${todayStr},fecha.lte.${citasLimitStr})`).order("fecha", { ascending: true, nullsFirst: true }).order("hora_inicio", { ascending: true }).limit(5)
       : Promise.resolve({ data: [] }),
     // RLS lets Ordenanza read only today's confirmed appointments
     isOrdenanzaView
-      ? supabase.from("citas_familias").select("id, profesor_id, alumno_nombre, alumno_curso, hora_inicio").eq("estado", "confirmada").eq("fecha", todayStr).order("hora_inicio", { ascending: true })
+      ? supabase.from("citas_familias").select("id, profesor_id, tipo, entidad, alumno_nombre, alumno_curso, familiar_nombre, hora_inicio").eq("estado", "confirmada").eq("fecha", todayStr).order("hora_inicio", { ascending: true })
       : Promise.resolve({ data: [] }),
     showAusencias && isGuardiaOnlyView
       ? supabase.from("ausencias_profesorado").select("id, fecha, tramo_id, profesor_id, tramos_horarios(nombre, orden, hora_fin), cursos(nombre)").eq("fecha", todayStr).eq("estado", "activa")
@@ -364,8 +364,10 @@ export default async function DashboardPage() {
   interface CitaDashboard {
     id: number;
     codigo: string;
-    alumno_nombre: string;
-    alumno_curso: string;
+    tipo: CitaTipo;
+    entidad: string | null;
+    alumno_nombre: string | null;
+    alumno_curso: string | null;
     familiar_nombre: string;
     fecha: string | null;
     hora_inicio: string | null;
@@ -379,8 +381,11 @@ export default async function DashboardPage() {
   interface CitaHoyOrdenanza {
     id: number;
     profesor_id: string;
-    alumno_nombre: string;
-    alumno_curso: string;
+    tipo: CitaTipo;
+    entidad: string | null;
+    alumno_nombre: string | null;
+    alumno_curso: string | null;
+    familiar_nombre: string;
     hora_inicio: string | null;
   }
   const citasHoyRaw = (citasHoyResult.data ?? []) as CitaHoyOrdenanza[];
@@ -618,7 +623,7 @@ export default async function DashboardPage() {
               <div className="bg-green-600 px-5 py-3 flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2 min-w-0">
                   <CalendarClock size={16} className="text-white flex-shrink-0" />
-                  <h3 className="text-white font-semibold text-sm truncate">Citas con Familias — Hoy</h3>
+                  <h3 className="text-white font-semibold text-sm truncate">Citas — Hoy</h3>
                 </div>
                 {citasHoy.length > 0 && (
                   <span className="bg-white/25 text-white text-xs font-bold px-2.5 py-0.5 rounded-full flex-shrink-0">
@@ -632,7 +637,7 @@ export default async function DashboardPage() {
                 <>
                   <div className="hidden sm:grid grid-cols-[auto_1fr_1fr] gap-x-4 px-5 py-2 bg-gray-50 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
                     <span className="w-12">Hora</span>
-                    <span>Alumno/a</span>
+                    <span>Visitante</span>
                     <span>Profesor/a</span>
                   </div>
                   <ul className="divide-y divide-gray-50">
@@ -644,11 +649,16 @@ export default async function DashboardPage() {
                         <span className="w-12 text-sm font-semibold text-green-700 tabular-nums">
                           {c.hora_inicio ? c.hora_inicio.slice(0, 5) : "—"}
                         </span>
+                        {/* Who is coming first; student and course (family) or organisation (other) below */}
                         <div className="min-w-0">
-                          <p className="text-sm font-medium text-gray-900 truncate">{c.alumno_nombre}</p>
-                          <p className="text-xs font-medium text-blue-600 truncate">{c.alumno_curso}</p>
+                          <p className="text-sm font-medium text-gray-900 truncate">{c.familiar_nombre}</p>
+                          {c.tipo === "familia" ? (
+                            <p className="text-xs font-medium text-blue-600 truncate">{c.alumno_nombre} ({c.alumno_curso})</p>
+                          ) : (
+                            c.entidad && <p className="text-xs font-medium text-slate-500 truncate">{c.entidad}</p>
+                          )}
                         </div>
-                        {/* Mobile: teacher on its own line below the student */}
+                        {/* Mobile: teacher on its own line below the visitor */}
                         <p className="col-start-2 sm:col-start-auto text-sm text-gray-600 truncate">{c.profesor_nombre}</p>
                       </li>
                     ))}
@@ -669,7 +679,7 @@ export default async function DashboardPage() {
                 <div className="flex items-center gap-2">
                   <CalendarClock size={16} className="text-white" />
                   <h3 className="text-white font-semibold text-sm">
-                    Citas con Familias — {diasVistaCitas} días
+                    Mis citas — {diasVistaCitas} días
                   </h3>
                 </div>
                 {citasPendientesCount > 0 && (
@@ -693,16 +703,17 @@ export default async function DashboardPage() {
                           {fechaLabel}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-900 truncate">
-                            {c.alumno_nombre} <span className="text-gray-400 font-normal">({c.alumno_curso})</span>
-                          </p>
+                          {/* Who is coming first; student (family) or organisation (other) below */}
+                          <p className="text-sm font-medium text-gray-900 truncate">{c.familiar_nombre}</p>
                           {c.cargo && (
                             <p className="text-xs font-medium text-indigo-600 truncate">{CARGOS_DIRECTIVOS[c.cargo]}</p>
                           )}
                           <p className="text-xs text-gray-500 truncate">
-                            {c.familiar_nombre}
-                            {c.hora_inicio && <> · {c.hora_inicio}</>}
-                            {c.lugar && <> · {c.lugar}</>}
+                            {[
+                              c.tipo === "familia" ? `${c.alumno_nombre} (${c.alumno_curso})` : c.entidad,
+                              c.hora_inicio?.slice(0, 5),
+                              c.lugar,
+                            ].filter(Boolean).join(" · ")}
                           </p>
                         </div>
                         <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${isPendiente ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>

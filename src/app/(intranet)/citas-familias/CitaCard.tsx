@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarClock, Forward, GraduationCap, MessageSquareText, UserRound, Users, X } from "lucide-react";
+import { Building2, CalendarClock, Forward, GraduationCap, MessageSquareText, UserRound, Users, X } from "lucide-react";
 import { CARGOS_DIRECTIVOS, type CitaFamilia, type CitaFamiliaEstado } from "@/lib/types";
 import { CITA_THEMES, CitaBlock, CitaField } from "@/components/citas/CitaBlocks";
 
@@ -43,6 +43,11 @@ export default function CitaCard({ cita, showProfesor, actions }: Props) {
         <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${ESTADO_BADGE[cita.estado]}`}>
           {ESTADO_LABELS[cita.estado]}
         </span>
+        {cita.tipo === "otro" && (
+          <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-slate-200 text-slate-800 flex items-center gap-1">
+            <Building2 className="w-3 h-3" aria-hidden="true" /> Otro
+          </span>
+        )}
         {cita.derivada_por_nombre && (
           <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 flex items-center gap-1">
             <Forward className="w-3 h-3" aria-hidden="true" /> Derivada
@@ -61,15 +66,26 @@ export default function CitaCard({ cita, showProfesor, actions }: Props) {
           </CitaBlock>
         )}
 
-        <CitaBlock title="Alumno/a" icon={GraduationCap} theme={CITA_THEMES.alumno}>
-          <CitaField label="Nombre"><strong className="font-semibold">{cita.alumno_nombre}</strong></CitaField>
-          <CitaField label="Curso">{cita.alumno_curso}</CitaField>
-        </CitaBlock>
+        {cita.tipo === "familia" && (
+          <CitaBlock title="Alumno/a" icon={GraduationCap} theme={CITA_THEMES.alumno}>
+            <CitaField label="Nombre"><strong className="font-semibold">{cita.alumno_nombre}</strong></CitaField>
+            <CitaField label="Curso">{cita.alumno_curso}</CitaField>
+          </CitaBlock>
+        )}
 
-        <CitaBlock title="Familiar" icon={Users} theme={CITA_THEMES.familiar}>
+        <CitaBlock
+          title={cita.tipo === "familia" ? "Familiar" : "Persona de contacto"}
+          icon={cita.tipo === "familia" ? Users : Building2}
+          theme={CITA_THEMES.familiar}
+        >
           <CitaField label="Nombre">
-            {cita.familiar_nombre} <span className="text-gray-500 capitalize">({cita.familiar_parentesco})</span>
+            {cita.tipo === "familia" ? (
+              <>{cita.familiar_nombre} <span className="text-gray-500 capitalize">({cita.familiar_parentesco})</span></>
+            ) : (
+              <strong className="font-semibold">{cita.familiar_nombre}</strong>
+            )}
           </CitaField>
+          {cita.entidad && <CitaField label="Entidad">{cita.entidad}</CitaField>}
           {cita.familiar_email && (
             <CitaField label="Email">
               <a href={`mailto:${cita.familiar_email}`} className="text-green-800 underline underline-offset-2 break-all">{cita.familiar_email}</a>

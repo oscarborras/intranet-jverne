@@ -349,6 +349,13 @@ export interface AusenciaProfesorado {
 export type CitaFamiliaEstado = "pendiente" | "confirmada" | "completada" | "cancelada";
 export type CitaFamiliaParentesco = "padre" | "madre" | "tutor/a legal" | "otro";
 export type CitaFamiliaCanceladaPor = "profesor" | "familia";
+/** "familia": student + family member; "otro": company, organisation or other person (contact only) */
+export type CitaTipo = "familia" | "otro";
+
+export const CITA_TIPO_LABELS: Record<CitaTipo, string> = {
+  familia: "Familia",
+  otro: "Otro",
+};
 
 export const LUGARES_CITA = [
   "Sala de visitas",
@@ -387,10 +394,15 @@ export interface CitaFamilia {
   id: number;
   codigo: string;
   profesor_id: string;
-  alumno_nombre: string;
-  alumno_curso: string;
+  tipo: CitaTipo;
+  /** Students and relationship are null for "otro" appointments */
+  alumno_nombre: string | null;
+  alumno_curso: string | null;
+  /** Family member, or contact person for "otro" appointments */
   familiar_nombre: string;
-  familiar_parentesco: CitaFamiliaParentesco | string;
+  familiar_parentesco: CitaFamiliaParentesco | string | null;
+  /** Company or organisation ("otro" appointments, optional) */
+  entidad: string | null;
   familiar_email: string | null;
   familiar_telefono: string | null;
   fecha: string | null;

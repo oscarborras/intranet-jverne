@@ -8,7 +8,7 @@ import type { CitaFamilia } from "@/lib/types";
 
 // Columns a referring teacher may read (no token_familia, no notas)
 const DERIVADA_COLUMNS =
-  "id, codigo, profesor_id, alumno_nombre, alumno_curso, familiar_nombre, familiar_parentesco, familiar_email, familiar_telefono, fecha, hora_inicio, lugar, motivo, estado, cancelada_por, motivo_cancelacion, cargo, derivada_por, created_at, updated_at";
+  "id, codigo, profesor_id, tipo, entidad, alumno_nombre, alumno_curso, familiar_nombre, familiar_parentesco, familiar_email, familiar_telefono, fecha, hora_inicio, lugar, motivo, estado, cancelada_por, motivo_cancelacion, cargo, derivada_por, created_at, updated_at";
 
 export interface CitasFamiliasData {
   /** Own appointments (all of them for Admin/Directiva), read with the user's RLS */

@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Search, MapPin, RefreshCw, User, GraduationCap, Users } from "lucide-react";
-import { CARGOS_DIRECTIVOS, type CargoDirectivoClave } from "@/lib/types";
+import { Search, MapPin, RefreshCw, User, GraduationCap, Users, Building2 } from "lucide-react";
+import { CARGOS_DIRECTIVOS, type CargoDirectivoClave, type CitaTipo } from "@/lib/types";
 import { CITA_THEMES, CitaBlock, CitaField } from "@/components/citas/CitaBlocks";
 import { useTextFilter } from "@/lib/useTextFilter";
 
@@ -12,10 +12,12 @@ interface CitaOrdenanza {
   codigo: string;
   profesor_id: string;
   profesor_nombre: string;
-  alumno_nombre: string;
-  alumno_curso: string;
+  tipo: CitaTipo;
+  entidad: string | null;
+  alumno_nombre: string | null;
+  alumno_curso: string | null;
   familiar_nombre: string;
-  familiar_parentesco: string;
+  familiar_parentesco: string | null;
   hora_inicio: string | null;
   lugar: string | null;
   cargo: CargoDirectivoClave | null;
@@ -32,7 +34,7 @@ interface Props {
   todayStr: string;
 }
 
-const textoCita = (c: CitaOrdenanza) => `${c.alumno_nombre} ${c.familiar_nombre} ${c.profesor_nombre}`;
+const textoCita = (c: CitaOrdenanza) => [c.alumno_nombre, c.entidad, c.familiar_nombre, c.profesor_nombre].filter(Boolean).join(" ");
 
 export default function OrdenanzasClient({ citas, profesores, todayStr }: Props) {
   const router = useRouter();
@@ -86,7 +88,7 @@ export default function OrdenanzasClient({ citas, profesores, todayStr }: Props)
         <Search size={18} className="text-gray-400 flex-shrink-0" />
         <input
           type="text"
-          placeholder="Buscar por alumno, familiar o profesor..."
+          placeholder="Buscar por alumno, familiar, entidad o profesor..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="flex-1 border-none outline-none text-sm text-gray-900 placeholder-gray-400 bg-transparent"
@@ -136,14 +138,23 @@ export default function OrdenanzasClient({ citas, profesores, todayStr }: Props)
                         </div>
                       )}
                       <div className="flex-1 min-w-0 grid grid-cols-1 sm:grid-cols-3 gap-2">
-                        <CitaBlock title="Alumno/a" icon={GraduationCap} theme={CITA_THEMES.alumno}>
-                          <CitaField label="Nombre"><strong className="font-semibold">{c.alumno_nombre}</strong></CitaField>
-                          <CitaField label="Curso">{c.alumno_curso}</CitaField>
-                        </CitaBlock>
-                        <CitaBlock title="Familiar" icon={Users} theme={CITA_THEMES.familiar}>
-                          <CitaField label="Nombre">{c.familiar_nombre}</CitaField>
-                          <CitaField label="Parentesco"><span className="capitalize">{c.familiar_parentesco}</span></CitaField>
-                        </CitaBlock>
+                        {c.tipo === "familia" ? (
+                          <>
+                            <CitaBlock title="Alumno/a" icon={GraduationCap} theme={CITA_THEMES.alumno}>
+                              <CitaField label="Nombre"><strong className="font-semibold">{c.alumno_nombre}</strong></CitaField>
+                              <CitaField label="Curso">{c.alumno_curso}</CitaField>
+                            </CitaBlock>
+                            <CitaBlock title="Familiar" icon={Users} theme={CITA_THEMES.familiar}>
+                              <CitaField label="Nombre">{c.familiar_nombre}</CitaField>
+                              <CitaField label="Parentesco"><span className="capitalize">{c.familiar_parentesco}</span></CitaField>
+                            </CitaBlock>
+                          </>
+                        ) : (
+                          <CitaBlock title="Persona de contacto" icon={Building2} theme={CITA_THEMES.familiar} className="sm:col-span-2">
+                            <CitaField label="Nombre"><strong className="font-semibold">{c.familiar_nombre}</strong></CitaField>
+                            {c.entidad && <CitaField label="Entidad">{c.entidad}</CitaField>}
+                          </CitaBlock>
+                        )}
                         <CitaBlock title="Lugar" icon={MapPin} theme={CITA_THEMES.cuando}>
                           <CitaField label="Lugar">{c.lugar ?? <span className="text-gray-500 italic">Por determinar</span>}</CitaField>
                           {c.cargo && <CitaField label="Cita con">{CARGOS_DIRECTIVOS[c.cargo]}</CitaField>}

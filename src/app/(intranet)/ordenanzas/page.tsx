@@ -3,7 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import OrdenanzasClient from "./OrdenanzasClient";
 import { todayMadrid } from "@/lib/dates";
 import { requireRole } from "@/lib/auth";
-import type { CargoDirectivoClave } from "@/lib/types";
+import type { CargoDirectivoClave, CitaTipo } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +21,7 @@ export default async function OrdenanzasPage() {
   const [{ data: citasRaw }, { data: profesoresRaw }] = await Promise.all([
     admin
       .from("citas_familias")
-      .select("id, codigo, profesor_id, alumno_nombre, alumno_curso, familiar_nombre, familiar_parentesco, hora_inicio, lugar, cargo")
+      .select("id, codigo, profesor_id, tipo, entidad, alumno_nombre, alumno_curso, familiar_nombre, familiar_parentesco, hora_inicio, lugar, cargo")
       .eq("estado", "confirmada")
       .eq("fecha", todayStr)
       .order("hora_inicio", { ascending: true }),
@@ -39,10 +39,12 @@ export default async function OrdenanzasPage() {
     codigo: string;
     profesor_id: string;
     profesor_nombre: string;
-    alumno_nombre: string;
-    alumno_curso: string;
+    tipo: CitaTipo;
+    entidad: string | null;
+    alumno_nombre: string | null;
+    alumno_curso: string | null;
     familiar_nombre: string;
-    familiar_parentesco: string;
+    familiar_parentesco: string | null;
     hora_inicio: string | null;
     lugar: string | null;
     cargo: CargoDirectivoClave | null;

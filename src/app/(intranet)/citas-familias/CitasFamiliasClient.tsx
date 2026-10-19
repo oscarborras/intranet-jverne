@@ -221,7 +221,7 @@ export default function CitasFamiliasClient({ initialCitas, initialDerivadas, us
           )}
           <button
             onClick={() => setShowNueva(true)}
-            aria-label="Registrar mi cita con una familia"
+            aria-label="Registrar mi cita con una familia u otra persona"
             className="flex items-center gap-2 px-4 py-2 min-h-[44px] bg-red-700 text-white rounded-lg text-sm font-medium hover:bg-red-800 transition-colors"
           >
             <Plus className="w-4 h-4" />
@@ -364,14 +364,16 @@ export default function CitasFamiliasClient({ initialCitas, initialDerivadas, us
             </h2>
             {selectedCita && (
               <p className="text-sm text-gray-500 mb-4">
-                {selectedCita.alumno_nombre} · {selectedCita.familiar_nombre}
+                {[selectedCita.alumno_nombre ?? selectedCita.entidad, selectedCita.familiar_nombre].filter(Boolean).join(" · ")}
               </p>
             )}
             {selectedCita?.estado === "confirmada" && (
               <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4">
-                {selectedCita.familiar_email
-                  ? "La familia recibirá un email con la nueva fecha, hora y lugar."
-                  : "Esta familia no tiene email: avísela del cambio por teléfono."}
+                {selectedCita.tipo === "otro"
+                  ? "Avise del cambio a la persona de contacto."
+                  : selectedCita.familiar_email
+                    ? "La familia recibirá un email con la nueva fecha, hora y lugar."
+                    : "Esta familia no tiene email: avísela del cambio por teléfono."}
               </p>
             )}
             <div className="space-y-3">
@@ -460,7 +462,7 @@ export default function CitasFamiliasClient({ initialCitas, initialDerivadas, us
         <div className="fixed inset-0 z-50 bg-black/40 flex items-start justify-center p-4 overflow-y-auto">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-xl my-4">
             <div className="flex items-center justify-between px-6 py-4 bg-red-800 rounded-t-xl">
-              <h2 className="font-bold text-white">Registrar mi cita con una familia</h2>
+              <h2 className="font-bold text-white">Registrar mi cita</h2>
               <button onClick={() => setShowNueva(false)} aria-label="Cerrar" className="p-2 -m-2 text-red-100 hover:text-white">
                 <X className="w-5 h-5" />
               </button>
