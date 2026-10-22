@@ -1,6 +1,7 @@
 import { Clock, ExternalLink } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { getExternalUrls } from "@/lib/externalUrls";
+import { HorariosFrame } from "./HorariosFrame";
 
 export default async function HorariosPage() {
   await requireUser();
@@ -28,12 +29,7 @@ export default async function HorariosPage() {
       </div>
 
       {url ? (
-        <iframe
-          src={url}
-          title="Horarios del centro"
-          className="flex-1 w-full rounded-xl border border-gray-200 bg-white"
-          referrerPolicy="no-referrer"
-        />
+        <HorariosFrame url={url} />
       ) : (
         <div className="bg-white rounded-xl border border-gray-200 p-6 text-sm text-gray-500">
           La web de horarios no está configurada. Un administrador puede indicar su dirección (https) en
