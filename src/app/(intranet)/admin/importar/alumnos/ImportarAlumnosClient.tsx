@@ -306,9 +306,7 @@ export function ImportarAlumnosClient({ alumnos, ultimaImportacion }: Props) {
               titulo="Cómo obtener el fichero CSV"
               items={[
                 "Desde Séneca ir a Alumnado → Listados → Alumnado del Centro.",
-                'Exportar datos como "Hoja Microsoft Excel".',
-                "Abre el archivo con LibreOffice o Microsoft Excel.",
-                "Guárdalo como CSV con codificación Unicode (UTF-8) y delimitador de campo punto y coma (;).",
+                'Exportar datos como "Fichero CSV".',
                 "Sube el archivo CSV a la aplicación.",
               ]}
             />
