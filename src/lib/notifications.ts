@@ -13,22 +13,23 @@ export const NOTIFICATION_CLAVES = {
 } as const;
 
 interface CargoHolderRow {
+  email: string | null;
   profesores: { email: string | null; fecha_cese: string | null } | null;
 }
 
-// Emails of the current (not ceased) holders of the given leadership roles
+// Emails of the given leadership roles with a current (not ceased) holder: the role mailbox when set,
+// otherwise the holder's email
 async function getCargoHolderEmails(supabase: ServerClient, cargos: string[]): Promise<string[]> {
   if (cargos.length === 0) return [];
   const today = todayMadrid();
   const { data } = await supabase
     .from("cargos_directivos")
-    .select("profesores(email, fecha_cese)")
+    .select("email, profesores(email, fecha_cese)")
     .in("cargo", cargos)
     .not("profesor_id", "is", null);
   return ((data ?? []) as unknown as CargoHolderRow[])
-    .map((r) => r.profesores)
-    .filter((p): p is NonNullable<CargoHolderRow["profesores"]> => !!p && (!p.fecha_cese || p.fecha_cese > today))
-    .map((p) => p.email)
+    .filter((r) => !!r.profesores && (!r.profesores.fecha_cese || r.profesores.fecha_cese > today))
+    .map((r) => r.email || r.profesores?.email)
     .filter((e): e is string => !!e);
 }
 

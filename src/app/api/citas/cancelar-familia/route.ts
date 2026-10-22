@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendCanceladaFamiliaEmail } from "@/lib/email";
+import { getEmailCargo } from "@/lib/cargos";
+import { isCargoDirectivo } from "@/lib/types";
 
 const MOTIVO_MAX = 500;
 
@@ -18,7 +20,7 @@ export async function POST(req: NextRequest) {
 
   const { data: cita, error: fetchError } = await supabase
     .from("citas_familias")
-    .select("id, estado, profesor_id, alumno_nombre, familiar_nombre, fecha, hora_inicio")
+    .select("id, estado, profesor_id, cargo, alumno_nombre, familiar_nombre, fecha, hora_inicio")
     .eq("token_familia", token)
     .single();
 
@@ -39,16 +41,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Error al cancelar la cita" }, { status: 500 });
   }
 
-  // profesor_id references profesores.id (not the auth user id), so the email comes from profesores
-  const { data: profesorData } = await supabase
-    .from("profesores")
-    .select("email")
-    .eq("id", cita.profesor_id)
-    .maybeSingle();
+  // Role appointments go to the role mailbox when set. Otherwise profesor_id references
+  // profesores.id (not the auth user id), so the email comes from profesores
+  let destinatarioEmail = isCargoDirectivo(cita.cargo) ? await getEmailCargo(supabase, cita.cargo) : null;
+  if (!destinatarioEmail) {
+    const { data: profesorData } = await supabase
+      .from("profesores")
+      .select("email")
+      .eq("id", cita.profesor_id)
+      .maybeSingle();
+    destinatarioEmail = profesorData?.email ?? null;
+  }
 
-  if (profesorData?.email && process.env.RESEND_API_KEY) {
+  if (destinatarioEmail && process.env.RESEND_API_KEY) {
     await sendCanceladaFamiliaEmail({
-      profesorEmail: profesorData.email,
+      profesorEmail: destinatarioEmail,
       alumnoNombre: cita.alumno_nombre,
       familiarNombre: cita.familiar_nombre,
       fecha: cita.fecha,

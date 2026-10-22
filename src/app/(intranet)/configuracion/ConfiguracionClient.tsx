@@ -58,6 +58,8 @@ const DATE_CLAVES = new Set(["fecha_inicio_asuntos_propios", "fecha_fin_asuntos_
 // Claves that store booleans as "true"/"false"
 const BOOLEAN_CLAVES = new Set(["mostrar_grid_dashboard", "mostrar_grid_dashboard_movil"]);
 
+const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+
 // Claves that render as a <select> with fixed options
 const SELECT_OPTIONS: Record<string, { value: string; label: string; description: string }[]> = {
   modo_gratuidad_libros: [
@@ -180,12 +182,22 @@ export function ConfiguracionClient({ config, perfiles, cargos, profesores }: Pr
   const initialCargos = () => Object.fromEntries(cargos.map((c) => [c.cargo, c.profesor_id ?? ""])) as Record<CargoDirectivoClave, string>;
   const [cargoValues, setCargoValues] = useState<Record<CargoDirectivoClave, string>>(initialCargos);
   const [savedCargos, setSavedCargos] = useState<Record<CargoDirectivoClave, string>>(initialCargos);
+  // Leadership role → role mailbox ("" = emails go to the holder)
+  const initialCargoEmails = () => Object.fromEntries(cargos.map((c) => [c.cargo, c.email ?? ""])) as Record<CargoDirectivoClave, string>;
+  const [cargoEmails, setCargoEmails] = useState<Record<CargoDirectivoClave, string>>(initialCargoEmails);
+  const [savedCargoEmails, setSavedCargoEmails] = useState<Record<CargoDirectivoClave, string>>(initialCargoEmails);
+  const invalidCargoEmails = cargos.filter((c) => cargoEmails[c.cargo].trim() && !EMAIL_RE.test(cargoEmails[c.cargo].trim()));
 
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<"idle" | "success" | "error">("idle");
   const [activeTab, setActiveTab] = useState<Tab>("asuntos_propios");
 
   async function handleSave() {
+    if (invalidCargoEmails.length > 0) {
+      setActiveTab("cargos");
+      setStatus("error");
+      return;
+    }
     setSaving(true);
     setStatus("idle");
 
@@ -201,12 +213,14 @@ export function ConfiguracionClient({ config, perfiles, cargos, profesores }: Pr
         .eq("clave", row.clave);
     });
 
-    // Only roles whose holder changed; existing appointments stay with the previous holder
-    const changedCargos = cargos.filter((c) => cargoValues[c.cargo] !== savedCargos[c.cargo]);
+    // Only roles whose holder or mailbox changed; existing appointments stay with the previous holder
+    const changedCargos = cargos.filter(
+      (c) => cargoValues[c.cargo] !== savedCargos[c.cargo] || cargoEmails[c.cargo].trim() !== savedCargoEmails[c.cargo]
+    );
     const cargoUpdates = changedCargos.map((c) =>
       supabase
         .from("cargos_directivos")
-        .update({ profesor_id: cargoValues[c.cargo] || null, updated_at: now })
+        .update({ profesor_id: cargoValues[c.cargo] || null, email: cargoEmails[c.cargo].trim() || null, updated_at: now })
         .eq("cargo", c.cargo)
     );
 
@@ -214,6 +228,11 @@ export function ConfiguracionClient({ config, perfiles, cargos, profesores }: Pr
     const hasError = results.some((r) => r.error);
     if (!hasError) {
       setSavedCargos(cargoValues);
+      const trimmedEmails = Object.fromEntries(
+        Object.entries(cargoEmails).map(([k, v]) => [k, v.trim()])
+      ) as Record<CargoDirectivoClave, string>;
+      setCargoEmails(trimmedEmails);
+      setSavedCargoEmails(trimmedEmails);
       // Re-render the layout so the side menu picks up changed URLs
       router.refresh();
     }
@@ -555,6 +574,8 @@ export function ConfiguracionClient({ config, perfiles, cargos, profesores }: Pr
     const cardClass = `rounded-lg border border-gray-200 border-l-4 ${accent.cardBorder} bg-gray-50 p-4`;
     return cargos.map((c) => {
       const selectId = `cargo-${c.cargo}`;
+      const emailId = `cargo-email-${c.cargo}`;
+      const emailInvalid = invalidCargoEmails.some((x) => x.cargo === c.cargo);
       const holder = profesores.find((p) => p.id === cargoValues[c.cargo]);
       return (
         <div key={c.cargo} className={cardClass}>
@@ -579,6 +600,26 @@ export function ConfiguracionClient({ config, perfiles, cargos, profesores }: Pr
               Esta persona ya no está en activo: las familias no verán este cargo hasta que asignes a otra.
             </p>
           )}
+          <label htmlFor={emailId} className="block text-xs font-medium text-gray-600 mt-3 mb-1">
+            Email del cargo (opcional)
+          </label>
+          <input
+            id={emailId}
+            type="email"
+            inputMode="email"
+            autoComplete="off"
+            value={cargoEmails[c.cargo]}
+            onChange={(e) => setCargoEmails((v) => ({ ...v, [c.cargo]: e.target.value }))}
+            placeholder="Vacío: se usa el email del titular"
+            aria-invalid={emailInvalid}
+            aria-describedby={`${emailId}-help`}
+            className={`w-full border rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 ${emailInvalid ? "border-red-400" : "border-gray-300"}`}
+          />
+          <p id={`${emailId}-help`} className={`text-xs mt-1.5 ${emailInvalid ? "text-red-600" : "text-gray-500"}`}>
+            {emailInvalid
+              ? "El email no es válido."
+              : "Si lo rellenas, las notificaciones y los avisos de citas de este cargo se envían aquí en lugar de al email del titular."}
+          </p>
         </div>
       );
     });
@@ -647,7 +688,9 @@ export function ConfiguracionClient({ config, perfiles, cargos, profesores }: Pr
           {status === "error" && (
             <span className="flex items-center gap-1.5 text-sm text-red-600">
               <AlertCircle size={16} />
-              Error al guardar. Inténtalo de nuevo.
+              {invalidCargoEmails.length > 0
+                ? "Revisa los emails de los cargos directivos."
+                : "Error al guardar. Inténtalo de nuevo."}
             </span>
           )}
         </div>

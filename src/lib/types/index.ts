@@ -386,6 +386,8 @@ export interface CargoDirectivo {
   cargo: CargoDirectivoClave;
   nombre: string;
   profesor_id: string | null;
+  /** Role mailbox: when set, the role's emails go here instead of the holder's email */
+  email: string | null;
   orden: number;
   updated_at: string;
 }
