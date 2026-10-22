@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
-  parseAlumnosCsv, calcularDiff, CsvFormatError, ETIQUETA_CAMPO,
+  parseAlumnosCsv, calcularDiff, CsvFormatError, ETIQUETA_CAMPO, leerTextoCsv,
   type AlumnoDbRow, type DiffImportacion,
 } from "@/lib/import/alumnos";
 
@@ -39,28 +39,6 @@ function formatFecha(iso: string | null): string {
   return d && m && y ? `${d}/${m}/${y}` : iso;
 }
 
-async function leerTexto(file: File): Promise<string> {
-  const buf = await file.arrayBuffer();
-  const head = new Uint8Array(buf.slice(0, 4));
-
-  if (head[0] === 0xd0 && head[1] === 0xcf) {
-    throw new CsvFormatError(
-      "El fichero es un Excel binario (.xls). Ábrelo con Excel o LibreOffice y guárdalo como CSV (UTF-8, delimitador punto y coma) siguiendo los pasos de esta página."
-    );
-  }
-  if (head[0] === 0x50 && head[1] === 0x4b) {
-    throw new CsvFormatError(
-      "El fichero es un Excel (.xlsx). Ábrelo con Excel o LibreOffice y guárdalo como CSV (UTF-8, delimitador punto y coma) siguiendo los pasos de esta página."
-    );
-  }
-
-  try {
-    return new TextDecoder("utf-8", { fatal: true }).decode(buf);
-  } catch {
-    return new TextDecoder("windows-1252").decode(buf);
-  }
-}
-
 export function ImportarAlumnosClient({ alumnos, ultimaImportacion }: Props) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -83,7 +61,7 @@ export function ImportarAlumnosClient({ alumnos, ultimaImportacion }: Props) {
     setParseError(null);
     setFileName(file.name);
     try {
-      const texto = await leerTexto(file);
+      const texto = await leerTextoCsv(file);
       const filas = parseAlumnosCsv(texto);
       const d = calcularDiff(filas, alumnos);
       setDiff(d);

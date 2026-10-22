@@ -141,7 +141,7 @@ export const ETIQUETA_CAMPO: Record<CampoImportable, string> = {
 
 // ─── CSV parsing ──────────────────────────────────────────────────────────────
 
-function normalize(value: string): string {
+export function normalize(value: string): string {
   return value
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
@@ -152,7 +152,7 @@ function normalize(value: string): string {
     .trim();
 }
 
-function parseCsv(text: string, delimiter: string): string[][] {
+export function parseCsv(text: string, delimiter: string): string[][] {
   const rows: string[][] = [];
   let row: string[] = [];
   let cur = "";
@@ -229,6 +229,32 @@ function findHeader(rows: string[][]): { index: number; map: Partial<Record<Camp
 }
 
 export class CsvFormatError extends Error {}
+
+/**
+ * Reads a CSV picked by the user. Séneca exports may be UTF-8 or Windows-1252
+ * (Latin-1), and users sometimes upload the Excel file instead of the CSV.
+ */
+export async function leerTextoCsv(file: File): Promise<string> {
+  const buf = await file.arrayBuffer();
+  const head = new Uint8Array(buf.slice(0, 4));
+
+  if (head[0] === 0xd0 && head[1] === 0xcf) {
+    throw new CsvFormatError(
+      "El fichero es un Excel binario (.xls). Ábrelo con Excel o LibreOffice y guárdalo como CSV (UTF-8, delimitador punto y coma) siguiendo los pasos de esta página."
+    );
+  }
+  if (head[0] === 0x50 && head[1] === 0x4b) {
+    throw new CsvFormatError(
+      "El fichero es un Excel (.xlsx). Ábrelo con Excel o LibreOffice y guárdalo como CSV (UTF-8, delimitador punto y coma) siguiendo los pasos de esta página."
+    );
+  }
+
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(buf);
+  } catch {
+    return new TextDecoder("windows-1252").decode(buf);
+  }
+}
 
 export function parseAlumnosCsv(text: string): AlumnoCsvRow[] {
   const sinBom = text.replace(/^\ufeff/, "");

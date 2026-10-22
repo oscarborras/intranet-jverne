@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Upload, Database, Briefcase, Users } from "lucide-react";
+import { Upload, Database, Briefcase, Users, UserCheck } from "lucide-react";
 
 interface Entidad {
   slug: string;
@@ -10,6 +10,8 @@ interface Entidad {
   icono: React.ReactNode;
   colorIcono: string;
   colorBoton: string;
+  /** Lookup page, when it isn't /admin/importar/<slug>/consultar */
+  consultarHref?: string;
 }
 
 // Añadir aquí futuras entidades importables (tutores, …)
@@ -31,6 +33,16 @@ const ENTIDADES: Entidad[] = [
     icono: <Users size={20} className="text-blue-600" />,
     colorIcono: "bg-blue-100",
     colorBoton: "bg-blue-600 hover:bg-blue-700",
+  },
+  {
+    slug: "autorizados",
+    nombre: "Autorizados a recoger",
+    descripcion:
+      "Carga las personas autorizadas a recoger al alumnado desde Séneca. Sustituye la lista actual, incluidos los añadidos a mano.",
+    icono: <UserCheck size={20} className="text-emerald-600" />,
+    colorIcono: "bg-emerald-100",
+    colorBoton: "bg-emerald-600 hover:bg-emerald-700",
+    consultarHref: "/autorizados",
   },
 ];
 
@@ -84,7 +96,7 @@ export function ImportarClient() {
                 <Upload size={14} /> Importar
               </Link>
               <Link
-                href={`/admin/importar/${e.slug}/consultar`}
+                href={e.consultarHref ?? `/admin/importar/${e.slug}/consultar`}
                 className="flex items-center gap-1.5 border border-gray-300 text-gray-600 text-sm font-medium px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors"
               >
                 <Database size={14} /> Consultar
