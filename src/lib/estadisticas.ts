@@ -3,12 +3,13 @@ import type { PeticionPrioridad } from "@/lib/types";
 
 // Shared helpers for the request statistics pages (TIC and maintenance)
 
-export type Periodo = "curso" | "90" | "30" | "todo";
+export type Periodo = "curso" | "90" | "30" | "7" | "todo";
 
 export const PERIODOS: { id: Periodo; label: string }[] = [
   { id: "curso", label: "Curso actual" },
   { id: "90", label: "Últimos 90 días" },
   { id: "30", label: "Últimos 30 días" },
+  { id: "7", label: "Últimos 7 días" },
   { id: "todo", label: "Todo" },
 ];
 
@@ -31,6 +32,7 @@ export function periodoStart(periodo: Periodo, todayStr: string): string | null 
   if (periodo === "todo") return null;
   if (periodo === "30") return addDaysToDateStr(todayStr, -30);
   if (periodo === "90") return addDaysToDateStr(todayStr, -90);
+  if (periodo === "7") return addDaysToDateStr(todayStr, -7);
   // School year starts on 1 September
   const [y, m] = todayStr.split("-").map(Number);
   return `${m >= 9 ? y : y - 1}-09-01`;

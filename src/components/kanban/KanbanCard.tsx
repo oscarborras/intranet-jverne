@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, MapPin, User, Users, Clock, Trash2, Camera, EyeOff } from "lucide-react";
+import { ChevronDown, MapPin, User, Users, Clock, Trash2, Camera, EyeOff, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { KanbanItem } from "./KanbanBoard";
 
@@ -140,6 +140,12 @@ export function KanbanCard({ item, allStatuses, currentStatus, onStatusChange, o
           <Clock size={11} />
           <span>{formatDate(item.created_at)}</span>
         </div>
+        {currentStatus === "finalizada" && item.finalizada_at && (
+          <div className="flex items-center gap-1.5 text-xs text-green-700">
+            <CheckCircle2 size={11} />
+            <span>Finalizada: {formatDate(item.finalizada_at)}</span>
+          </div>
+        )}
       </div>
 
       {/* Status change button */}
