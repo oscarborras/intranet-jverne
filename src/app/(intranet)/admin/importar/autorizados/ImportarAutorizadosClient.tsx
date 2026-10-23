@@ -111,10 +111,10 @@ export function ImportarAutorizadosClient({ alumnos, totalActual, manualesActual
                 <Upload size={14} /> Importar otro fichero
               </button>
               <Link
-                href="/autorizados"
+                href="/alumnado"
                 className="flex items-center gap-1.5 border border-gray-300 text-gray-600 text-sm font-medium px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors"
               >
-                <Database size={14} /> Consultar autorizados
+                <Database size={14} /> Consultar en Alumnado
               </Link>
             </div>
           </div>

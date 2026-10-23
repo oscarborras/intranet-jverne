@@ -23,7 +23,6 @@ import {
   BookMarked,
   Upload,
   ScanBarcode,
-  UserCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -54,7 +53,6 @@ const navGroups: NavGroup[] = [
       { label: "Citas con Familias", href: "/citas-familias", icon: <CalendarClock size={18} />, slug: "citas-familias" },
       { label: "Ausencias", href: "/ausencias", icon: <UserX size={18} />, slug: "ausencias" },
       { label: "Alumnado", href: "/alumnado", icon: <GraduationCap size={18} />, slug: "alumnado" },
-      { label: "Autorizados a recoger", href: "/autorizados", icon: <UserCheck size={18} />, slug: "autorizados" },
       { label: "Horarios", href: "/horarios", icon: <Clock size={18} />, urlKey: "horarios" },
     ],
   },
@@ -184,20 +182,6 @@ export function Sidebar({ userRoles, userName, inactiveModuleSlugs, externalUrls
               >
                 <span className="flex-shrink-0"><GraduationCap size={18} /></span>
                 <span>Alumnado</span>
-              </Link>
-            )}
-            {!inactiveModuleSlugs.includes("autorizados") && (
-              <Link
-                href="/autorizados"
-                className={cn(
-                  "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors",
-                  pathname.startsWith("/autorizados")
-                    ? "bg-blue-600 text-white font-medium"
-                    : "text-blue-100 hover:bg-blue-800/60"
-                )}
-              >
-                <span className="flex-shrink-0"><UserCheck size={18} /></span>
-                <span>Autorizados a recoger</span>
               </Link>
             )}
             {externalUrls.horarios && (

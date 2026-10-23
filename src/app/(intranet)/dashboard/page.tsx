@@ -15,7 +15,6 @@ import {
   BookMarked,
   ShieldAlert,
   ScanBarcode,
-  UserCheck,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import type { Anuncio, PeticionTIC, PeticionMantenimiento } from "@/lib/types";
@@ -100,18 +99,10 @@ const moduleCards = [
   {
     slug: "alumnado",
     nombre: "Alumnado",
-    descripcion: "Datos del alumnado y contacto de las familias",
+    descripcion: "Datos del alumnado, contacto de las familias y autorizados a recoger",
     icono: GraduationCap,
     color: "bg-indigo-500",
     href: "/alumnado",
-  },
-  {
-    slug: "autorizados",
-    nombre: "Autorizados a recoger",
-    descripcion: "Personas autorizadas a recoger al alumnado",
-    icono: UserCheck,
-    color: "bg-emerald-600",
-    href: "/autorizados",
   },
   {
     slug: "gratuidad-libros",

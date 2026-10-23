@@ -42,7 +42,7 @@ const ENTIDADES: Entidad[] = [
     icono: <UserCheck size={20} className="text-emerald-600" />,
     colorIcono: "bg-emerald-100",
     colorBoton: "bg-emerald-600 hover:bg-emerald-700",
-    consultarHref: "/autorizados",
+    consultarHref: "/alumnado",
   },
 ];
 

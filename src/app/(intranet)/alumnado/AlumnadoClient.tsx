@@ -4,12 +4,19 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { GraduationCap, Mail, Phone, Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
-  cursoDeUnidad, esBaja, nombreTutor, textoBusqueda, type AlumnoFicha,
+  cursoDeUnidad, esBaja, nombreTutor, textoBusqueda, textoBusquedaConAutorizados, type AlumnoFicha,
 } from "@/lib/alumnado";
+import { autorizadosSinTutores, textoAutorizados, type AutorizadoRecogida } from "@/lib/autorizados";
+import { normalizeText, searchWords } from "@/lib/text";
 import { useTextFilter } from "@/lib/useTextFilter";
+import { AutorizadosFicha } from "./AutorizadosFicha";
 
 interface Props {
-  alumnos: AlumnoFicha[];
+  alumnosIniciales: AlumnoFicha[];
+  /** Show the "Autorizados a recoger" section (module "autorizados") */
+  verAutorizados: boolean;
+  /** Admin / Directiva: add and remove authorised people */
+  puedeGestionarAutorizados: boolean;
 }
 
 /** Results rendered at first; more are added on demand */
@@ -17,8 +24,18 @@ const PASO = 50;
 
 const selectCls = "w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500";
 
-export function AlumnadoClient({ alumnos }: Props) {
+/** Guardians of a student, to hide them from the authorised people (already shown above) */
+function tutoresDe(a: AlumnoFicha) {
+  return [
+    { nombre: a.tutor1_nombre, primer_apellido: a.tutor1_primer_apellido, segundo_apellido: a.tutor1_segundo_apellido },
+    { nombre: a.tutor2_nombre, primer_apellido: a.tutor2_primer_apellido, segundo_apellido: a.tutor2_segundo_apellido },
+  ];
+}
+
+export function AlumnadoClient({ alumnosIniciales, verAutorizados, puedeGestionarAutorizados }: Props) {
+  const [alumnos, setAlumnos] = useState(alumnosIniciales);
   const [busqueda, setBusqueda] = useState("");
+  const [buscarEnAutorizados, setBuscarEnAutorizados] = useState(false);
   const [curso, setCurso] = useState("");
   const [grupo, setGrupo] = useState("");
   const [incluirBajas, setIncluirBajas] = useState(false);
@@ -42,12 +59,39 @@ export function AlumnadoClient({ alumnos }: Props) {
     && (!curso || cursoDeUnidad(a.unidad) === curso)
     && (!grupo || a.unidad === grupo),
   ), [alumnos, incluirBajas, curso, grupo]);
-  const resultados = useTextFilter(porFiltros, textoBusqueda, busqueda);
+  const conAutorizados = verAutorizados && buscarEnAutorizados;
+  const resultados = useTextFilter(porFiltros, conAutorizados ? textoBusquedaConAutorizados : textoBusqueda, busqueda);
+  const palabras = useMemo(() => (conAutorizados ? searchWords(busqueda) : []), [conAutorizados, busqueda]);
 
   // Back to the first page of results whenever the filters change
-  useEffect(() => { setMostrar(PASO); }, [busqueda, curso, grupo, incluirBajas]);
+  useEffect(() => { setMostrar(PASO); }, [busqueda, curso, grupo, incluirBajas, buscarEnAutorizados]);
 
   const hayFiltros = Boolean(busqueda.trim() || curso || grupo);
+
+  // Totals shown when no filter is applied; authorised people counted as in the cards (guardians excluded)
+  const totales = useMemo(() => {
+    const visibles = alumnos.filter((a) => incluirBajas || !esBaja(a));
+    const autorizados = verAutorizados
+      ? visibles.reduce((n, a) => n + autorizadosSinTutores(a.autorizados_recogida ?? [], tutoresDe(a)).length, 0)
+      : 0;
+    return { alumnos: visibles.length, autorizados };
+  }, [alumnos, incluirBajas, verAutorizados]);
+
+  function onAutorizadoAnadido(alumnoId: string, autorizado: AutorizadoRecogida) {
+    setAlumnos((prev) => prev.map((a) => a.id === alumnoId
+      ? {
+        ...a,
+        autorizados_recogida: [...(a.autorizados_recogida ?? []), autorizado]
+          .sort((x, y) => x.nombre.localeCompare(y.nombre, "es")),
+      }
+      : a));
+  }
+
+  function onAutorizadoEliminado(alumnoId: string, autorizadoId: string) {
+    setAlumnos((prev) => prev.map((a) => a.id === alumnoId
+      ? { ...a, autorizados_recogida: (a.autorizados_recogida ?? []).filter((p) => p.id !== autorizadoId) }
+      : a));
+  }
 
   function limpiar() {
     setBusqueda("");
@@ -63,7 +107,11 @@ export function AlumnadoClient({ alumnos }: Props) {
           <GraduationCap size={24} className="text-indigo-600" aria-hidden="true" />
           Alumnado
         </h1>
-        <p className="text-sm text-gray-500 mt-0.5">Datos del alumnado y contacto de las familias.</p>
+        <p className="text-sm text-gray-500 mt-0.5">
+          {verAutorizados
+            ? "Datos del alumnado, contacto de las familias y autorizados a recoger."
+            : "Datos del alumnado y contacto de las familias."}
+        </p>
       </div>
 
       {/* Filters */}
@@ -81,7 +129,7 @@ export function AlumnadoClient({ alumnos }: Props) {
           />
         </div>
         <p className="text-xs text-gray-400">Se buscan todas las palabras, en cualquier orden y sin importar tildes ni mayúsculas. Ej.: «garcia 2 eso».</p>
-        <div className="grid grid-cols-2 lg:grid-cols-[1fr_1fr_auto] gap-2 items-center">
+        <div className={cn("grid grid-cols-2 gap-2 items-center", verAutorizados ? "lg:grid-cols-[1fr_1fr_auto_auto]" : "lg:grid-cols-[1fr_1fr_auto]")}>
           <select
             value={curso}
             onChange={(e) => { setCurso(e.target.value); setGrupo(""); }}
@@ -99,12 +147,18 @@ export function AlumnadoClient({ alumnos }: Props) {
             <input type="checkbox" checked={incluirBajas} onChange={(e) => setIncluirBajas(e.target.checked)} className="w-4 h-4 rounded" />
             Incluir alumnos dados de baja
           </label>
+          {verAutorizados && (
+            <label className="col-span-2 lg:col-span-1 flex items-center gap-2 text-sm text-gray-600 cursor-pointer px-1">
+              <input type="checkbox" checked={buscarEnAutorizados} onChange={(e) => setBuscarEnAutorizados(e.target.checked)} className="w-4 h-4 rounded" />
+              Buscar también en autorizados
+            </label>
+          )}
         </div>
         <div className="flex items-center justify-between pt-1">
           <p className="text-sm text-gray-500" aria-live="polite">
             {hayFiltros
               ? `${resultados.length} ${resultados.length === 1 ? "alumno" : "alumnos"}`
-              : `${alumnos.filter((a) => incluirBajas || !esBaja(a)).length} alumnos en total`}
+              : `${totales.alumnos} alumnos en total${verAutorizados ? ` - ${totales.autorizados} autorizados` : ""}`}
           </p>
           {hayFiltros && (
             <button onClick={limpiar} className="flex items-center gap-1 text-sm text-blue-600 hover:underline">
@@ -130,26 +184,42 @@ export function AlumnadoClient({ alumnos }: Props) {
       ) : (
         <>
           <ul className="grid gap-3 lg:grid-cols-2">
-            {resultados.slice(0, mostrar).map((a) => (
-              <li key={a.id} className={cn("bg-white border border-gray-200 rounded-xl p-4", esBaja(a) && "opacity-75")}>
-                <div className="flex flex-wrap items-start gap-x-3 gap-y-1">
-                  <h2 className="font-semibold text-gray-900 flex-1 min-w-0">{a.alumno}</h2>
-                  {a.unidad && <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">{a.unidad}</span>}
-                  {esBaja(a) && <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">Baja</span>}
-                </div>
-                <dl className="mt-1 text-sm text-gray-600 flex flex-wrap gap-x-4 gap-y-0.5">
-                  {a.unidad && (<div><dt className="inline text-gray-400">Curso: </dt><dd className="inline">{cursoDeUnidad(a.unidad)}</dd></div>)}
-                  {a.edad_matricula && (
-                    <div><dt className="inline text-gray-400">Edad: </dt><dd className="inline" title="Edad en el momento de la matrícula">{a.edad_matricula} años</dd></div>
+            {resultados.slice(0, mostrar).map((a) => {
+              const todos = a.autorizados_recogida ?? [];
+              const autorizados = autorizadosSinTutores(todos, tutoresDe(a));
+              const textoAut = palabras.length > 0 ? normalizeText(textoAutorizados(autorizados)) : "";
+              return (
+                <li key={a.id} className={cn("bg-white border border-gray-200 rounded-xl p-4", esBaja(a) && "opacity-75")}>
+                  <div className="flex flex-wrap items-start gap-x-3 gap-y-1">
+                    <h2 className="font-semibold text-gray-900 flex-1 min-w-0">{a.alumno}</h2>
+                    {a.unidad && <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">{a.unidad}</span>}
+                    {esBaja(a) && <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">Baja</span>}
+                  </div>
+                  <dl className="mt-1 text-sm text-gray-600 flex flex-wrap gap-x-4 gap-y-0.5">
+                    {a.unidad && (<div><dt className="inline text-gray-400">Curso: </dt><dd className="inline">{cursoDeUnidad(a.unidad)}</dd></div>)}
+                    {a.edad_matricula && (
+                      <div><dt className="inline text-gray-400">Edad: </dt><dd className="inline" title="Edad en el momento de la matrícula">{a.edad_matricula} años</dd></div>
+                    )}
+                    {a.nie && (<div><dt className="inline text-gray-400">NIE: </dt><dd className="inline font-mono">{a.nie}</dd></div>)}
+                  </dl>
+                  <div className="mt-3 grid sm:grid-cols-2 gap-3">
+                    <Tutor titulo="Tutor/a 1" nombre={nombreTutor(a, 1)} telefono={a.tutor1_telefono} email={a.tutor1_email} />
+                    <Tutor titulo="Tutor/a 2" nombre={nombreTutor(a, 2)} telefono={a.tutor2_telefono} email={a.tutor2_email} />
+                  </div>
+                  {verAutorizados && (
+                    <AutorizadosFicha
+                      alumnoId={a.id}
+                      autorizados={autorizados}
+                      tutoresAutorizados={todos.length - autorizados.length}
+                      abiertoPorDefecto={palabras.some((w) => textoAut.includes(w))}
+                      puedeGestionar={puedeGestionarAutorizados}
+                      onAnadido={onAutorizadoAnadido}
+                      onEliminado={onAutorizadoEliminado}
+                    />
                   )}
-                  {a.nie && (<div><dt className="inline text-gray-400">NIE: </dt><dd className="inline font-mono">{a.nie}</dd></div>)}
-                </dl>
-                <div className="mt-3 grid sm:grid-cols-2 gap-3">
-                  <Tutor titulo="Tutor/a 1" nombre={nombreTutor(a, 1)} telefono={a.tutor1_telefono} email={a.tutor1_email} />
-                  <Tutor titulo="Tutor/a 2" nombre={nombreTutor(a, 2)} telefono={a.tutor2_telefono} email={a.tutor2_email} />
-                </div>
-              </li>
-            ))}
+                </li>
+              );
+            })}
           </ul>
           {resultados.length > mostrar && (
             <div className="text-center">
