@@ -1,11 +1,14 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { ChevronLeft, ChevronRight, Plus, X, Pencil, Calendar, Lock, LockOpen } from "lucide-react";
+import {
+  ChevronLeft, ChevronRight, Plus, X, Pencil, Calendar, Lock, LockOpen, FileText, Clock, Users, UserCheck,
+} from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { resolveAutorNames } from "@/lib/resolveAutorNames";
 import { GruposSelector } from "@/components/calendar/GruposSelector";
+import { ProfesoresSelector, type ProfesorOpcion } from "@/components/calendar/ProfesoresSelector";
 import type { CalendarEvento, TipoEventoIntranet, AsuntoPropios, DiaBloqueadoAsuntos } from "@/lib/types";
 
 const DAYS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
@@ -51,6 +54,10 @@ interface Props {
   profesores: { id: string; profesor: string }[];
   canManageAsuntos: boolean;
   grupos: string[];
+  /** Every teacher (ceased ones flagged), for the teachers going to an extracurricular activity */
+  profesorOpciones: ProfesorOpcion[];
+  /** profesores.id of the current user, pre-selected as organiser of new activities */
+  myProfesorId: string | null;
 }
 
 interface EventForm {
@@ -63,6 +70,45 @@ interface EventForm {
   hora_inicio: string;
   hora_fin: string;
   grupos: string[];
+  profesores_ids: string[];
+}
+
+/** Error message for the event form, or null when it can be saved */
+function validateEventForm(form: EventForm): string | null {
+  if (!form.titulo.trim()) return "El título es obligatorio.";
+  if (!form.fecha_inicio || !form.fecha_fin) return "Indica la fecha de inicio y de fin.";
+  if (form.fecha_fin < form.fecha_inicio) return "La fecha de fin no puede ser anterior a la de inicio.";
+  if (form.tipo !== EXTRAESCOLAR_TIPO) return null;
+  if (!form.hora_inicio || !form.hora_fin) return "Indica la hora de inicio y de fin de la actividad.";
+  // "YYYY-MM-DD HH:MM" strings compare chronologically
+  if (`${form.fecha_fin} ${form.hora_fin}` <= `${form.fecha_inicio} ${form.hora_inicio}`) {
+    return "La actividad debe terminar después de empezar (revisa fechas y horas).";
+  }
+  if (form.profesores_ids.length === 0) return "Indica al menos un profesor/a que va a la actividad.";
+  return null;
+}
+
+const FIELD_LABEL = "block text-xs font-medium text-gray-600 mb-1";
+const FIELD_INPUT =
+  "w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500";
+
+/** Visible block of the event form: header with icon and title, fields below */
+function FormSection({ icon, title, required, children }: {
+  icon: React.ReactNode;
+  title: string;
+  required?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+      <h3 className="flex items-center gap-2 px-4 py-2.5 bg-blue-50/70 border-b border-gray-200 text-sm font-semibold text-gray-800">
+        <span className="text-blue-600" aria-hidden="true">{icon}</span>
+        {title}
+        {required && <span className="text-red-500">*</span>}
+      </h3>
+      <div className="p-4 space-y-3">{children}</div>
+    </section>
+  );
 }
 
 function formatTime(t: string | null): string {
@@ -86,6 +132,7 @@ function toDateStr(year: number, month: number, day: number) {
 export function CalendarioClient({
   initialEventos, tiposEvento, userId, myDisplayName, canManageEvents, canCreateExtraescolar,
   initialAsuntos, initialBloqueos, maxAsuntosPropios, profesores, canManageAsuntos, grupos,
+  profesorOpciones, myProfesorId,
 }: Props) {
   const canCreateEvents = canManageEvents || canCreateExtraescolar;
   const today = new Date();
@@ -99,8 +146,9 @@ export function CalendarioClient({
   const defaultTipo = tiposEvento[0]?.nombre ?? "";
   const [form, setForm] = useState<EventForm>({
     titulo: "", descripcion: "", fecha_inicio: "", fecha_fin: "", tipo: defaultTipo,
-    todo_el_dia: true, hora_inicio: "", hora_fin: "", grupos: [],
+    todo_el_dia: true, hora_inicio: "", hora_fin: "", grupos: [], profesores_ids: [],
   });
+  const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
@@ -115,6 +163,12 @@ export function CalendarioClient({
   const [motivoBloqueo, setMotivoBloqueo] = useState("");
   const [savingBloqueo, setSavingBloqueo] = useState(false);
   const [confirmUnblock, setConfirmUnblock] = useState(false);
+
+  const esExtraescolarForm = form.tipo === EXTRAESCOLAR_TIPO;
+  const profesorNombre = useMemo(
+    () => new Map(profesorOpciones.map((p) => [p.id, p.profesor])),
+    [profesorOpciones]
+  );
 
   const tipoMap = useMemo(
     () => new Map(tiposEvento.map(t => [t.nombre, t])),
@@ -204,7 +258,9 @@ export function CalendarioClient({
       titulo: "", descripcion: "", fecha_inicio: dateStr, fecha_fin: dateStr,
       tipo: canManageEvents ? defaultTipo : EXTRAESCOLAR_TIPO,
       todo_el_dia: true, hora_inicio: "", hora_fin: "", grupos: [],
+      profesores_ids: myProfesorId ? [myProfesorId] : [],
     });
+    setFormError(null);
     setModalEvento("new");
   }
 
@@ -219,7 +275,9 @@ export function CalendarioClient({
       hora_inicio: formatTime(evento.hora_inicio),
       hora_fin: formatTime(evento.hora_fin),
       grupos: evento.grupos ?? [],
+      profesores_ids: evento.profesores_ids ?? [],
     });
+    setFormError(null);
     setModalEvento(evento);
   }
 
@@ -227,36 +285,57 @@ export function CalendarioClient({
     setModalEvento(null);
     setForm({
       titulo: "", descripcion: "", fecha_inicio: "", fecha_fin: "", tipo: defaultTipo,
-      todo_el_dia: true, hora_inicio: "", hora_fin: "", grupos: [],
+      todo_el_dia: true, hora_inicio: "", hora_fin: "", grupos: [], profesores_ids: [],
     });
+    setFormError(null);
   }
 
   async function handleSave() {
-    if (!form.titulo.trim()) return;
+    const validationError = validateEventForm(form);
+    if (validationError) {
+      setFormError(validationError);
+      return;
+    }
     setSaving(true);
+    setFormError(null);
     const supabase = createClient();
 
-    const timePayload = form.todo_el_dia
+    const esExtraescolar = form.tipo === EXTRAESCOLAR_TIPO;
+    // Extracurricular activities always have start/end times
+    const timePayload = form.todo_el_dia && !esExtraescolar
       ? { todo_el_dia: true, hora_inicio: null, hora_fin: null }
       : { todo_el_dia: false, hora_inicio: form.hora_inicio || null, hora_fin: form.hora_fin || null };
-    // Groups only apply to extracurricular activities
-    const gruposPayload = form.tipo === EXTRAESCOLAR_TIPO ? form.grupos : [];
+    // Groups and teachers only apply to extracurricular activities
+    const extraescolarPayload = {
+      grupos: esExtraescolar ? form.grupos : [],
+      profesores_ids: esExtraescolar ? form.profesores_ids : [],
+    };
 
     if (modalEvento === "new") {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("calendar_eventos")
-        .insert({ titulo: form.titulo, descripcion: form.descripcion, fecha_inicio: form.fecha_inicio, fecha_fin: form.fecha_fin, tipo: form.tipo, grupos: gruposPayload, autor_id: userId, ...timePayload })
+        .insert({ titulo: form.titulo, descripcion: form.descripcion, fecha_inicio: form.fecha_inicio, fecha_fin: form.fecha_fin, tipo: form.tipo, autor_id: userId, ...extraescolarPayload, ...timePayload })
         .select()
         .single();
-      if (data) setEventos((prev) => [...prev, { ...(data as CalendarEvento), autor: { full_name: myDisplayName } }]);
+      if (error || !data) {
+        setFormError("No se ha podido crear el evento. Revisa los datos e inténtalo de nuevo.");
+        setSaving(false);
+        return;
+      }
+      setEventos((prev) => [...prev, { ...(data as CalendarEvento), autor: { full_name: myDisplayName } }]);
     } else if (modalEvento) {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("calendar_eventos")
-        .update({ titulo: form.titulo, descripcion: form.descripcion, fecha_inicio: form.fecha_inicio, fecha_fin: form.fecha_fin, tipo: form.tipo, grupos: gruposPayload, ...timePayload })
+        .update({ titulo: form.titulo, descripcion: form.descripcion, fecha_inicio: form.fecha_inicio, fecha_fin: form.fecha_fin, tipo: form.tipo, ...extraescolarPayload, ...timePayload })
         .eq("id", modalEvento.id)
         .select()
         .single();
-      if (data) setEventos((prev) => prev.map((e) => e.id === modalEvento.id ? { ...(data as CalendarEvento), autor: modalEvento.autor } : e));
+      if (error || !data) {
+        setFormError("No se han podido guardar los cambios. Revisa los datos e inténtalo de nuevo.");
+        setSaving(false);
+        return;
+      }
+      setEventos((prev) => prev.map((e) => e.id === modalEvento.id ? { ...(data as CalendarEvento), autor: modalEvento.autor } : e));
     }
 
     setSaving(false);
@@ -554,6 +633,12 @@ export function CalendarioClient({
                             ))}
                           </ul>
                         )}
+                        {e.profesores_ids?.length > 0 && (
+                          <p className="text-xs text-gray-600 mt-1.5">
+                            <span className="text-gray-400">Profesorado: </span>
+                            {e.profesores_ids.map((id) => profesorNombre.get(id) ?? "—").join(", ")}
+                          </p>
+                        )}
                         <div className="flex items-center gap-2 mt-1.5">
                           <span className={cn("inline-block text-xs px-2 py-0.5 rounded-full", tipoClasses(e.tipo, tipoMap))}>
                             {e.tipo}
@@ -818,116 +903,159 @@ export function CalendarioClient({
       {/* Create / Edit event modal */}
       {modalEvento !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={closeModal}>
-          <div className="bg-white rounded-2xl w-full max-w-md max-h-[90vh] flex flex-col shadow-2xl" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] flex flex-col shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="px-6 py-4 border-b border-gray-100">
               <h2 className="font-semibold text-gray-900">
                 {isEditing ? "Editar evento" : `Nuevo evento — ${newEventDate}`}
               </h2>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Los campos marcados con <span className="text-red-500">*</span> son obligatorios
+              </p>
             </div>
-            <div className="px-6 py-4 space-y-3 overflow-y-auto">
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">Título</label>
-                <input
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Título del evento"
-                  value={form.titulo}
-                  onChange={(e) => setForm((f) => ({ ...f, titulo: e.target.value }))}
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">Descripción (opcional)</label>
-                <textarea
-                  rows={2}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                  placeholder="Descripción del evento , cursos afectados"
-                  value={form.descripcion}
-                  onChange={(e) => setForm((f) => ({ ...f, descripcion: e.target.value }))}
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
+            <div className="px-4 sm:px-6 py-4 space-y-3 overflow-y-auto bg-gray-50/60">
+              <FormSection icon={<FileText size={15} />} title="Datos del evento">
                 <div>
-                  <label className="block text-xs text-gray-500 mb-1">Fecha inicio</label>
+                  <label htmlFor={canManageEvents ? "evento-tipo" : undefined} className={FIELD_LABEL}>Tipo de evento</label>
+                  {canManageEvents ? (
+                    <select
+                      id="evento-tipo"
+                      className={FIELD_INPUT}
+                      value={form.tipo}
+                      onChange={(e) => setForm((f) => ({ ...f, tipo: e.target.value }))}
+                    >
+                      {tiposEvento.map(t => (
+                        <option key={t.id} value={t.nombre}>{t.nombre}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className={cn("w-full border border-gray-200 rounded-lg px-3 py-2 text-sm", tipoClasses(EXTRAESCOLAR_TIPO, tipoMap))}>
+                      {EXTRAESCOLAR_TIPO}
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <label htmlFor="evento-titulo" className={FIELD_LABEL}>
+                    Título<span className="text-red-500"> *</span>
+                  </label>
                   <input
-                    type="date"
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    value={form.fecha_inicio}
-                    onChange={(e) => setForm((f) => ({ ...f, fecha_inicio: e.target.value }))}
+                    id="evento-titulo"
+                    className={FIELD_INPUT}
+                    placeholder="Título del evento"
+                    value={form.titulo}
+                    onChange={(e) => setForm((f) => ({ ...f, titulo: e.target.value }))}
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-500 mb-1">Fecha fin</label>
-                  <input
-                    type="date"
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    value={form.fecha_fin}
-                    min={form.fecha_inicio}
-                    onChange={(e) => setForm((f) => ({ ...f, fecha_fin: e.target.value }))}
+                  <label htmlFor="evento-descripcion" className={FIELD_LABEL}>Descripción (opcional)</label>
+                  <textarea
+                    id="evento-descripcion"
+                    rows={2}
+                    className={cn(FIELD_INPUT, "resize-none")}
+                    placeholder="Detalles del evento"
+                    value={form.descripcion}
+                    onChange={(e) => setForm((f) => ({ ...f, descripcion: e.target.value }))}
                   />
                 </div>
-              </div>
+              </FormSection>
 
-              {/* All-day toggle */}
-              <label className="flex items-center gap-2 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  className="w-4 h-4 rounded accent-blue-600 cursor-pointer"
-                  checked={form.todo_el_dia}
-                  onChange={(e) => setForm((f) => ({ ...f, todo_el_dia: e.target.checked }))}
-                />
-                <span className="text-sm text-gray-700">Todo el día</span>
-              </label>
-
-              {!form.todo_el_dia && (
+              <FormSection icon={<Clock size={15} />} title="Fecha y horario">
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs text-gray-500 mb-1">Hora inicio</label>
+                    <label htmlFor="evento-fecha-inicio" className={FIELD_LABEL}>
+                      Fecha inicio<span className="text-red-500"> *</span>
+                    </label>
                     <input
-                      type="time"
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      value={form.hora_inicio}
-                      onChange={(e) => setForm((f) => ({ ...f, hora_inicio: e.target.value }))}
+                      id="evento-fecha-inicio"
+                      type="date"
+                      className={FIELD_INPUT}
+                      value={form.fecha_inicio}
+                      onChange={(e) => setForm((f) => ({ ...f, fecha_inicio: e.target.value }))}
                     />
                   </div>
                   <div>
-                    <label className="block text-xs text-gray-500 mb-1">Hora fin</label>
+                    <label htmlFor="evento-fecha-fin" className={FIELD_LABEL}>
+                      Fecha fin<span className="text-red-500"> *</span>
+                    </label>
                     <input
-                      type="time"
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      value={form.hora_fin}
-                      onChange={(e) => setForm((f) => ({ ...f, hora_fin: e.target.value }))}
+                      id="evento-fecha-fin"
+                      type="date"
+                      className={FIELD_INPUT}
+                      value={form.fecha_fin}
+                      min={form.fecha_inicio}
+                      onChange={(e) => setForm((f) => ({ ...f, fecha_fin: e.target.value }))}
                     />
                   </div>
                 </div>
-              )}
 
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">Tipo de evento</label>
-                {canManageEvents ? (
-                  <select
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    value={form.tipo}
-                    onChange={(e) => setForm((f) => ({ ...f, tipo: e.target.value }))}
-                  >
-                    {tiposEvento.map(t => (
-                      <option key={t.id} value={t.nombre}>{t.nombre}</option>
-                    ))}
-                  </select>
-                ) : (
-                  <div className={cn("w-full border border-gray-200 rounded-lg px-3 py-2 text-sm", tipoClasses(EXTRAESCOLAR_TIPO, tipoMap))}>
-                    {EXTRAESCOLAR_TIPO}
+                {/* All-day toggle (extracurricular activities always need start/end times) */}
+                {!esExtraescolarForm && (
+                  <label className="flex items-center gap-2 min-h-9 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      className="w-4 h-4 rounded accent-blue-600 cursor-pointer"
+                      checked={form.todo_el_dia}
+                      onChange={(e) => setForm((f) => ({ ...f, todo_el_dia: e.target.checked }))}
+                    />
+                    <span className="text-sm text-gray-700">Todo el día</span>
+                  </label>
+                )}
+
+                {(!form.todo_el_dia || esExtraescolarForm) && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label htmlFor="evento-hora-inicio" className={FIELD_LABEL}>
+                        Hora inicio{esExtraescolarForm && <span className="text-red-500"> *</span>}
+                      </label>
+                      <input
+                        id="evento-hora-inicio"
+                        type="time"
+                        required={esExtraescolarForm}
+                        className={FIELD_INPUT}
+                        value={form.hora_inicio}
+                        onChange={(e) => setForm((f) => ({ ...f, hora_inicio: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="evento-hora-fin" className={FIELD_LABEL}>
+                        Hora fin{esExtraescolarForm && <span className="text-red-500"> *</span>}
+                      </label>
+                      <input
+                        id="evento-hora-fin"
+                        type="time"
+                        required={esExtraescolarForm}
+                        className={FIELD_INPUT}
+                        value={form.hora_fin}
+                        onChange={(e) => setForm((f) => ({ ...f, hora_fin: e.target.value }))}
+                      />
+                    </div>
                   </div>
                 )}
-              </div>
+              </FormSection>
 
-              {form.tipo === EXTRAESCOLAR_TIPO && (
-                <div>
-                  <p className="block text-xs text-gray-500 mb-1">Grupos que participan</p>
+              {esExtraescolarForm && (
+                <FormSection icon={<Users size={15} />} title="Grupos que participan">
                   <GruposSelector
                     grupos={grupos}
                     selected={form.grupos}
                     onChange={(selected) => setForm((f) => ({ ...f, grupos: selected }))}
                   />
-                </div>
+                </FormSection>
+              )}
+
+              {esExtraescolarForm && (
+                <FormSection icon={<UserCheck size={15} />} title="Profesorado que va a la actividad" required>
+                  <ProfesoresSelector
+                    profesores={profesorOpciones}
+                    selected={form.profesores_ids}
+                    onChange={(selected) => setForm((f) => ({ ...f, profesores_ids: selected }))}
+                  />
+                </FormSection>
+              )}
+
+              {formError && (
+                <p role="alert" className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                  {formError}
+                </p>
               )}
             </div>
             <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">

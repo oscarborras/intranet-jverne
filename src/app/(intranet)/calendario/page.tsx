@@ -4,6 +4,7 @@ import { resolveAutorNames } from "@/lib/resolveAutorNames";
 import type { CalendarEvento, TipoEventoIntranet, AsuntoPropios, DiaBloqueadoAsuntos } from "@/lib/types";
 import { todayMadrid, nowMadridParts, monthRange } from "@/lib/dates";
 import { requireAuth } from "@/lib/auth";
+import type { ProfesorOpcion } from "@/components/calendar/ProfesoresSelector";
 
 export default async function CalendarioPage() {
   const { user, roleNames } = await requireAuth();
@@ -20,6 +21,7 @@ export default async function CalendarioPage() {
     { data: configRows },
     { data: bloqueos },
     { data: cursos },
+    { data: profesoresData },
   ] = await Promise.all([
     supabase.from("calendar_eventos").select("*").lte("fecha_inicio", lastDay).gte("fecha_fin", firstDay),
     supabase.from("tipos_eventos_intranet").select("*").eq("activo", true).order("orden"),
@@ -27,6 +29,8 @@ export default async function CalendarioPage() {
     supabase.from("config_intranet").select("clave, valor"),
     supabase.from("dias_bloqueados_asuntos").select("*").gte("fecha", firstDay).lte("fecha", lastDay),
     supabase.from("cursos").select("nombre").not("nombre", "in", "(Guardia,Otros)").order("nombre"),
+    // Every teacher, ceased ones too: names of the teachers going to past activities
+    supabase.from("profesores").select("id, profesor, email, fecha_cese").order("profesor"),
   ]);
 
   const canManageEvents = roleNames.some((r) => ["Admin", "Directiva", "TDE"].includes(r));
@@ -52,15 +56,20 @@ export default async function CalendarioPage() {
     configRows?.find((r) => r.clave === "max_profes_asuntos_propios")?.valor ?? "3"
   ) || 3;
 
-  let profesores: { id: string; profesor: string }[] = [];
-  if (canManageAsuntos) {
-    const { data: profesoresData } = await supabase
-      .from("profesores")
-      .select("id, profesor")
-      .or("fecha_cese.is.null,fecha_cese.gt." + todayStr)
-      .order("profesor");
-    profesores = (profesoresData ?? []) as { id: string; profesor: string }[];
-  }
+  const profesoresTodos = (profesoresData ?? []) as {
+    id: string; profesor: string; email: string | null; fecha_cese: string | null;
+  }[];
+  const profesorOpciones: ProfesorOpcion[] = profesoresTodos.map((p) => ({
+    id: p.id,
+    profesor: p.profesor,
+    activo: p.fecha_cese === null || p.fecha_cese > todayStr,
+  }));
+  const profesores = canManageAsuntos
+    ? profesorOpciones.filter((p) => p.activo).map(({ id, profesor }) => ({ id, profesor }))
+    : [];
+  // The organiser goes to the activity: pre-selected in new events
+  const userEmail = user.email?.toLowerCase();
+  const myProfesorId = profesoresTodos.find((p) => userEmail && p.email?.toLowerCase() === userEmail)?.id ?? null;
 
   return (
     <CalendarioClient
@@ -76,6 +85,8 @@ export default async function CalendarioPage() {
       profesores={profesores}
       canManageAsuntos={canManageAsuntos}
       grupos={(cursos ?? []).map((c) => c.nombre as string)}
+      profesorOpciones={profesorOpciones}
+      myProfesorId={myProfesorId}
     />
   );
 }

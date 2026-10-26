@@ -83,6 +83,7 @@ export interface CalendarEvento {
   todo_el_dia: boolean;
   tipo: string;
   grupos: string[]; // groups taking part (only for extracurricular activities)
+  profesores_ids: string[]; // profesores.id of the teachers going (only for extracurricular activities)
   autor_id: string;
   created_at: string;
   autor?: { full_name: string };

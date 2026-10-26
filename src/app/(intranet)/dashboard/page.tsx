@@ -267,7 +267,7 @@ export default async function DashboardPage() {
       ? supabase.from("peticiones_mantenimiento").select("id, codigo, titulo, estado, prioridad, created_at").eq("autor_id", user.id).not("estado", "in", '("finalizada","rechazada","eliminada")').order("created_at", { ascending: false }).limit(5)
       : Promise.resolve({ data: [] }),
     showCalendario
-      ? supabase.from("calendar_eventos").select("id, titulo, descripcion, fecha_inicio, fecha_fin, todo_el_dia, hora_inicio, hora_fin, grupos").eq("tipo", "Activ. Extraescolar").gte("fecha_inicio", todayStr).lte("fecha_inicio", limitStr).order("fecha_inicio", { ascending: true })
+      ? supabase.from("calendar_eventos").select("id, titulo, descripcion, fecha_inicio, fecha_fin, todo_el_dia, hora_inicio, hora_fin, grupos, profesores_ids").eq("tipo", "Activ. Extraescolar").gte("fecha_inicio", todayStr).lte("fecha_inicio", limitStr).order("fecha_inicio", { ascending: true })
       : Promise.resolve({ data: [] }),
     showCitasFamilias && profesorId && !isOrdenanzaView
       ? supabase.from("citas_familias").select("id, codigo, tipo, entidad, alumno_nombre, alumno_curso, familiar_nombre, fecha, hora_inicio, lugar, estado, cargo").eq("profesor_id", profesorId).in("estado", ["pendiente", "confirmada"]).or(`fecha.is.null,and(fecha.gte.${todayStr},fecha.lte.${citasLimitStr})`).order("fecha", { ascending: true, nullsFirst: true }).order("hora_inicio", { ascending: true }).limit(5)
@@ -460,8 +460,16 @@ export default async function DashboardPage() {
     hora_inicio: string | null;
     hora_fin: string | null;
     grupos: string[] | null;
+    profesores_ids: string[] | null;
   }
   const extraescolares = (extraescolaresResult.data ?? []) as EventoExtraescolar[];
+  const extraescolarProfesorIds = [...new Set(extraescolares.flatMap((e) => e.profesores_ids ?? []))];
+  const { data: profesoresExtraescolares } = extraescolarProfesorIds.length > 0
+    ? await supabase.from("profesores").select("id, profesor").in("id", extraescolarProfesorIds)
+    : { data: [] };
+  const extraescolarProfesorMap: Record<string, string> = Object.fromEntries(
+    (profesoresExtraescolares ?? []).map((p) => [p.id as string, p.profesor as string])
+  );
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -774,6 +782,11 @@ export default async function DashboardPage() {
                                 <li key={g} className="text-xs px-2 py-0.5 rounded-md border border-gray-200 bg-gray-50 text-gray-700">{g}</li>
                               ))}
                             </ul>
+                          )}
+                          {e.profesores_ids && e.profesores_ids.length > 0 && (
+                            <p className="text-xs text-gray-500 mt-1">
+                              Profesorado: {e.profesores_ids.map((id) => extraescolarProfesorMap[id] ?? "—").join(", ")}
+                            </p>
                           )}
                         </div>
                       </div>
