@@ -242,6 +242,8 @@ function GuardiaView({ initial, initialFecha, tramos, refreshKey, canManage, onE
   const displayedAusencias = filterMode === "current" && isToday && currentTramo
     ? ausencias.filter((a) => a.tramo_id === currentTramo.id)
     : ausencias;
+  // Whole day, regardless of the slot filter: one teacher may be absent in several slots
+  const profesoresAusentes = new Set(ausencias.map((a) => a.profesor_id)).size;
 
   return (
     <div className="space-y-4">
@@ -263,12 +265,21 @@ function GuardiaView({ initial, initialFecha, tramos, refreshKey, canManage, onE
           ? <Loader2 size={15} className="animate-spin text-gray-400" />
           : <span className="text-xs text-gray-400">Actualizado a las {lastUpdated.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}</span>
         }
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2 flex-wrap justify-end">
           {!loading && displayedAusencias.length > 0 ? (
-            <span className="inline-flex items-center gap-1.5 bg-amber-50 border border-amber-200 text-amber-800 text-sm font-semibold px-3 py-1 rounded-full">
-              <UserX size={13} className="text-amber-500" />
-              {displayedAusencias.length} {displayedAusencias.length === 1 ? "ausencia" : "ausencias"}
-            </span>
+            <>
+              <span className="inline-flex items-center gap-1.5 bg-amber-50 border border-amber-200 text-amber-800 text-sm font-semibold px-3 py-1 rounded-full">
+                <UserX size={13} className="text-amber-500" />
+                {displayedAusencias.length} {displayedAusencias.length === 1 ? "ausencia" : "ausencias"}
+              </span>
+              <span
+                className="inline-flex items-center gap-1.5 bg-violet-50 border border-violet-200 text-violet-800 text-sm font-semibold px-3 py-1 rounded-full"
+                title="Profesorado distinto con alguna ausencia en el día seleccionado"
+              >
+                <Users size={13} className="text-violet-500" />
+                {profesoresAusentes} {profesoresAusentes === 1 ? "profesor/a falta" : "profesores faltan"}
+              </span>
+            </>
           ) : !loading ? (
             <span className="inline-flex items-center gap-1.5 bg-green-50 border border-green-200 text-green-700 text-sm font-semibold px-3 py-1 rounded-full">
               <CheckCircle2 size={13} className="text-green-500" />
