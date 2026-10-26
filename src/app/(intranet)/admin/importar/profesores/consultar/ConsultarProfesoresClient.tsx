@@ -6,10 +6,12 @@ import { ArrowLeft, Search, X, Upload, MailX } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ProfesorDbRow } from "@/lib/import/profesores";
 import { todayMadrid } from "@/lib/dates";
+import { formatUltimaImportacion } from "@/lib/import/ultimaImportacion";
 import { useTextFilter } from "@/lib/useTextFilter";
 
 interface Props {
   profesores: ProfesorDbRow[];
+  ultimaImportacion: string | null;
 }
 
 type Filtro = "activos" | "cesados" | "todos";
@@ -22,7 +24,7 @@ function formatFecha(iso: string | null): string {
   return d && m && y ? `${d}/${m}/${y}` : iso;
 }
 
-export function ConsultarProfesoresClient({ profesores }: Props) {
+export function ConsultarProfesoresClient({ profesores, ultimaImportacion }: Props) {
   const [filtro, setFiltro] = useState<Filtro>("activos");
   const [soloSinEmail, setSoloSinEmail] = useState(false);
   const [busqueda, setBusqueda] = useState("");
@@ -51,6 +53,9 @@ export function ConsultarProfesoresClient({ profesores }: Props) {
             <h1 className="text-xl font-bold text-gray-900">Listado de profesores</h1>
             <p className="text-sm text-gray-500">
               {activos} activos de {profesores.length} registrados
+            </p>
+            <p className="text-xs text-gray-400">
+              Última actualización: {formatUltimaImportacion(ultimaImportacion)}
             </p>
           </div>
           <Link

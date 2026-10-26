@@ -5,17 +5,19 @@ import Link from "next/link";
 import { ArrowLeft, Search, X, Upload, Users2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { AlumnoDbRow } from "@/lib/import/alumnos";
+import { formatUltimaImportacion } from "@/lib/import/ultimaImportacion";
 import { useTextFilter } from "@/lib/useTextFilter";
 
 interface Props {
   alumnos: AlumnoDbRow[];
+  ultimaImportacion: string | null;
 }
 
 type Filtro = "activos" | "bajas" | "todos";
 
 const textoAlumno = (a: AlumnoDbRow) => `${a.alumno} ${a.unidad} ${a.nie ?? ""}`;
 
-export function ConsultarAlumnosClient({ alumnos }: Props) {
+export function ConsultarAlumnosClient({ alumnos, ultimaImportacion }: Props) {
   const [filtro, setFiltro] = useState<Filtro>("activos");
   const [soloSinUnidad, setSoloSinUnidad] = useState(false);
   const [busqueda, setBusqueda] = useState("");
@@ -43,6 +45,9 @@ export function ConsultarAlumnosClient({ alumnos }: Props) {
             <h1 className="text-xl font-bold text-gray-900">Listado de alumnos</h1>
             <p className="text-sm text-gray-500">
               {activos} activos de {alumnos.length} registrados
+            </p>
+            <p className="text-xs text-gray-400">
+              Última actualización: {formatUltimaImportacion(ultimaImportacion)}
             </p>
           </div>
           <Link

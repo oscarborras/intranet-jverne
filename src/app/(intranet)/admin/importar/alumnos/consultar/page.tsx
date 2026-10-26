@@ -2,6 +2,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { ConsultarAlumnosClient } from "./ConsultarAlumnosClient";
 import type { AlumnoDbRow } from "@/lib/import/alumnos";
 import { requireRole } from "@/lib/auth";
+import { getUltimasImportaciones } from "@/lib/import/ultimaImportacion";
 
 export const metadata = { title: "Listado de alumnos" };
 
@@ -11,7 +12,15 @@ export default async function ConsultarAlumnosPage() {
   await requireRole(["Admin"]);
 
   const admin = createAdminClient();
-  const { data } = await admin.from("alumnos").select(COLUMNAS_ALUMNO).order("alumno");
+  const [{ data }, { alumnos: ultimaImportacion }] = await Promise.all([
+    admin.from("alumnos").select(COLUMNAS_ALUMNO).order("alumno"),
+    getUltimasImportaciones(admin, ["alumnos"]),
+  ]);
 
-  return <ConsultarAlumnosClient alumnos={(data ?? []) as AlumnoDbRow[]} />;
+  return (
+    <ConsultarAlumnosClient
+      alumnos={(data ?? []) as AlumnoDbRow[]}
+      ultimaImportacion={ultimaImportacion ?? null}
+    />
+  );
 }

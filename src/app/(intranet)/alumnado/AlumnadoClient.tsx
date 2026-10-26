@@ -7,6 +7,7 @@ import {
   cursoDeUnidad, esBaja, nombreTutor, textoBusqueda, textoBusquedaConAutorizados, type AlumnoFicha,
 } from "@/lib/alumnado";
 import { autorizadosSinTutores, textoAutorizados, type AutorizadoRecogida } from "@/lib/autorizados";
+import { formatUltimaImportacion, type UltimasImportaciones } from "@/lib/import/ultimaImportacion";
 import { normalizeText, searchWords } from "@/lib/text";
 import { useTextFilter } from "@/lib/useTextFilter";
 import { AutorizadosFicha } from "./AutorizadosFicha";
@@ -17,6 +18,7 @@ interface Props {
   verAutorizados: boolean;
   /** Admin / Directiva: add and remove authorised people */
   puedeGestionarAutorizados: boolean;
+  ultimasImportaciones: UltimasImportaciones;
 }
 
 /** Results rendered at first; more are added on demand */
@@ -32,7 +34,7 @@ function tutoresDe(a: AlumnoFicha) {
   ];
 }
 
-export function AlumnadoClient({ alumnosIniciales, verAutorizados, puedeGestionarAutorizados }: Props) {
+export function AlumnadoClient({ alumnosIniciales, verAutorizados, puedeGestionarAutorizados, ultimasImportaciones }: Props) {
   const [alumnos, setAlumnos] = useState(alumnosIniciales);
   const [busqueda, setBusqueda] = useState("");
   const [buscarEnAutorizados, setBuscarEnAutorizados] = useState(false);
@@ -111,6 +113,12 @@ export function AlumnadoClient({ alumnosIniciales, verAutorizados, puedeGestiona
           {verAutorizados
             ? "Datos del alumnado, contacto de las familias y autorizados a recoger."
             : "Datos del alumnado y contacto de las familias."}
+        </p>
+        <p className="text-xs text-gray-400 mt-0.5">
+          Última actualización del alumnado: {formatUltimaImportacion(ultimasImportaciones.alumnos)}
+          {verAutorizados && (
+            <> · Autorizados a recoger: {formatUltimaImportacion(ultimasImportaciones.autorizados)}</>
+          )}
         </p>
       </div>
 
