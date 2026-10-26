@@ -594,7 +594,7 @@ function TutorialAusencias() {
         </div>
         <div className="flex-1 pb-1">
           <p className="font-medium text-gray-900 text-sm mb-1">Añade observaciones y registra la ausencia</p>
-          <p className="text-sm text-gray-500 mb-3">En <strong className="text-gray-700">Observaciones</strong> puedes dejar información para el profesorado de guardia, común a todos los tramos. Pulsa <strong className="text-gray-700">Registrar ausencia</strong>: se crea una ausencia por cada tramo y Dirección (y los perfiles configurados para este aviso) recibe un email con las tareas.</p>
+          <p className="text-sm text-gray-500 mb-3">En <strong className="text-gray-700">Observaciones</strong> puedes dejar información para el profesorado de guardia, común a todos los tramos. Indica también el <strong className="text-gray-700">Motivo</strong> (cita médica, enfermedad, excursión o asuntos propios), que es obligatorio y privado, solo lo ves tú y Dirección, y no aparece en la vista de guardia ni en el email. Pulsa <strong className="text-gray-700">Registrar ausencia</strong>: se crea una ausencia por cada tramo y Dirección (y los perfiles configurados para este aviso) recibe un email con las tareas.</p>
           <div className="bg-gray-50 rounded-lg border border-gray-100 p-3 max-w-xs">
             <div className="flex items-center gap-2 mb-2"><Mail size={11} className="text-gray-400" /><span className="text-[10px] text-gray-500">Para: Dirección</span></div>
             <p className="text-[11px] text-gray-700 font-medium mb-1">Ausencia registrada · IES Julio Verne</p>

@@ -3,6 +3,7 @@ import { AusenciasClient } from "./AusenciasClient";
 import type { AusenciaProfesorado, TramoHorario, Curso } from "@/lib/types";
 import { todayMadrid, addDaysToDateStr } from "@/lib/dates";
 import { requireRole } from "@/lib/auth";
+import { AUSENCIA_SELECT, AUSENCIA_SELECT_CON_MOTIVO } from "@/lib/ausencias";
 
 export default async function AusenciasPage() {
   const { user, roleNames } = await requireRole(["Admin", "Directiva", "Guardia", "Profesor"]);
@@ -39,7 +40,7 @@ export default async function AusenciasPage() {
   if (myProfesorId) {
     const { data: rawMisAusencias } = await supabase
       .from("ausencias_profesorado")
-      .select("*, tramos_horarios(id, nombre, hora_inicio, hora_fin, es_recreo, orden), cursos(id, nombre, email_tutor)")
+      .select(AUSENCIA_SELECT_CON_MOTIVO)
       .eq("profesor_id", myProfesorId)
       .gte("fecha", sinceStr)
       .order("fecha", { ascending: false });
@@ -56,7 +57,8 @@ export default async function AusenciasPage() {
     const today = todayMadrid();
     const { data: rawGuardia } = await supabase
       .from("ausencias_profesorado")
-      .select("*, tramos_horarios(id, nombre, hora_inicio, hora_fin, es_recreo, orden), cursos(id, nombre, email_tutor)")
+      // The reason is only shown in this view to Directiva/Admin
+      .select<string, AusenciaProfesorado>(canManageAll ? AUSENCIA_SELECT_CON_MOTIVO : AUSENCIA_SELECT)
       .eq("fecha", today)
       .eq("estado", "activa")
       .order("tramo_id");

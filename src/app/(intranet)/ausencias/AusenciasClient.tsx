@@ -4,12 +4,13 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import {
   UserX, Plus, X, ChevronDown, ChevronUp, ChevronLeft, ChevronRight,
   Calendar, Clock, BookOpen, MapPin, AlertCircle,
-  Loader2, ShieldCheck, Users, CheckCircle2, Paperclip, Download, Edit2,
+  Loader2, ShieldCheck, Users, CheckCircle2, Paperclip, Download, Edit2, Lock,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
-import type { AusenciaProfesorado, TramoHorario, Curso } from "@/lib/types";
+import type { AusenciaProfesorado, AusenciaMotivo, TramoHorario, Curso } from "@/lib/types";
 import { todayMadrid } from "@/lib/dates";
+import { AUSENCIA_MOTIVOS, AUSENCIA_SELECT, AUSENCIA_SELECT_CON_MOTIVO, ausenciaMotivoLabel } from "@/lib/ausencias";
 
 interface Profesor {
   id: string;
@@ -49,6 +50,7 @@ const EMPTY_FORM = {
   aula: "",
   tareas: "",
   observaciones: "",
+  motivo: "" as AusenciaMotivo | "",
 };
 
 function getTramoPositionLabel(tramo: TramoHorario, allTramos: TramoHorario[]): string {
@@ -88,6 +90,17 @@ function BadgeEstado({ estado }: { estado: string }) {
 }
 
 // ─── Download button ──────────────────────────────────────────────────────────
+
+function BadgeMotivo({ motivo }: { motivo: AusenciaMotivo }) {
+  return (
+    <span
+      className="inline-flex items-center gap-1 text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full"
+      title="Motivo privado: solo lo ven la persona ausente y Dirección"
+    >
+      <Lock size={10} aria-hidden="true" /> {ausenciaMotivoLabel(motivo)}
+    </span>
+  );
+}
 
 function DownloadButton({ path, nombre }: { path: string; nombre: string }) {
   const [loading, setLoading] = useState(false);
@@ -176,7 +189,8 @@ function GuardiaView({ initial, initialFecha, tramos, refreshKey, canManage, onE
     const supabase = createClient();
     const { data: rows } = await supabase
       .from("ausencias_profesorado")
-      .select("*, tramos_horarios(id, nombre, hora_inicio, hora_fin, es_recreo, orden), cursos(id, nombre, email_tutor)")
+      // The reason is only shown in this view to Directiva/Admin
+      .select<string, AusenciaProfesorado>(canManage ? AUSENCIA_SELECT_CON_MOTIVO : AUSENCIA_SELECT)
       .eq("fecha", f)
       .eq("estado", "activa")
       .order("tramo_id");
@@ -200,7 +214,7 @@ function GuardiaView({ initial, initialFecha, tramos, refreshKey, canManage, onE
     }
     setLoading(false);
     setLastUpdated(new Date());
-  }, []);
+  }, [canManage]);
 
   // Auto-refresh every 2 minutes
   useEffect(() => {
@@ -336,6 +350,9 @@ function GuardiaView({ initial, initialFecha, tramos, refreshKey, canManage, onE
                   <tr key={a.id} className="hover:bg-gray-50/50 transition-colors">
                     <td className="px-4 py-3 font-medium text-gray-900">
                       {a.profesor?.full_name ?? "—"}
+                      {canManage && a.ausencias_motivos && (
+                        <div className="mt-1"><BadgeMotivo motivo={a.ausencias_motivos.motivo} /></div>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-gray-600">
                       <div className="text-sm">{a.tramos_horarios?.nombre ?? "—"}</div>
@@ -384,6 +401,7 @@ function GuardiaView({ initial, initialFecha, tramos, refreshKey, canManage, onE
                   <span className="flex items-center gap-1 bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">
                     <Clock size={11} /> {a.tramos_horarios?.nombre}
                   </span>
+                  {canManage && a.ausencias_motivos && <BadgeMotivo motivo={a.ausencias_motivos.motivo} />}
                   {a.cursos?.nombre && (
                     <span className="flex items-center gap-1 bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full">
                       <Users size={11} /> {a.cursos.nombre}
@@ -499,6 +517,7 @@ export function AusenciasClient({
       aula: a.aula ?? "",
       tareas: a.tareas ?? "",
       observaciones: a.observaciones ?? "",
+      motivo: a.ausencias_motivos?.motivo ?? "",
     });
     setAdjunto(null);
     setRemoveAdjunto(false);
@@ -516,10 +535,11 @@ export function AusenciasClient({
 
   async function handleSaveEdit() {
     if (!editing) return;
-    if (!form.fecha || !form.tramo_id || !form.curso_id) {
-      setFormError("Fecha, tramo y curso / grupo son obligatorios.");
+    if (!form.fecha || !form.tramo_id || !form.curso_id || !form.motivo) {
+      setFormError("Fecha, tramo, curso / grupo y motivo son obligatorios.");
       return;
     }
+    const motivo = form.motivo;
     setSaving(true);
     setFormError(null);
 
@@ -553,6 +573,7 @@ export function AusenciasClient({
         aula: form.aula || null,
         tareas: form.tareas || null,
         observaciones: form.observaciones || null,
+        motivo,
         adjunto_path,
         adjunto_nombre,
       }),
@@ -577,6 +598,7 @@ export function AusenciasClient({
       aula: form.aula || null,
       tareas: form.tareas || null,
       observaciones: form.observaciones || null,
+      ausencias_motivos: { motivo },
       adjunto_path,
       adjunto_nombre,
       tramos_horarios: tramo,
@@ -609,6 +631,11 @@ export function AusenciasClient({
       setFormError("Selecciona el profesor/a al que corresponde la ausencia.");
       return;
     }
+    if (!form.motivo) {
+      setFormError("Indica el motivo de la ausencia.");
+      return;
+    }
+    const motivo = form.motivo;
 
     setSaving(true);
     setFormError(null);
@@ -664,6 +691,7 @@ export function AusenciasClient({
       body: JSON.stringify({
         fecha: form.fecha,
         observaciones: form.observaciones || null,
+        motivo,
         profesor_id: targetProfesorId,
         tramos: tramosPayload,
       }),
@@ -695,6 +723,7 @@ export function AusenciasClient({
         aula: t.aula,
         tareas: t.tareas,
         observaciones: form.observaciones || null,
+        ausencias_motivos: { motivo },
         adjunto_path: t.adjunto_path,
         adjunto_nombre: t.adjunto_nombre,
         estado: "activa",
@@ -1137,6 +1166,28 @@ export function AusenciasClient({
                   </>
                 )}
 
+                {/* Motivo: private, only the absent teacher and Directiva/Admin can see it */}
+                <div>
+                  <label htmlFor="ausencia-motivo" className="block text-xs font-semibold text-gray-600 mb-1">
+                    Motivo <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    id="ausencia-motivo"
+                    value={form.motivo}
+                    onChange={(e) => setForm((f) => ({ ...f, motivo: e.target.value as AusenciaMotivo | "" }))}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white"
+                  >
+                    <option value="">Selecciona un motivo</option>
+                    {AUSENCIA_MOTIVOS.map((m) => (
+                      <option key={m.value} value={m.value}>{m.label}</option>
+                    ))}
+                  </select>
+                  <p className="flex items-center gap-1 text-[11px] text-gray-400 mt-1">
+                    <Lock size={10} aria-hidden="true" />
+                    Solo lo verán la persona ausente y Dirección; no aparece en la vista de guardia.
+                  </p>
+                </div>
+
                 <div className="flex justify-end gap-2 pt-1">
                   <button
                     onClick={closeForm}
@@ -1235,6 +1286,7 @@ export function AusenciasClient({
                           {a.cursos && (
                             <span className="text-xs text-gray-500">{a.cursos.nombre}</span>
                           )}
+                          {a.ausencias_motivos && <BadgeMotivo motivo={a.ausencias_motivos.motivo} />}
                         </div>
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0">

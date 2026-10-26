@@ -4,6 +4,8 @@ import { sendAusenciaRegistradaEmail } from "@/lib/email";
 import { getNotificationEmails, NOTIFICATION_CLAVES } from "@/lib/notifications";
 import { nowMadridParts } from "@/lib/dates";
 import { authorizeApi } from "@/lib/auth";
+import { isAusenciaMotivo } from "@/lib/ausencias";
+import type { AusenciaMotivo } from "@/lib/types";
 
 interface TramoInput {
   tramo_id: number;
@@ -17,6 +19,8 @@ interface TramoInput {
 interface CrearAusenciasBody {
   fecha: string;
   observaciones: string | null;
+  /** Private reason, shared by every slot (only the owner and Directiva/Admin can read it) */
+  motivo: AusenciaMotivo;
   profesor_id?: string | null;
   /** One absence per time slot; all share the same date and teacher */
   tramos: TramoInput[];
@@ -35,6 +39,9 @@ export async function POST(req: NextRequest) {
   }
   if (body.tramos.some((t) => !t.tramo_id || !t.curso_id)) {
     return NextResponse.json({ error: "Cada tramo necesita tramo y curso / grupo" }, { status: 400 });
+  }
+  if (!isAusenciaMotivo(body.motivo)) {
+    return NextResponse.json({ error: "Indica un motivo válido" }, { status: 400 });
   }
 
   // Look up current user's profesores.id
@@ -88,6 +95,18 @@ export async function POST(req: NextRequest) {
   await Promise.all(
     creadas.map((a) => supabase.from("ausencias_profesorado").update({ codigo: a.codigo }).eq("id", a.id))
   );
+
+  const { error: motivoError } = await supabase
+    .from("ausencias_motivos")
+    .insert(creadas.map((a) => ({ ausencia_id: a.id, motivo: body.motivo })));
+  if (motivoError) {
+    // The reason is mandatory: don't leave active absences without it (rows can't be deleted, so cancel them)
+    await supabase
+      .from("ausencias_profesorado")
+      .update({ estado: "cancelada", updated_at: new Date().toISOString() })
+      .in("id", creadas.map((a) => a.id));
+    return NextResponse.json({ error: `No se pudo guardar el motivo: ${motivoError.message}` }, { status: 500 });
+  }
 
   // Resolve names for the email
   const tramoIds = [...new Set(creadas.map((a) => a.tramo_id as number))];

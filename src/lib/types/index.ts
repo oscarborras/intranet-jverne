@@ -323,6 +323,7 @@ export interface Profesor {
 // ─── Absences ────────────────────────────────────────────────────────────────
 
 export type AusenciaEstado = "activa" | "cancelada";
+export type AusenciaMotivo = "cita_medica" | "enfermedad" | "excursion" | "asuntos_propios";
 
 export interface AusenciaProfesorado {
   id: number;
@@ -342,6 +343,8 @@ export interface AusenciaProfesorado {
   tramos_horarios?: TramoHorario;
   cursos?: Curso | null;
   profesor?: { full_name: string };
+  /** Embedded from ausencias_motivos; RLS returns null unless the user is the owner or Directiva/Admin */
+  ausencias_motivos?: { motivo: AusenciaMotivo } | null;
 }
 
 // ─── Family Appointments ─────────────────────────────────────────────────────
