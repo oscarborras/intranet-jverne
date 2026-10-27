@@ -242,8 +242,8 @@ function GuardiaView({ initial, initialFecha, tramos, refreshKey, canManage, onE
   const displayedAusencias = filterMode === "current" && isToday && currentTramo
     ? ausencias.filter((a) => a.tramo_id === currentTramo.id)
     : ausencias;
-  // Whole day, regardless of the slot filter: one teacher may be absent in several slots
-  const profesoresAusentes = new Set(ausencias.map((a) => a.profesor_id)).size;
+  // Distinct teachers in the displayed list: one teacher may be absent in several slots
+  const profesoresAusentes = new Set(displayedAusencias.map((a) => a.profesor_id)).size;
 
   return (
     <div className="space-y-4">
@@ -274,7 +274,9 @@ function GuardiaView({ initial, initialFecha, tramos, refreshKey, canManage, onE
               </span>
               <span
                 className="inline-flex items-center gap-1.5 bg-violet-50 border border-violet-200 text-violet-800 text-sm font-semibold px-3 py-1 rounded-full"
-                title="Profesorado distinto con alguna ausencia en el día seleccionado"
+                title={displayedAusencias === ausencias
+                  ? "Profesorado distinto con alguna ausencia en el día seleccionado"
+                  : "Profesorado distinto con ausencia en el tramo actual"}
               >
                 <Users size={13} className="text-violet-500" />
                 {profesoresAusentes} {profesoresAusentes === 1 ? "profesor/a falta" : "profesores faltan"}
