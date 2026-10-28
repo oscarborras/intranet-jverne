@@ -46,3 +46,8 @@ export function monthRange(year: number, month: number): { firstDay: string; las
 export function dateStrMadrid(iso: string): string {
   return ymdFormatter.format(new Date(iso));
 }
+
+/** Madrid calendar date of an ISO timestamp as "DD/MM/YYYY". */
+export function formatDateMadrid(iso: string): string {
+  return new Date(iso).toLocaleDateString("es-ES", { timeZone: APP_TIMEZONE, day: "2-digit", month: "2-digit", year: "numeric" });
+}

@@ -8,7 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { ilikePatterns } from "@/lib/text";
 import { useTextFilter } from "@/lib/useTextFilter";
-import { todayMadrid } from "@/lib/dates";
+import { formatDateMadrid, todayMadrid } from "@/lib/dates";
 import { Modal } from "@/components/gratuidad-v2/Modal";
 import { ScannerInput, type ScannerInputHandle } from "@/components/gratuidad-v2/ScannerInput";
 import { CameraScanner } from "@/components/gratuidad-v2/CameraScanner";
@@ -741,7 +741,11 @@ export function EntregaClient({ grupos, lotePorGrupo, titulosDiversificacion, cu
                         )}
                         {ok && (
                           <span className="text-right">
-                            <span className="block font-mono text-xs text-gray-500">{entregas.map((e) => e.ejemplar?.codigo).join(", ")}</span>
+                            {entregas.map((e) => (
+                              <span key={e.id} className="block text-xs text-gray-500">
+                                <span className="font-mono">{e.ejemplar?.codigo}</span> · {formatDateMadrid(e.fecha_entrega)}
+                              </span>
+                            ))}
                             {entregas.some((e) => e.curso_escolar !== cursoEscolar) && (
                               <button
                                 onClick={() => renovar(entregas.filter((e) => e.curso_escolar !== cursoEscolar))}
@@ -771,7 +775,10 @@ export function EntregaClient({ grupos, lotePorGrupo, titulosDiversificacion, cu
                             {p.ejemplar?.titulo?.titulo}
                             {p.ejemplar && esDiversificacion.has(p.ejemplar.titulo_id) && <DiversificacionBadge className="ml-1.5 align-middle" />}
                           </span>
-                          <span className="font-mono text-xs text-gray-500">{p.ejemplar?.codigo}</span>
+                          <span className="text-right text-xs text-gray-500">
+                            <span className="block font-mono">{p.ejemplar?.codigo}</span>
+                            {formatDateMadrid(p.fecha_entrega)}
+                          </span>
                         </li>
                       ))}
                     </ul>

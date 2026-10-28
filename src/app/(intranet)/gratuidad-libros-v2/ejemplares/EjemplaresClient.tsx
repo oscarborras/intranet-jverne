@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Modal } from "@/components/gratuidad-v2/Modal";
 import { descargarCsv } from "@/lib/gratuidadV2/exportar";
 import { ilikePatterns } from "@/lib/text";
+import { formatDateMadrid } from "@/lib/dates";
 import { ConservacionText, DiversificacionBadge, SituacionBadge } from "@/components/gratuidad-v2/Badges";
 import {
   ETIQUETAS_CONSERVACION, ETIQUETAS_SITUACION, MENSAJES_ERROR_V2, MENSAJES_NO_ELIMINADO_V2,
@@ -91,7 +92,8 @@ export function EjemplaresClient({ titulos, grupos, canManage }: Props) {
     const alumnoJoin = filtros.grupo || porAlumno ? "alumno:alumnos!inner(alumno, unidad)" : "alumno:alumnos(alumno, unidad)";
     let q = supabase
       .from("gplv2_ejemplares")
-      .select(`*, titulo:gplv2_titulos(titulo, asignatura, diversificacion), ${alumnoJoin}`, withCount ? { count: "exact" } : undefined);
+      .select(`*, titulo:gplv2_titulos(titulo, asignatura, diversificacion), ${alumnoJoin}, prestamo:gplv2_prestamos(fecha_entrega)`, withCount ? { count: "exact" } : undefined)
+      .is("prestamo.fecha_devolucion", null);
     if (filtros.titulo) q = q.eq("titulo_id", filtros.titulo);
     if (filtros.situacion) q = q.eq("situacion", filtros.situacion);
     if (filtros.conservacion) q = q.eq("conservacion", filtros.conservacion);
@@ -163,11 +165,11 @@ export function EjemplaresClient({ titulos, grupos, canManage }: Props) {
     }
     descargarCsv(
       "ejemplares_gratuidad_v2.csv",
-      ["Código", "Título", "Asignatura", "Diversificación", "Situación", "Conservación", "Alumno", "Grupo", "Fecha alta", "Observaciones"],
+      ["Código", "Título", "Asignatura", "Diversificación", "Situación", "Conservación", "Alumno", "Grupo", "Fecha entrega", "Fecha alta", "Observaciones"],
       todos.map((r) => [
         r.codigo, r.titulo?.titulo, r.titulo?.asignatura, r.titulo?.diversificacion ? "Sí" : "No",
         ETIQUETAS_SITUACION[r.situacion], ETIQUETAS_CONSERVACION[r.conservacion],
-        r.alumno?.alumno, r.alumno?.unidad, r.fecha_alta, r.observaciones,
+        r.alumno?.alumno, r.alumno?.unidad, r.prestamo?.[0] ? formatDateMadrid(r.prestamo[0].fecha_entrega) : "", r.fecha_alta, r.observaciones,
       ]),
     );
     setExportando(false);
@@ -370,6 +372,7 @@ export function EjemplaresClient({ titulos, grupos, canManage }: Props) {
                   <span><ConservacionText conservacion={r.conservacion} /></span>
                   <span className="text-sm text-gray-600 truncate">
                     {r.alumno ? <>{r.alumno.alumno} <span className="text-gray-400">· {r.alumno.unidad}</span></> : <span className="text-gray-300 hidden md:inline">—</span>}
+                    {r.prestamo?.[0] && <span className="block text-xs text-gray-400">Entregado el {formatDateMadrid(r.prestamo[0].fecha_entrega)}</span>}
                   </span>
                 </div>
               </li>

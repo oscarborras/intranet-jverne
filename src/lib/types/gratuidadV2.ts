@@ -212,6 +212,8 @@ export const ETIQUETAS_TIPO_INCIDENCIA: Record<TipoIncidenciaV2, string> = {
 export interface EjemplarListadoV2 extends EjemplarV2 {
   titulo: { titulo: string; asignatura: string | null; diversificacion: boolean } | null;
   alumno: { alumno: string; unidad: string } | null;
+  /** Active loan (at most one), embedded to show the delivery date */
+  prestamo: { fecha_entrega: string }[];
 }
 
 export const ETIQUETAS_CONSERVACION: Record<ConservacionV2, string> = {
