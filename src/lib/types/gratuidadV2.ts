@@ -216,6 +216,19 @@ export interface EjemplarListadoV2 extends EjemplarV2 {
   prestamo: { fecha_entrega: string }[];
 }
 
+/** Row of gplv2_alumnos_lote_incompleto() */
+export interface LoteIncompletoV2 {
+  alumno_id: string;
+  alumno: string;
+  grupo: string;
+  itinerario: ItinerarioV2;
+  necesita: number;
+  tiene: number;
+  exentos: number;
+  /** Missing required titles, "; "-separated */
+  faltan: string | null;
+}
+
 /** Returned loan, for the "Libros devueltos" report */
 export interface DevueltoV2 {
   id: string;

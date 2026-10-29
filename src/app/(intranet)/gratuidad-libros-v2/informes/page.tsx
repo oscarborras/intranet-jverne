@@ -11,7 +11,7 @@ interface Props {
   searchParams: Promise<{ tab?: string; bajas?: string }>;
 }
 
-const TABS: TabInforme[] = ["pendientes", "devueltos", "stock", "perdidos"];
+const TABS: TabInforme[] = ["incompletos", "pendientes", "devueltos", "stock", "perdidos"];
 
 export default async function InformesV2Page({ searchParams }: Props) {
   await requireRole(ROLES_OPERAR_V2);

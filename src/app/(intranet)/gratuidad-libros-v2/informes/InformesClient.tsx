@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Download, Loader2, Printer, Search } from "lucide-react";
+import { AlertTriangle, Boxes, Download, Hourglass, ListChecks, Loader2, Printer, Search, Undo2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { dateStrMadrid, formatDateMadrid, todayMadrid } from "@/lib/dates";
@@ -12,10 +12,11 @@ import { descargarCsv, type Celda } from "@/lib/gratuidadV2/exportar";
 import { buildListadoHtml, imprimirHtml } from "@/lib/gratuidadV2/documentos";
 import {
   ETIQUETAS_CONSERVACION, ETIQUETAS_SITUACION,
-  type AlumnoPendienteV2, type DevueltoV2, type EjemplarListadoV2, type StockTituloV2,
+  ETIQUETAS_ITINERARIO,
+  type AlumnoPendienteV2, type DevueltoV2, type EjemplarListadoV2, type LoteIncompletoV2, type StockTituloV2,
 } from "@/lib/types/gratuidadV2";
 
-export type TabInforme = "pendientes" | "devueltos" | "stock" | "perdidos";
+export type TabInforme = "incompletos" | "pendientes" | "devueltos" | "stock" | "perdidos";
 
 interface Props {
   stock: StockTituloV2[];
@@ -25,12 +26,23 @@ interface Props {
   inicial: { tab: TabInforme; soloBajas: boolean };
 }
 
-const TAB_LABEL: Record<TabInforme, string> = {
-  pendientes: "Pendientes de devolver",
-  devueltos: "Libros devueltos",
-  stock: "Stock por título",
-  perdidos: "Perdidos y deteriorados",
+interface TabInfo {
+  label: string;
+  descripcion: string;
+  icon: React.ReactNode;
+  /** Icon colours (inactive card) */
+  color: string;
+}
+
+const TABS_INFO: Record<TabInforme, TabInfo> = {
+  pendientes: { label: "Pendientes de devolver", descripcion: "Alumnos con libros en préstamo", icon: <Hourglass size={18} />, color: "bg-amber-100 text-amber-700" },
+  incompletos: { label: "Lotes incompletos", descripcion: "Alumnos a los que les faltan libros", icon: <ListChecks size={18} />, color: "bg-blue-100 text-blue-700" },
+  devueltos: { label: "Libros devueltos", descripcion: "Devoluciones del curso", icon: <Undo2 size={18} />, color: "bg-emerald-100 text-emerald-700" },
+  stock: { label: "Stock por título", descripcion: "Ejemplares disponibles y faltantes", icon: <Boxes size={18} />, color: "bg-violet-100 text-violet-700" },
+  perdidos: { label: "Perdidos y deteriorados", descripcion: "Ejemplares con problemas", icon: <AlertTriangle size={18} />, color: "bg-red-100 text-red-700" },
 };
+
+const TAB_ORDER: TabInforme[] = ["pendientes", "incompletos", "devueltos", "stock", "perdidos"];
 
 /** Books still needed to give one copy to every student of the lot (optional titles: unknown) */
 function faltan(s: StockTituloV2): number | null {
@@ -41,6 +53,10 @@ function faltan(s: StockTituloV2): number | null {
 const DEVUELTO_SELECT =
   "id, alumno_id, alumno_nombre, alumno_grupo, fecha_entrega, fecha_devolucion, conservacion_devolucion, " +
   "ejemplar:gplv2_ejemplares(codigo, titulo:gplv2_titulos(titulo, diversificacion)), recogido:profesores!recogido_por(profesor)";
+
+function textoIncompleto(r: LoteIncompletoV2): string {
+  return `${r.alumno} ${r.grupo} ${r.faltan ?? ""}`;
+}
 
 function textoDevuelto(d: DevueltoV2): string {
   return `${d.alumno_nombre} ${d.alumno_grupo} ${d.ejemplar?.codigo ?? ""} ${d.ejemplar?.titulo?.titulo ?? ""}`;
@@ -56,6 +72,13 @@ export function InformesClient({ stock, grupos, cursoEscolar, inicial }: Props) 
   const [soloAnteriores, setSoloAnteriores] = useState(false);
   const [pendientes, setPendientes] = useState<AlumnoPendienteV2[]>([]);
   const [cargandoPend, setCargandoPend] = useState(false);
+
+  // Students without their complete lot (active school year)
+  const [incompletos, setIncompletos] = useState<LoteIncompletoV2[]>([]);
+  const [cargandoInc, setCargandoInc] = useState(false);
+  const [grupoInc, setGrupoInc] = useState("");
+  const [soloSinLibros, setSoloSinLibros] = useState(false);
+  const [busquedaInc, setBusquedaInc] = useState("");
 
   // Returned books (active school year)
   const [devueltos, setDevueltos] = useState<DevueltoV2[]>([]);
@@ -111,6 +134,20 @@ export function InformesClient({ stock, grupos, cursoEscolar, inicial }: Props) 
     setCargandoProb(false);
   }, [supabase]);
 
+  const cargarIncompletos = useCallback(async () => {
+    setCargandoInc(true);
+    const out: LoteIncompletoV2[] = [];
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await supabase.rpc("gplv2_alumnos_lote_incompleto").range(from, from + 999);
+      if (error) break;
+      const filas = (data ?? []) as LoteIncompletoV2[];
+      out.push(...filas);
+      if (filas.length < 1000) break;
+    }
+    setIncompletos(out);
+    setCargandoInc(false);
+  }, [supabase]);
+
   const cargarDevueltos = useCallback(async () => {
     setCargandoDev(true);
     const out: DevueltoV2[] = [];
@@ -133,12 +170,23 @@ export function InformesClient({ stock, grupos, cursoEscolar, inicial }: Props) 
 
   useEffect(() => { if (tab === "pendientes") cargarPendientes(); }, [tab, cargarPendientes]);
   useEffect(() => { if (tab === "devueltos") cargarDevueltos(); }, [tab, cargarDevueltos]);
+  useEffect(() => { if (tab === "incompletos") cargarIncompletos(); }, [tab, cargarIncompletos]);
   useEffect(() => { if (tab === "perdidos") cargarProblemas(); }, [tab, cargarProblemas]);
 
   const pendientesVisibles = useMemo(
     () => pendientes.filter((p) => (!soloBajas || p.baja) && (!soloAnteriores || p.anteriores > 0)),
     [pendientes, soloBajas, soloAnteriores],
   );
+  const gruposInc = useMemo(
+    () => [...new Set(incompletos.map((r) => r.grupo))].sort((a, b) => a.localeCompare(b, "es")),
+    [incompletos],
+  );
+  const incompletosFiltrados = useMemo(
+    () => incompletos.filter((r) => (!grupoInc || r.grupo === grupoInc) && (!soloSinLibros || r.tiene === 0)),
+    [incompletos, grupoInc, soloSinLibros],
+  );
+  const incompletosVisibles = useTextFilter(incompletosFiltrados, textoIncompleto, busquedaInc);
+
   const gruposDev = useMemo(
     () => [...new Set(devueltos.map((d) => d.alumno_grupo))].sort((a, b) => a.localeCompare(b, "es")),
     [devueltos],
@@ -164,6 +212,14 @@ export function InformesClient({ stock, grupos, cursoEscolar, inicial }: Props) 
         cabeceras: ["Alumno", "Grupo", "Baja", "Pendientes", "De cursos anteriores", "Libros"],
         filas: pendientesVisibles.map((p) => [p.alumno, p.grupo, p.baja ? "Sí" : "", p.pendientes, p.anteriores, p.libros]),
         archivo: "pendientes_devolver.csv",
+      };
+    }
+    if (tab === "incompletos") {
+      return {
+        titulo: `Alumnos sin el lote completo${grupoInc ? ` · ${grupoInc}` : ""}${soloSinLibros ? " · sin ningún libro" : ""}`,
+        cabeceras: ["Alumno", "Grupo", "Itinerario", "Tiene", "Necesita", "Exenciones", "Le faltan"],
+        filas: incompletosVisibles.map((r) => [r.alumno, r.grupo, ETIQUETAS_ITINERARIO[r.itinerario], r.tiene, r.necesita, r.exentos, r.faltan ?? ""]),
+        archivo: "lotes_incompletos.csv",
       };
     }
     if (tab === "devueltos") {
@@ -205,24 +261,94 @@ export function InformesClient({ stock, grupos, cursoEscolar, inicial }: Props) 
     imprimirHtml(buildListadoHtml(d.titulo, `Curso ${cursoEscolar} · ${dd}/${m}/${y} · ${d.filas.length} filas`, d.cabeceras, d.filas.map((f) => f.map((c) => c ?? ""))));
   }
 
-  const cargando = (tab === "pendientes" && cargandoPend) || (tab === "devueltos" && cargandoDev) || (tab === "perdidos" && cargandoProb);
+  const cargando = (tab === "incompletos" && cargandoInc) || (tab === "pendientes" && cargandoPend) || (tab === "devueltos" && cargandoDev) || (tab === "perdidos" && cargandoProb);
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-        <div className="flex gap-1 p-1 bg-gray-100 rounded-lg overflow-x-auto" role="tablist">
-          {(Object.keys(TAB_LABEL) as TabInforme[]).map((t) => (
-            <button key={t} role="tab" aria-selected={tab === t} onClick={() => setTab(t)}
-              className={cn("px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap", tab === t ? "bg-white shadow text-gray-900" : "text-gray-500")}>
-              {TAB_LABEL[t]}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2" role="tablist" aria-label="Informes">
+        {TAB_ORDER.map((t) => {
+          const info = TABS_INFO[t];
+          const activo = tab === t;
+          return (
+            <button
+              key={t} role="tab" aria-selected={activo} onClick={() => setTab(t)}
+              className={cn(
+                "flex items-start gap-3 rounded-xl border p-3 text-left transition-colors min-h-[4.5rem]",
+                activo ? "border-blue-500 bg-blue-50 ring-1 ring-blue-500" : "border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50",
+              )}
+            >
+              <span className={cn("flex-shrink-0 rounded-lg p-2", activo ? "bg-blue-600 text-white" : info.color)} aria-hidden="true">{info.icon}</span>
+              <span className="min-w-0">
+                <span className={cn("block text-sm font-semibold leading-tight", activo ? "text-blue-800" : "text-gray-900")}>{info.label}</span>
+                <span className="hidden sm:block text-xs text-gray-500 mt-0.5 leading-snug">{info.descripcion}</span>
+              </span>
             </button>
-          ))}
-        </div>
-        <div className="flex gap-2 sm:ml-auto">
-          <button onClick={exportarCsv} className="flex items-center gap-1.5 border border-gray-300 text-gray-600 text-sm font-medium px-3 py-2 rounded-lg hover:bg-gray-50"><Download size={14} /> CSV</button>
-          <button onClick={imprimir} className="flex items-center gap-1.5 border border-gray-300 text-gray-600 text-sm font-medium px-3 py-2 rounded-lg hover:bg-gray-50"><Printer size={14} /> Imprimir</button>
+          );
+        })}
+      </div>
+
+      <div className="flex items-center gap-2 border-b border-gray-200 pb-3">
+        <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2">
+          <span className="text-gray-400" aria-hidden="true">{TABS_INFO[tab].icon}</span>
+          {TABS_INFO[tab].label}
+        </h2>
+        <div className="flex gap-2 ml-auto">
+          <button onClick={exportarCsv} className="flex items-center gap-1.5 border border-gray-300 bg-white text-gray-700 text-sm font-medium px-3 py-2 rounded-lg hover:bg-gray-50"><Download size={14} /> CSV</button>
+          <button onClick={imprimir} className="flex items-center gap-1.5 border border-gray-300 bg-white text-gray-700 text-sm font-medium px-3 py-2 rounded-lg hover:bg-gray-50"><Printer size={14} /> Imprimir</button>
         </div>
       </div>
+
+      {/* ── Students without their complete lot ── */}
+      {tab === "incompletos" && (
+        <>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="relative w-full sm:w-64">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="search" value={busquedaInc} onChange={(e) => setBusquedaInc(e.target.value)}
+                placeholder="Alumno o título que falta" aria-label="Buscar en lotes incompletos"
+                className="w-full border border-gray-300 rounded-lg pl-9 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <select value={grupoInc} onChange={(e) => setGrupoInc(e.target.value)} aria-label="Grupo" className={selectCls}>
+              <option value="">Todos los grupos</option>
+              {gruposInc.map((g) => <option key={g} value={g}>{g}</option>)}
+            </select>
+            <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+              <input type="checkbox" checked={soloSinLibros} onChange={(e) => setSoloSinLibros(e.target.checked)} className="w-4 h-4 rounded" />
+              Solo sin ningún libro
+            </label>
+            <span className="text-sm text-gray-500 ml-auto">
+              {incompletosVisibles.length} alumnos · faltan {incompletosVisibles.reduce((s, r) => s + r.necesita - r.tiene, 0)} libros
+            </span>
+          </div>
+          <p className="text-xs text-gray-400 -mt-2">
+            Alumnos matriculados a los que les falta algún libro obligatorio de su lote en el curso {cursoEscolar}, según su itinerario.
+            No cuentan las optativas ni los títulos de los que está exento.
+          </p>
+          {cargando ? <Cargando /> : (
+            <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100">
+              {incompletosVisibles.map((r) => (
+                <div key={r.alumno_id} className="px-4 py-3 flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-4">
+                  <div className="sm:w-72 flex-shrink-0">
+                    <Link href={`/gratuidad-libros-v2/consulta?alumno=${r.alumno_id}`} className="text-sm font-medium text-blue-700 hover:underline">{r.alumno}</Link>
+                    <p className="text-xs text-gray-500">
+                      {r.grupo}
+                      {r.itinerario === "diversificacion" && <DiversificacionBadge className="ml-2 align-middle" />}
+                      {r.exentos > 0 && <span className="ml-2 px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-800 font-semibold">{r.exentos} exento{r.exentos > 1 ? "s" : ""}</span>}
+                    </p>
+                  </div>
+                  <p className="text-sm text-gray-600 flex-1">
+                    <b className={cn("tabular-nums", r.tiene === 0 ? "text-red-600" : "text-gray-900")}>{r.tiene}/{r.necesita}</b>
+                    {r.faltan && <> · Le faltan: {r.faltan}</>}
+                  </p>
+                </div>
+              ))}
+              {incompletosVisibles.length === 0 && <p className="px-4 py-10 text-center text-sm text-gray-400">Todos los alumnos tienen su lote completo.</p>}
+            </div>
+          )}
+        </>
+      )}
 
       {/* ── Pending returns ── */}
       {tab === "pendientes" && (
