@@ -216,6 +216,19 @@ export interface EjemplarListadoV2 extends EjemplarV2 {
   prestamo: { fecha_entrega: string }[];
 }
 
+/** Returned loan, for the "Libros devueltos" report */
+export interface DevueltoV2 {
+  id: string;
+  alumno_id: string | null;
+  alumno_nombre: string;
+  alumno_grupo: string;
+  fecha_entrega: string;
+  fecha_devolucion: string;
+  conservacion_devolucion: ConservacionV2 | null;
+  ejemplar: { codigo: string; titulo: { titulo: string; diversificacion: boolean } | null } | null;
+  recogido: { profesor: string } | null;
+}
+
 export const ETIQUETAS_CONSERVACION: Record<ConservacionV2, string> = {
   nuevo: "Nuevo",
   bueno: "Bueno",

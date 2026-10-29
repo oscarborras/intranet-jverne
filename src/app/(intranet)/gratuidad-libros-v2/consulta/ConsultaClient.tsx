@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { BookOpen, Camera, History, Loader2, Search, Tags, User, Settings2 } from "lucide-react";
+import { BookOpen, Camera, History, Loader2, Search, Tags, User, Settings2, Undo2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { ilikePatterns } from "@/lib/text";
@@ -14,7 +14,7 @@ import { useBarcodeScanner, useScanDebounce } from "@/components/gratuidad-v2/us
 import { playFeedback } from "@/components/gratuidad-v2/scanFeedback";
 import {
   ETIQUETAS_CONSERVACION, ETIQUETAS_SITUACION, MENSAJES_ERROR_V2,
-  type CambiarSituacionResult, type ConservacionV2, type EstadoIncidenciaV2, type ResultadoPrestamoV2,
+  type AnularEntregaResult, type CambiarSituacionResult, type ConservacionV2, type EstadoIncidenciaV2, type ResultadoPrestamoV2,
   type SituacionV2, type TipoIncidenciaV2, type TipoMovimientoV2,
 } from "@/lib/types/gratuidadV2";
 
@@ -32,6 +32,16 @@ interface Ficha {
   observaciones: string | null;
   titulo: { titulo: string; asignatura: string | null; isbn: string | null; editorial: string | null; diversificacion: boolean } | null;
   alumno: { id: string; alumno: string; unidad: string } | null;
+  /** Active loan (at most one) */
+  prestamo: { id: string }[];
+}
+
+/** Active loan a manager is about to cancel */
+interface AnulacionPendiente {
+  prestamoId: string;
+  codigo: string;
+  titulo: string;
+  alumno: string;
 }
 
 interface Movimiento {
@@ -150,6 +160,9 @@ export function ConsultaClient({ canManage, inicial }: Props) {
   const [editIncidencia, setEditIncidencia] = useState(true);
   const [editGuardando, setEditGuardando] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
+  const [anulando, setAnulando] = useState<AnulacionPendiente | null>(null);
+  const [anulandoGuardando, setAnulandoGuardando] = useState(false);
+  const [anulandoError, setAnulandoError] = useState<string | null>(null);
 
   const actualizarUrl = useCallback((params: Record<string, string>) => {
     const qs = new URLSearchParams(params).toString();
@@ -164,8 +177,9 @@ export function ConsultaClient({ canManage, inicial }: Props) {
     setNoEncontrado(null);
     const { data } = await supabase
       .from("gplv2_ejemplares")
-      .select("id, codigo, situacion, conservacion, fecha_alta, observaciones, titulo:gplv2_titulos(titulo, asignatura, isbn, editorial, diversificacion), alumno:alumnos(id, alumno, unidad)")
+      .select("id, codigo, situacion, conservacion, fecha_alta, observaciones, titulo:gplv2_titulos(titulo, asignatura, isbn, editorial, diversificacion), alumno:alumnos(id, alumno, unidad), prestamo:gplv2_prestamos(id)")
       .eq("codigo", codigo)
+      .is("prestamo.fecha_devolucion", null)
       .maybeSingle();
     if (!data) {
       setFicha(null);
@@ -202,7 +216,7 @@ export function ConsultaClient({ canManage, inicial }: Props) {
   const handleScan = useCallback((codigo: string) => {
     if (aceptar(codigo)) cargarFicha(codigo);
   }, [aceptar, cargarFicha]);
-  useBarcodeScanner(handleScan, !editando);
+  useBarcodeScanner(handleScan, !editando && !anulando);
 
   // ── Student lookup ──────────────────────────────────────────────────────────
 
@@ -286,6 +300,30 @@ export function ConsultaClient({ canManage, inicial }: Props) {
     cargarFicha(ficha.codigo);
   }
 
+  // ── Manager: cancel a delivery registered by mistake ────────────────────────
+
+  function abrirAnulacion(a: AnulacionPendiente) {
+    setAnulandoError(null);
+    setAnulando(a);
+  }
+
+  async function confirmarAnulacion() {
+    if (!anulando) return;
+    setAnulandoGuardando(true);
+    setAnulandoError(null);
+    const { data, error } = await supabase.rpc("gplv2_anular_entrega", { p_prestamo_id: anulando.prestamoId });
+    setAnulandoGuardando(false);
+    const res = data as AnularEntregaResult | null;
+    if (error || !res) { setAnulandoError(error?.message ?? "Error al anular"); return; }
+    if (!res.ok) { setAnulandoError(MENSAJES_ERROR_V2[res.error]); return; }
+    const codigo = anulando.codigo;
+    setAnulando(null);
+    playFeedback("ok");
+    // Reload whatever is on screen
+    if (modo === "alumno" && alumno) cargarAlumno(alumno);
+    else cargarFicha(codigo);
+  }
+
   // Situations a manager can move the copy to from its current one
   const situacionesPosibles: SituacionV2[] = ficha
     ? ficha.situacion === "prestado" ? ["perdido"]
@@ -315,7 +353,7 @@ export function ConsultaClient({ canManage, inicial }: Props) {
         {modo === "ejemplar" ? (
           <>
             <div className="flex gap-2">
-              <div className="flex-1"><ScannerInput onScan={handleScan} disabled={editando} placeholder="Escanea o escribe el código del libro" /></div>
+              <div className="flex-1"><ScannerInput onScan={handleScan} disabled={editando || !!anulando} placeholder="Escanea o escribe el código del libro" /></div>
               <button
                 onClick={() => setCamara((c) => !c)}
                 aria-pressed={camara}
@@ -410,6 +448,17 @@ export function ConsultaClient({ canManage, inicial }: Props) {
                 <Link href={`/gratuidad-libros-v2/etiquetas?codigos=${encodeURIComponent(ficha.codigo)}`} className="flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium border border-gray-300 rounded-lg hover:bg-gray-50">
                   <Tags size={15} /> Reimprimir etiqueta
                 </Link>
+                {ficha.prestamo[0] && ficha.alumno && (
+                  <button
+                    onClick={() => abrirAnulacion({
+                      prestamoId: ficha.prestamo[0].id, codigo: ficha.codigo,
+                      titulo: ficha.titulo?.titulo ?? "", alumno: ficha.alumno?.alumno ?? "",
+                    })}
+                    className={anularBtnCls}
+                  >
+                    <Undo2 size={15} /> Anular entrega
+                  </button>
+                )}
               </div>
             )}
           </section>
@@ -464,6 +513,19 @@ export function ConsultaClient({ canManage, inicial }: Props) {
                   {p.ejemplar && (
                     <button onClick={() => cargarFicha(p.ejemplar!.codigo)} className="font-mono text-sm text-blue-700 hover:underline">{p.ejemplar.codigo}</button>
                   )}
+                  {canManage && p.ejemplar && (
+                    <button
+                      onClick={() => abrirAnulacion({
+                        prestamoId: p.id, codigo: p.ejemplar!.codigo,
+                        titulo: p.ejemplar!.titulo?.titulo ?? "", alumno: alumno.alumno,
+                      })}
+                      aria-label={`Anular la entrega de ${p.ejemplar.titulo?.titulo ?? p.ejemplar.codigo}`}
+                      title="Anular esta entrega (registrada por error)"
+                      className={anularBtnCls}
+                    >
+                      <Undo2 size={15} /> <span className="hidden sm:inline">Anular</span>
+                    </button>
+                  )}
                 </li>
               ))}
               {actuales.length === 0 && <li className="px-4 py-4 text-sm text-gray-400">No tiene libros prestados.</li>}
@@ -501,6 +563,32 @@ export function ConsultaClient({ canManage, inicial }: Props) {
 
       {!cargando && !ficha && !noEncontrado && modo === "ejemplar" && (
         <p className="text-center py-12 text-gray-400 text-sm">Escanea cualquier libro para ver dónde está y todo su historial.</p>
+      )}
+
+      {anulando && (
+        <Modal
+          titulo="Anular entrega"
+          onClose={() => setAnulando(null)}
+          footer={
+            <>
+              <button onClick={() => setAnulando(null)} className="px-4 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg">Cancelar</button>
+              <button onClick={confirmarAnulacion} disabled={anulandoGuardando} className="flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium bg-red-600 hover:bg-red-700 text-white rounded-lg disabled:opacity-50">
+                {anulandoGuardando && <Loader2 size={15} className="animate-spin" />} Anular entrega
+              </button>
+            </>
+          }
+        >
+          <div className="space-y-3 text-sm text-gray-700">
+            <p>
+              ¿Anular la entrega de <b>{anulando.titulo}</b> (<span className="font-mono">{anulando.codigo}</span>) a <b>{anulando.alumno}</b>?
+            </p>
+            <p className="text-gray-500">
+              Úsalo cuando la entrega se registró por error (por ejemplo, al alumno equivocado). El libro volverá al centro
+              y no contará como entregado ni como devuelto. Si el alumno lo tuvo de verdad y lo ha traído, usa Devolución.
+            </p>
+            {anulandoError && <p className="text-red-600">{anulandoError}</p>}
+          </div>
+        </Modal>
       )}
 
       {editando && ficha && (
@@ -553,4 +641,5 @@ export function ConsultaClient({ canManage, inicial }: Props) {
   );
 }
 
+const anularBtnCls = "flex items-center gap-1.5 px-3 py-2.5 text-sm font-semibold rounded-lg border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 hover:border-red-300 transition-colors";
 const inputCls = "w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500";

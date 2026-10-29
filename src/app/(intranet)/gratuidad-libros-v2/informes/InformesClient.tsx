@@ -2,19 +2,20 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Download, Loader2, Printer } from "lucide-react";
+import { Download, Loader2, Printer, Search } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
-import { todayMadrid } from "@/lib/dates";
+import { dateStrMadrid, formatDateMadrid, todayMadrid } from "@/lib/dates";
+import { useTextFilter } from "@/lib/useTextFilter";
 import { ConservacionText, DiversificacionBadge, OptativoBadge, SituacionBadge } from "@/components/gratuidad-v2/Badges";
 import { descargarCsv, type Celda } from "@/lib/gratuidadV2/exportar";
 import { buildListadoHtml, imprimirHtml } from "@/lib/gratuidadV2/documentos";
 import {
   ETIQUETAS_CONSERVACION, ETIQUETAS_SITUACION,
-  type AlumnoPendienteV2, type EjemplarListadoV2, type StockTituloV2,
+  type AlumnoPendienteV2, type DevueltoV2, type EjemplarListadoV2, type StockTituloV2,
 } from "@/lib/types/gratuidadV2";
 
-export type TabInforme = "pendientes" | "stock" | "perdidos";
+export type TabInforme = "pendientes" | "devueltos" | "stock" | "perdidos";
 
 interface Props {
   stock: StockTituloV2[];
@@ -26,6 +27,7 @@ interface Props {
 
 const TAB_LABEL: Record<TabInforme, string> = {
   pendientes: "Pendientes de devolver",
+  devueltos: "Libros devueltos",
   stock: "Stock por título",
   perdidos: "Perdidos y deteriorados",
 };
@@ -34,6 +36,14 @@ const TAB_LABEL: Record<TabInforme, string> = {
 function faltan(s: StockTituloV2): number | null {
   if (s.optativo) return null;
   return Math.max(0, s.alumnos_lote - (s.en_centro + s.prestado));
+}
+
+const DEVUELTO_SELECT =
+  "id, alumno_id, alumno_nombre, alumno_grupo, fecha_entrega, fecha_devolucion, conservacion_devolucion, " +
+  "ejemplar:gplv2_ejemplares(codigo, titulo:gplv2_titulos(titulo, diversificacion)), recogido:profesores!recogido_por(profesor)";
+
+function textoDevuelto(d: DevueltoV2): string {
+  return `${d.alumno_nombre} ${d.alumno_grupo} ${d.ejemplar?.codigo ?? ""} ${d.ejemplar?.titulo?.titulo ?? ""}`;
 }
 
 export function InformesClient({ stock, grupos, cursoEscolar, inicial }: Props) {
@@ -46,6 +56,14 @@ export function InformesClient({ stock, grupos, cursoEscolar, inicial }: Props) 
   const [soloAnteriores, setSoloAnteriores] = useState(false);
   const [pendientes, setPendientes] = useState<AlumnoPendienteV2[]>([]);
   const [cargandoPend, setCargandoPend] = useState(false);
+
+  // Returned books (active school year)
+  const [devueltos, setDevueltos] = useState<DevueltoV2[]>([]);
+  const [cargandoDev, setCargandoDev] = useState(false);
+  const [grupoDev, setGrupoDev] = useState("");
+  const [desde, setDesde] = useState("");
+  const [hasta, setHasta] = useState("");
+  const [busquedaDev, setBusquedaDev] = useState("");
 
   // Stock
   const [incluirInactivos, setIncluirInactivos] = useState(false);
@@ -93,13 +111,45 @@ export function InformesClient({ stock, grupos, cursoEscolar, inicial }: Props) 
     setCargandoProb(false);
   }, [supabase]);
 
+  const cargarDevueltos = useCallback(async () => {
+    setCargandoDev(true);
+    const out: DevueltoV2[] = [];
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await supabase
+        .from("gplv2_prestamos")
+        .select(DEVUELTO_SELECT)
+        .eq("curso_escolar", cursoEscolar)
+        .eq("resultado", "devuelto")
+        .order("fecha_devolucion", { ascending: false })
+        .range(from, from + 999);
+      if (error) break;
+      const filas = (data ?? []) as unknown as DevueltoV2[];
+      out.push(...filas);
+      if (filas.length < 1000) break;
+    }
+    setDevueltos(out);
+    setCargandoDev(false);
+  }, [supabase, cursoEscolar]);
+
   useEffect(() => { if (tab === "pendientes") cargarPendientes(); }, [tab, cargarPendientes]);
+  useEffect(() => { if (tab === "devueltos") cargarDevueltos(); }, [tab, cargarDevueltos]);
   useEffect(() => { if (tab === "perdidos") cargarProblemas(); }, [tab, cargarProblemas]);
 
   const pendientesVisibles = useMemo(
     () => pendientes.filter((p) => (!soloBajas || p.baja) && (!soloAnteriores || p.anteriores > 0)),
     [pendientes, soloBajas, soloAnteriores],
   );
+  const gruposDev = useMemo(
+    () => [...new Set(devueltos.map((d) => d.alumno_grupo))].sort((a, b) => a.localeCompare(b, "es")),
+    [devueltos],
+  );
+  const devueltosFiltrados = useMemo(() => devueltos.filter((d) => {
+    if (grupoDev && d.alumno_grupo !== grupoDev) return false;
+    const dia = dateStrMadrid(d.fecha_devolucion);
+    return (!desde || dia >= desde) && (!hasta || dia <= hasta);
+  }), [devueltos, grupoDev, desde, hasta]);
+  const devueltosVisibles = useTextFilter(devueltosFiltrados, textoDevuelto, busquedaDev);
+
   const stockVisible = useMemo(
     () => stock.filter((s) => (incluirInactivos || s.activo) && (!soloFaltan || (faltan(s) ?? 0) > 0)),
     [stock, incluirInactivos, soloFaltan],
@@ -114,6 +164,18 @@ export function InformesClient({ stock, grupos, cursoEscolar, inicial }: Props) 
         cabeceras: ["Alumno", "Grupo", "Baja", "Pendientes", "De cursos anteriores", "Libros"],
         filas: pendientesVisibles.map((p) => [p.alumno, p.grupo, p.baja ? "Sí" : "", p.pendientes, p.anteriores, p.libros]),
         archivo: "pendientes_devolver.csv",
+      };
+    }
+    if (tab === "devueltos") {
+      const rango = desde || hasta ? ` · ${desde ? `desde ${formatDateMadrid(`${desde}T12:00:00`)}` : ""}${desde && hasta ? " " : ""}${hasta ? `hasta ${formatDateMadrid(`${hasta}T12:00:00`)}` : ""}` : "";
+      return {
+        titulo: `Libros devueltos${grupoDev ? ` · ${grupoDev}` : ""}${rango}`,
+        cabeceras: ["Fecha devolución", "Alumno", "Grupo", "Código", "Título", "Estado", "Fecha entrega", "Recogido por"],
+        filas: devueltosVisibles.map((d) => [
+          formatDateMadrid(d.fecha_devolucion), d.alumno_nombre, d.alumno_grupo, d.ejemplar?.codigo ?? "", d.ejemplar?.titulo?.titulo ?? "",
+          d.conservacion_devolucion ? ETIQUETAS_CONSERVACION[d.conservacion_devolucion] : "", formatDateMadrid(d.fecha_entrega), d.recogido?.profesor ?? "",
+        ]),
+        archivo: "libros_devueltos.csv",
       };
     }
     if (tab === "stock") {
@@ -143,7 +205,7 @@ export function InformesClient({ stock, grupos, cursoEscolar, inicial }: Props) 
     imprimirHtml(buildListadoHtml(d.titulo, `Curso ${cursoEscolar} · ${dd}/${m}/${y} · ${d.filas.length} filas`, d.cabeceras, d.filas.map((f) => f.map((c) => c ?? ""))));
   }
 
-  const cargando = (tab === "pendientes" && cargandoPend) || (tab === "perdidos" && cargandoProb);
+  const cargando = (tab === "pendientes" && cargandoPend) || (tab === "devueltos" && cargandoDev) || (tab === "perdidos" && cargandoProb);
 
   return (
     <div className="space-y-4">
@@ -204,6 +266,60 @@ export function InformesClient({ stock, grupos, cursoEscolar, inicial }: Props) 
                 </div>
               ))}
               {pendientesVisibles.length === 0 && <p className="px-4 py-10 text-center text-sm text-gray-400">No hay libros pendientes de devolver.</p>}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ── Returned books ── */}
+      {tab === "devueltos" && (
+        <>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="relative w-full sm:w-64">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="search" value={busquedaDev} onChange={(e) => setBusquedaDev(e.target.value)}
+                placeholder="Alumno, código o título" aria-label="Buscar en libros devueltos"
+                className="w-full border border-gray-300 rounded-lg pl-9 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <select value={grupoDev} onChange={(e) => setGrupoDev(e.target.value)} aria-label="Grupo" className={selectCls}>
+              <option value="">Todos los grupos</option>
+              {gruposDev.map((g) => <option key={g} value={g}>{g}</option>)}
+            </select>
+            <label className="flex items-center gap-2 text-sm text-gray-600">
+              Desde
+              <input type="date" value={desde} max={hasta || undefined} onChange={(e) => setDesde(e.target.value)} className={selectCls} />
+            </label>
+            <label className="flex items-center gap-2 text-sm text-gray-600">
+              Hasta
+              <input type="date" value={hasta} min={desde || undefined} onChange={(e) => setHasta(e.target.value)} className={selectCls} />
+            </label>
+            <span className="text-sm text-gray-500 ml-auto">{devueltosVisibles.length} libros</span>
+          </div>
+          <p className="text-xs text-gray-400 -mt-2">Libros devueltos en el curso {cursoEscolar}. El grupo es el que tenía el alumno al recibir el libro.</p>
+          {cargando ? <Cargando /> : (
+            <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100">
+              {devueltosVisibles.map((d) => (
+                <div key={d.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3">
+                  <span className="text-sm tabular-nums text-gray-500 w-24">{formatDateMadrid(d.fecha_devolucion)}</span>
+                  {d.ejemplar && (
+                    <Link href={`/gratuidad-libros-v2/consulta?codigo=${encodeURIComponent(d.ejemplar.codigo)}`} className="font-mono text-sm font-semibold text-blue-700 hover:underline w-24">{d.ejemplar.codigo}</Link>
+                  )}
+                  <span className="text-sm text-gray-800 flex-1 min-w-[12rem]">
+                    {d.ejemplar?.titulo?.titulo}
+                    {d.ejemplar?.titulo?.diversificacion && <DiversificacionBadge className="ml-1.5 align-middle" />}
+                  </span>
+                  {d.conservacion_devolucion && <ConservacionText conservacion={d.conservacion_devolucion} />}
+                  <span className="text-sm text-gray-500 w-full sm:w-auto">
+                    {d.alumno_id ? (
+                      <Link href={`/gratuidad-libros-v2/consulta?alumno=${d.alumno_id}`} className="text-blue-700 hover:underline">{d.alumno_nombre}</Link>
+                    ) : d.alumno_nombre} · {d.alumno_grupo}
+                    {d.recogido && <span className="text-gray-400"> · recogido por {d.recogido.profesor}</span>}
+                  </span>
+                </div>
+              ))}
+              {devueltosVisibles.length === 0 && <p className="px-4 py-10 text-center text-sm text-gray-400">No hay libros devueltos con estos filtros.</p>}
             </div>
           )}
         </>
