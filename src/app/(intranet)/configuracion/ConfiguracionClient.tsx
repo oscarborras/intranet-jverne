@@ -2,10 +2,16 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Settings, Save, CheckCircle, AlertCircle, SlidersHorizontal, UserX, BookOpen, ChevronDown, Bell, Landmark, Link2, Mail } from "lucide-react";
+import { Settings, Save, CheckCircle, AlertCircle, SlidersHorizontal, UserX, BookOpen, ChevronDown, Bell, Landmark, Link2, Mail, Plus, Trash2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { CARGOS_DIRECTIVOS, type CargoDirectivo, type CargoDirectivoClave, type ConfigIntranet, type Perfil } from "@/lib/types";
-import { parseNotificationRecipients, serializeNotificationRecipients } from "@/lib/notificationConfig";
+import {
+  LISTAS_CORREO_CLAVE,
+  parseListasCorreo,
+  parseNotificationRecipients,
+  serializeListasCorreo,
+  serializeNotificationRecipients,
+} from "@/lib/notificationConfig";
 import {
   DEFAULT_EMAIL_PROVIDER,
   EMAIL_MODULES,
@@ -213,6 +219,11 @@ export function ConfiguracionClient({ config, perfiles, cargos, profesores, emai
   const [savedCargoEmails, setSavedCargoEmails] = useState<Record<CargoDirectivoClave, string>>(initialCargoEmails);
   const invalidCargoEmails = cargos.filter((c) => cargoEmails[c.cargo].trim() && !EMAIL_RE.test(cargoEmails[c.cargo].trim()));
 
+  // New mailing list being typed in Notificaciones → Listas de correo
+  const [nuevaLista, setNuevaLista] = useState({ nombre: "", email: "" });
+  const [nuevaListaError, setNuevaListaError] = useState<string | null>(null);
+  const listasCorreo = parseListasCorreo(values[LISTAS_CORREO_CLAVE]);
+
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<"idle" | "success" | "error">("idle");
   const [activeTab, setActiveTab] = useState<Tab>("asuntos_propios");
@@ -274,7 +285,10 @@ export function ConfiguracionClient({ config, perfiles, cargos, profesores, emai
     .filter((r) => ASUNTOS_ORDER.includes(r.clave))
     .sort((a, b) => ASUNTOS_ORDER.indexOf(a.clave) - ASUNTOS_ORDER.indexOf(b.clave));
   const gratuidadRows = config.filter((r) => GRATUIDAD_CLAVES.has(r.clave));
-  const notificacionRows = config.filter((r) => NOTIFICACION_CLAVES.has(r.clave));
+  // Mailing lists first: the modules below pick from them
+  const notificacionRows = config
+    .filter((r) => NOTIFICACION_CLAVES.has(r.clave) || r.clave === LISTAS_CORREO_CLAVE)
+    .sort((a, b) => Number(b.clave === LISTAS_CORREO_CLAVE) - Number(a.clave === LISTAS_CORREO_CLAVE));
   const urlRows = config.filter((r) => isUrlClave(r.clave));
   // Known modules only, in EMAIL_MODULES order
   const emailModuleOrder = Object.keys(EMAIL_MODULES);
@@ -299,6 +313,80 @@ export function ConfiguracionClient({ config, perfiles, cargos, profesores, emai
     const boolVal = values[row.clave] === "true";
     const selectOpts = SELECT_OPTIONS[row.clave];
 
+    if (row.clave === LISTAS_CORREO_CLAVE) {
+      const setListas = (next: typeof listasCorreo) =>
+        setValues((v) => ({ ...v, [LISTAS_CORREO_CLAVE]: serializeListasCorreo(next) }));
+      const addLista = () => {
+        const nombre = nuevaLista.nombre.trim();
+        const email = nuevaLista.email.trim().toLowerCase();
+        if (!nombre) return setNuevaListaError("Indica un nombre para la lista.");
+        if (!EMAIL_RE.test(email)) return setNuevaListaError("El email no es válido.");
+        if (listasCorreo.some((l) => l.email.toLowerCase() === email)) return setNuevaListaError("Esa lista ya existe.");
+        setListas([...listasCorreo, { nombre, email }]);
+        setNuevaLista({ nombre: "", email: "" });
+        setNuevaListaError(null);
+      };
+      return (
+        <fieldset key={row.clave}>
+          <legend className="text-sm font-semibold text-gray-800 mb-1">Listas de correo</legend>
+          <p className="text-xs text-gray-500 mb-2">{row.descripcion}</p>
+          {listasCorreo.length > 0 && (
+            <ul className="space-y-2 mb-3">
+              {listasCorreo.map((l) => (
+                <li key={l.email} className="flex items-center gap-3 min-h-11 px-3 py-2 border border-gray-200 rounded-lg bg-white">
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-medium text-gray-900">{l.nombre}</span>
+                    <span className="block text-xs text-gray-500 truncate">{l.email}</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setListas(listasCorreo.filter((x) => x.email !== l.email))}
+                    aria-label={`Quitar la lista ${l.nombre}`}
+                    className="p-2.5 -mr-1 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_1.4fr_auto] gap-2">
+            <input
+              type="text"
+              aria-label="Nombre de la nueva lista"
+              placeholder="Nombre (p. ej. Claustro)"
+              value={nuevaLista.nombre}
+              onChange={(e) => setNuevaLista((n) => ({ ...n, nombre: e.target.value }))}
+              className="min-h-11 bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <input
+              type="email"
+              inputMode="email"
+              autoComplete="off"
+              aria-label="Email de la nueva lista"
+              placeholder="lista@iesjulioverne.es"
+              value={nuevaLista.email}
+              onChange={(e) => setNuevaLista((n) => ({ ...n, email: e.target.value }))}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addLista(); } }}
+              className="min-h-11 bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <button
+              type="button"
+              onClick={addLista}
+              className="flex items-center justify-center gap-1.5 min-h-11 px-4 rounded-lg border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
+            >
+              <Plus size={16} />
+              Añadir
+            </button>
+          </div>
+          {nuevaListaError && <p className="text-xs text-red-600 mt-1.5">{nuevaListaError}</p>}
+          <p className="text-xs text-gray-500 mt-2">
+            El grupo debe aceptar correos de noreply@iesjulioverne.es (en Google Groups: «Quién puede publicar»).
+          </p>
+        </fieldset>
+      );
+    }
+
     if (NOTIFICACION_CLAVES.has(row.clave)) {
       const recipients = parseNotificationRecipients(values[row.clave]);
       const setRecipients = (next: typeof recipients) =>
@@ -318,7 +406,16 @@ export function ConfiguracionClient({ config, perfiles, cargos, profesores, emai
             .map((c) => c.cargo)
             .filter((c) => (c === cargo ? !recipients.cargos.includes(c) : recipients.cargos.includes(c))),
         });
-      const total = recipients.perfiles.length + recipients.cargos.length;
+      const toggleLista = (email: string) =>
+        setRecipients({
+          ...recipients,
+          listas: recipients.listas.includes(email)
+            ? recipients.listas.filter((x) => x !== email)
+            : listasCorreo.map((l) => l.email).filter((e) => e === email || recipients.listas.includes(e)),
+        });
+      // Only lists still defined count (a removed list is ignored when sending)
+      const listasActivas = recipients.listas.filter((e) => listasCorreo.some((l) => l.email === e));
+      const total = recipients.perfiles.length + recipients.cargos.length + listasActivas.length;
       const optionClass = (checked: boolean) =>
         `flex items-center gap-3 min-h-11 px-3 py-2 border rounded-lg cursor-pointer transition-colors ${
           checked ? `${accent.checked} font-medium text-gray-900` : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
@@ -331,6 +428,8 @@ export function ConfiguracionClient({ config, perfiles, cargos, profesores, emai
               {recipients.perfiles.length} {recipients.perfiles.length === 1 ? "perfil" : "perfiles"}
               {" · "}
               {recipients.cargos.length} {recipients.cargos.length === 1 ? "cargo" : "cargos"}
+              {" · "}
+              {listasActivas.length} {listasActivas.length === 1 ? "lista" : "listas"}
             </span>
           </legend>
           <p className="text-xs text-gray-500 mb-2">{row.descripcion}</p>
@@ -381,8 +480,38 @@ export function ConfiguracionClient({ config, perfiles, cargos, profesores, emai
             </>
           )}
 
+          {listasCorreo.length > 0 && (
+            <>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mt-3 mb-1.5">Listas de correo</p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {listasCorreo.map((l) => {
+                  const checked = recipients.listas.includes(l.email);
+                  return (
+                    <label key={l.email} className={optionClass(checked)}>
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleLista(l.email)}
+                        className={`h-4 w-4 rounded ${accent.checkbox}`}
+                      />
+                      <span className="min-w-0">
+                        <span className="block text-sm">{l.nombre}</span>
+                        <span className="block text-xs font-normal text-gray-500 truncate">{l.email}</span>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            </>
+          )}
+
           {total === 0 && (
-            <p className="text-xs text-amber-600 mt-1.5">Ningún perfil ni cargo seleccionado: no se enviarán emails.</p>
+            <p className="text-xs text-amber-600 mt-1.5">Ningún perfil, cargo ni lista seleccionado: no se enviarán emails.</p>
+          )}
+          {listasActivas.length > 0 && recipients.perfiles.length + recipients.cargos.length > 0 && (
+            <p className="text-xs text-amber-600 mt-1.5">
+              Si alguien de los perfiles o cargos marcados también está en una lista, recibirá el email dos veces.
+            </p>
           )}
         </fieldset>
       );
@@ -619,7 +748,7 @@ export function ConfiguracionClient({ config, perfiles, cargos, profesores, emai
       label: "Notificaciones",
       icon: <Bell size={15} />,
       rows: notificacionRows,
-      description: "Perfiles y cargos directivos que reciben los emails enviados por cada módulo. Se pueden marcar varios.",
+      description: "Perfiles, cargos directivos y listas de correo que reciben los emails enviados por cada módulo. Se pueden marcar varios.",
     },
     {
       id: "envios_email" as Tab,

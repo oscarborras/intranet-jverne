@@ -1,6 +1,6 @@
 import type { createClient } from "@/lib/supabase/server";
 import { todayMadrid } from "@/lib/dates";
-import { parseNotificationRecipients } from "@/lib/notificationConfig";
+import { LISTAS_CORREO_CLAVE, parseListasCorreo, parseNotificationRecipients } from "@/lib/notificationConfig";
 
 type ServerClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -56,23 +56,30 @@ async function getPerfilUserEmails(
 }
 
 // Returns the de-duplicated emails of every user holding any perfil configured under `clave`,
-// plus the holders of the configured cargos directivos.
+// plus the holders of the configured cargos directivos and the configured mailing lists
+// (only lists still defined in Configuración → Notificaciones).
 // When the config row does not exist yet, uses `fallbackPerfilNombre` (or nobody if omitted).
 export async function getNotificationEmails(
   supabase: ServerClient,
   clave: string,
   fallbackPerfilNombre?: string
 ): Promise<string[]> {
-  const { data: configRow } = await supabase
+  const { data: rows } = await supabase
     .from("config_intranet")
-    .select("valor")
-    .eq("clave", clave)
-    .maybeSingle();
+    .select("clave, valor")
+    .in("clave", [clave, LISTAS_CORREO_CLAVE]);
+  const configRow = rows?.find((r) => r.clave === clave);
 
   let perfilEmails: string[] = [];
   let cargoEmails: string[] = [];
+  let listaEmails: string[] = [];
   if (configRow) {
-    const { perfiles, cargos } = parseNotificationRecipients(configRow.valor as string);
+    const { perfiles, cargos, listas } = parseNotificationRecipients(configRow.valor as string);
+    const definidas = new Set(
+      parseListasCorreo(rows?.find((r) => r.clave === LISTAS_CORREO_CLAVE)?.valor as string | undefined)
+        .map((l) => l.email.toLowerCase())
+    );
+    listaEmails = listas.filter((e) => definidas.has(e.toLowerCase()));
     [perfilEmails, cargoEmails] = await Promise.all([
       getPerfilUserEmails(supabase, { perfilIds: perfiles }),
       getCargoHolderEmails(supabase, cargos),
@@ -82,6 +89,6 @@ export async function getNotificationEmails(
   }
 
   // Case-insensitive de-dup: the same person may come from a perfil and a cargo
-  const byLower = new Map([...perfilEmails, ...cargoEmails].map((e) => [e.toLowerCase(), e]));
+  const byLower = new Map([...perfilEmails, ...cargoEmails, ...listaEmails].map((e) => [e.toLowerCase(), e]));
   return [...byLower.values()];
 }
