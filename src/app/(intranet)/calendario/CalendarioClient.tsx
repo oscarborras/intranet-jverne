@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 import { resolveAutorNames } from "@/lib/resolveAutorNames";
 import { GruposSelector } from "@/components/calendar/GruposSelector";
 import { ProfesoresSelector, type ProfesorOpcion } from "@/components/calendar/ProfesoresSelector";
-import { EXTRAESCOLAR_TIPO, type CalendarEvento, type TipoEventoIntranet, type AsuntoPropios, type DiaBloqueadoAsuntos } from "@/lib/types";
+import { EXTRAESCOLAR_TIPO, isTipoEventoNotificado, type CalendarEvento, type TipoEventoIntranet, type AsuntoPropios, type DiaBloqueadoAsuntos } from "@/lib/types";
 
 const DAYS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 const MONTHS = [
@@ -321,9 +321,9 @@ export function CalendarioClient({
         return;
       }
       setEventos((prev) => [...prev, { ...(data as CalendarEvento), autor: { full_name: myDisplayName } }]);
-      // New extracurricular activity: email Directiva and DACE (non-blocking)
-      if (esExtraescolar) {
-        fetch("/api/calendario/notificar-extraescolar", {
+      // Event types with recipients in Configuración → Notificaciones get an email (non-blocking)
+      if (isTipoEventoNotificado(form.tipo)) {
+        fetch("/api/calendario/notificar-evento", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ eventoId: (data as CalendarEvento).id }),

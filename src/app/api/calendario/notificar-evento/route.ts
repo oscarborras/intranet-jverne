@@ -1,15 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { authorizeApi } from "@/lib/auth";
-import { sendNuevaExtraescolarEmail } from "@/lib/email";
+import { sendNuevoEventoCalendarioEmail } from "@/lib/email";
 import { getNotificationEmails, NOTIFICATION_CLAVES } from "@/lib/notifications";
-import { EXTRAESCOLAR_TIPO } from "@/lib/types";
+import { EXTRAESCOLAR_TIPO, CLAUSTRO_TIPO, isTipoEventoNotificado, type TipoEventoNotificado } from "@/lib/types";
 
-// Called by the client right after creating an extracurricular activity in the calendar.
-// Emails the perfiles and cargos set in Configuración → Notificaciones (Directiva and DACE by default).
+// Called by the client right after creating a calendar event of a notified type.
+// Emails the perfiles, cargos and lists set for that type in Configuración → Notificaciones.
 // Everything is re-checked here so the endpoint cannot be used to send arbitrary emails.
 
-// Only notify activities created just now, by the caller
+// Recipients config per event type, and who receives it while the config row does not exist
+const RECIPIENTS: Record<TipoEventoNotificado, { clave: string; fallbackPerfil?: string }> = {
+  [EXTRAESCOLAR_TIPO]: { clave: NOTIFICATION_CLAVES.extraescolares, fallbackPerfil: "Directiva" },
+  [CLAUSTRO_TIPO]: { clave: NOTIFICATION_CLAVES.claustro },
+};
+
+// Only notify events created just now, by the caller
 const MAX_AGE_MS = 5 * 60 * 1000;
 
 export async function POST(req: NextRequest) {
@@ -34,18 +40,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Evento no encontrado" }, { status: 404 });
   }
 
+  const tipo = evento.tipo as string;
   const createdAt = new Date(evento.created_at as string).getTime();
-  if (
-    evento.tipo !== EXTRAESCOLAR_TIPO ||
-    evento.autor_id !== user.id ||
-    Date.now() - createdAt > MAX_AGE_MS
-  ) {
+  if (!isTipoEventoNotificado(tipo) || evento.autor_id !== user.id || Date.now() - createdAt > MAX_AGE_MS) {
     return NextResponse.json({ sent: false, reason: "no_aplica" });
   }
 
+  const { clave, fallbackPerfil } = RECIPIENTS[tipo];
   const profesoresIds = (evento.profesores_ids as string[] | null) ?? [];
   const [recipientEmails, { data: autor }, { data: profesores }] = await Promise.all([
-    getNotificationEmails(supabase, NOTIFICATION_CLAVES.extraescolares, "Directiva"),
+    getNotificationEmails(supabase, clave, fallbackPerfil),
     supabase.from("users_view").select("full_name").eq("id", user.id).maybeSingle(),
     profesoresIds.length > 0
       ? supabase.from("profesores").select("profesor").in("id", profesoresIds).order("profesor")
@@ -56,8 +60,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ sent: false, reason: "sin_destinatarios" });
   }
 
-  await sendNuevaExtraescolarEmail({
+  await sendNuevoEventoCalendarioEmail({
     recipientEmails,
+    tipo,
     titulo: evento.titulo as string,
     descripcion: (evento.descripcion as string | null) ?? null,
     fechaInicio: evento.fecha_inicio as string,

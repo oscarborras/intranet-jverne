@@ -72,9 +72,17 @@ export interface TipoEventoIntranet {
   activo: boolean;
 }
 
-// Calendar event type for extracurricular activities: has groups, teachers and mandatory times,
-// and notifies Directiva and DACE when created
+// Calendar event type for extracurricular activities: has groups, teachers and mandatory times
 export const EXTRAESCOLAR_TIPO = "Activ. Extraescolar";
+export const CLAUSTRO_TIPO = "Claustro";
+
+// Event types that email their recipients (Configuración → Notificaciones) when created
+export const TIPOS_EVENTO_NOTIFICADOS = [EXTRAESCOLAR_TIPO, CLAUSTRO_TIPO] as const;
+export type TipoEventoNotificado = (typeof TIPOS_EVENTO_NOTIFICADOS)[number];
+
+export function isTipoEventoNotificado(tipo: string): tipo is TipoEventoNotificado {
+  return (TIPOS_EVENTO_NOTIFICADOS as readonly string[]).includes(tipo);
+}
 
 export interface CalendarEvento {
   id: number;

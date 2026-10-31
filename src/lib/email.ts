@@ -1,4 +1,5 @@
 import { sendEmail } from "@/lib/emailProviders";
+import { EXTRAESCOLAR_TIPO } from "@/lib/types";
 
 // Each email is sent through the provider chosen for its module (Configuración → Envíos emails)
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
@@ -436,8 +437,10 @@ export async function sendNuevaPeticionMantenimientoEmail(p: NuevaPeticionManten
   });
 }
 
-interface NuevaExtraescolarParams {
+interface NuevoEventoCalendarioParams {
   recipientEmails: string[];
+  /** Calendar event type, e.g. "Activ. Extraescolar" or "Claustro" */
+  tipo: string;
   titulo: string;
   descripcion: string | null;
   fechaInicio: string;
@@ -449,8 +452,8 @@ interface NuevaExtraescolarParams {
   autorNombre: string;
 }
 
-// Sent to Directiva and DACE (Configuración → Notificaciones) when an extracurricular activity is created
-export async function sendNuevaExtraescolarEmail(p: NuevaExtraescolarParams) {
+// Sent when an event of a notified type is added to the calendar (recipients: Configuración → Notificaciones)
+export async function sendNuevoEventoCalendarioEmail(p: NuevoEventoCalendarioParams) {
   if (p.recipientEmails.length === 0) return;
 
   const formatFecha = (fecha: string) =>
@@ -461,19 +464,21 @@ export async function sendNuevaExtraescolarEmail(p: NuevaExtraescolarParams) {
   const horario = p.horaInicio && p.horaFin ? `${formatHora(p.horaInicio)} – ${formatHora(p.horaFin)}` : null;
   const titulo = escapeHtml(p.titulo);
   const autor = escapeHtml(p.autorNombre);
+  const esExtraescolar = p.tipo === EXTRAESCOLAR_TIPO;
+  const encabezado = esExtraescolar ? "Nueva actividad extraescolar" : `Nuevo evento: ${p.tipo}`;
 
   const body = baseLayout(`
-    <h2 style="margin:0 0 8px;font-size:20px;color:#111827;">Nueva actividad extraescolar</h2>
+    <h2 style="margin:0 0 8px;font-size:20px;color:#111827;">${escapeHtml(encabezado)}</h2>
     <p style="margin:0 0 24px;color:#6b7280;font-size:14px;">
-      <strong>${autor}</strong> ha añadido una actividad extraescolar al calendario.
+      <strong>${autor}</strong> ha añadido ${esExtraescolar ? "una actividad extraescolar" : `un evento de tipo <strong>${escapeHtml(p.tipo)}</strong>`} al calendario.
     </p>
     <table cellpadding="0" cellspacing="0" style="width:100%;border-top:1px solid #e5e7eb;padding-top:16px;">
-      ${row("Actividad", `<strong>${titulo}</strong>`)}
+      ${row(esExtraescolar ? "Actividad" : "Evento", `<strong>${titulo}</strong>`)}
       ${row("Fecha", fechas)}
       ${horario ? row("Horario", horario) : ""}
       ${p.grupos.length > 0 ? row("Grupos", escapeHtml(p.grupos.join(", "))) : ""}
       ${p.profesores.length > 0 ? row("Profesorado", escapeHtml(p.profesores.join(", "))) : ""}
-      ${row("Creada por", autor)}
+      ${row("Añadido por", autor)}
       ${p.descripcion?.trim() ? row("Descripción", multiline(p.descripcion.trim())) : ""}
     </table>
     <a href="${SITE_URL}/calendario" style="display:inline-block;margin-top:24px;padding:10px 20px;background:#1e40af;color:#fff;border-radius:6px;text-decoration:none;font-size:14px;font-weight:500;">
@@ -481,9 +486,9 @@ export async function sendNuevaExtraescolarEmail(p: NuevaExtraescolarParams) {
     </a>
   `);
 
-  return sendEmail("extraescolares", {
+  return sendEmail("calendario", {
     to: p.recipientEmails,
-    subject: `Nueva actividad extraescolar – ${p.titulo} – ${formatFecha(p.fechaInicio)}`,
+    subject: `${encabezado} – ${p.titulo} – ${formatFecha(p.fechaInicio)}`,
     html: body,
   });
 }

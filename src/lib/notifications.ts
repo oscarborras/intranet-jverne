@@ -11,6 +11,7 @@ export const NOTIFICATION_CLAVES = {
   peticionesTic: "notificaciones_peticiones_tic_perfiles",
   peticionesMantenimiento: "notificaciones_peticiones_mantenimiento_perfiles",
   extraescolares: "notificaciones_extraescolares_perfiles",
+  claustro: "notificaciones_claustro_perfiles",
 } as const;
 
 interface CargoHolderRow {
