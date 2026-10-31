@@ -5,7 +5,9 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "deps:check": "bash scripts/update-deps.sh --check",
+    "deps:update": "bash scripts/update-deps.sh"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.11",
