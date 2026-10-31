@@ -84,7 +84,11 @@ check_updates() {
     fi
   done
   if (( pending )); then
-    log "Hay actualizaciones: aplícalas en desarrollo y despliega el nuevo package-lock.json."
+    log "Hay actualizaciones. Aplícalas en desarrollo (nunca en este servidor):"
+    log "  npm run deps:check    lista las disponibles dentro de la misma versión mayor"
+    log "  npm run deps:update   las instala y compila para verificar"
+    log "Después haz commit y push de package.json y package-lock.json y vuelve a desplegar."
+    log "Un cambio de versión mayor no lo aplica deps:update: revisa antes la guía de migración."
   fi
 }
 
