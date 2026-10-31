@@ -15,6 +15,7 @@ export const EMAIL_MODULES = {
   ausencias: "Ausencias",
   peticiones_tic: "Peticiones TIC",
   peticiones_mantenimiento: "Peticiones Mantenimiento",
+  extraescolares: "Actividades extraescolares",
 } as const;
 
 export type EmailModule = keyof typeof EMAIL_MODULES;

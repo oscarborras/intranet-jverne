@@ -10,6 +10,7 @@ export const NOTIFICATION_CLAVES = {
   ausencias: "notificaciones_ausencias_perfiles",
   peticionesTic: "notificaciones_peticiones_tic_perfiles",
   peticionesMantenimiento: "notificaciones_peticiones_mantenimiento_perfiles",
+  extraescolares: "notificaciones_extraescolares_perfiles",
 } as const;
 
 interface CargoHolderRow {

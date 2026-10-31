@@ -435,3 +435,55 @@ export async function sendNuevaPeticionMantenimientoEmail(p: NuevaPeticionManten
     html: body,
   });
 }
+
+interface NuevaExtraescolarParams {
+  recipientEmails: string[];
+  titulo: string;
+  descripcion: string | null;
+  fechaInicio: string;
+  fechaFin: string;
+  horaInicio: string | null;
+  horaFin: string | null;
+  grupos: string[];
+  profesores: string[];
+  autorNombre: string;
+}
+
+// Sent to Directiva and DACE (Configuración → Notificaciones) when an extracurricular activity is created
+export async function sendNuevaExtraescolarEmail(p: NuevaExtraescolarParams) {
+  if (p.recipientEmails.length === 0) return;
+
+  const formatFecha = (fecha: string) =>
+    new Date(fecha + "T00:00:00").toLocaleDateString("es-ES", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+  const fechas = p.fechaFin !== p.fechaInicio
+    ? `Del ${formatFecha(p.fechaInicio)} al ${formatFecha(p.fechaFin)}`
+    : formatFecha(p.fechaInicio);
+  const horario = p.horaInicio && p.horaFin ? `${formatHora(p.horaInicio)} – ${formatHora(p.horaFin)}` : null;
+  const titulo = escapeHtml(p.titulo);
+  const autor = escapeHtml(p.autorNombre);
+
+  const body = baseLayout(`
+    <h2 style="margin:0 0 8px;font-size:20px;color:#111827;">Nueva actividad extraescolar</h2>
+    <p style="margin:0 0 24px;color:#6b7280;font-size:14px;">
+      <strong>${autor}</strong> ha añadido una actividad extraescolar al calendario.
+    </p>
+    <table cellpadding="0" cellspacing="0" style="width:100%;border-top:1px solid #e5e7eb;padding-top:16px;">
+      ${row("Actividad", `<strong>${titulo}</strong>`)}
+      ${row("Fecha", fechas)}
+      ${horario ? row("Horario", horario) : ""}
+      ${p.grupos.length > 0 ? row("Grupos", escapeHtml(p.grupos.join(", "))) : ""}
+      ${p.profesores.length > 0 ? row("Profesorado", escapeHtml(p.profesores.join(", "))) : ""}
+      ${row("Creada por", autor)}
+      ${p.descripcion?.trim() ? row("Descripción", multiline(p.descripcion.trim())) : ""}
+    </table>
+    <a href="${SITE_URL}/calendario" style="display:inline-block;margin-top:24px;padding:10px 20px;background:#1e40af;color:#fff;border-radius:6px;text-decoration:none;font-size:14px;font-weight:500;">
+      Ver en el calendario →
+    </a>
+  `);
+
+  return sendEmail("extraescolares", {
+    to: p.recipientEmails,
+    subject: `Nueva actividad extraescolar – ${p.titulo} – ${formatFecha(p.fechaInicio)}`,
+    html: body,
+  });
+}

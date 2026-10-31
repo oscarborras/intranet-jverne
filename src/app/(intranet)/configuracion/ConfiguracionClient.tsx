@@ -44,6 +44,7 @@ const LABELS: Record<string, string> = {
   notificaciones_ausencias_perfiles: "Módulo Ausencias",
   notificaciones_peticiones_tic_perfiles: "Módulo Peticiones TIC",
   notificaciones_peticiones_mantenimiento_perfiles: "Módulo Peticiones Mantenimiento",
+  notificaciones_extraescolares_perfiles: "Actividades extraescolares",
   dias_vista_finalizadas:        "Días visibles de peticiones finalizadas",
   horario_tarde_inicio:          "Inicio del horario de tarde (reservas de espacios)",
   horario_tarde_fin:             "Fin del horario de tarde (reservas de espacios)",
@@ -89,7 +90,12 @@ const HIDDEN_CLAVES = new Set(["ultima_importacion_profesores", "ultima_importac
 const GRATUIDAD_CLAVES = new Set(["modo_gratuidad_libros", "curso_escolar_activo"]);
 
 // Claves under the "Notificaciones" tab: perfiles and cargos directivos that receive the module's emails
-const NOTIFICACION_CLAVES = new Set(["notificaciones_ausencias_perfiles", "notificaciones_peticiones_tic_perfiles", "notificaciones_peticiones_mantenimiento_perfiles"]);
+const NOTIFICACION_CLAVES = new Set([
+  "notificaciones_ausencias_perfiles",
+  "notificaciones_peticiones_tic_perfiles",
+  "notificaciones_peticiones_mantenimiento_perfiles",
+  "notificaciones_extraescolares_perfiles",
+]);
 
 // Genera los cursos escolares disponibles para el selector: 4 anteriores + el siguiente
 function cursosEscolaresOptions(): string[] {

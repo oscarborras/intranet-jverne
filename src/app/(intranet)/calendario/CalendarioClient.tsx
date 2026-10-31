@@ -9,15 +9,13 @@ import { cn } from "@/lib/utils";
 import { resolveAutorNames } from "@/lib/resolveAutorNames";
 import { GruposSelector } from "@/components/calendar/GruposSelector";
 import { ProfesoresSelector, type ProfesorOpcion } from "@/components/calendar/ProfesoresSelector";
-import type { CalendarEvento, TipoEventoIntranet, AsuntoPropios, DiaBloqueadoAsuntos } from "@/lib/types";
+import { EXTRAESCOLAR_TIPO, type CalendarEvento, type TipoEventoIntranet, type AsuntoPropios, type DiaBloqueadoAsuntos } from "@/lib/types";
 
 const DAYS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 const MONTHS = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
   "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
 ];
-
-const EXTRAESCOLAR_TIPO = "Activ. Extraescolar";
 
 const COLOR_CLASSES: Record<string, string> = {
   blue: "bg-blue-100 text-blue-700",
@@ -323,6 +321,14 @@ export function CalendarioClient({
         return;
       }
       setEventos((prev) => [...prev, { ...(data as CalendarEvento), autor: { full_name: myDisplayName } }]);
+      // New extracurricular activity: email Directiva and DACE (non-blocking)
+      if (esExtraescolar) {
+        fetch("/api/calendario/notificar-extraescolar", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ eventoId: (data as CalendarEvento).id }),
+        }).catch(() => { /* non-blocking */ });
+      }
     } else if (modalEvento) {
       const { data, error } = await supabase
         .from("calendar_eventos")
