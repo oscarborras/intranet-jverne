@@ -7,6 +7,8 @@ set -euo pipefail
 
 APP_NAME="intranet"
 BRANCH="main"
+# Packages whose newer npm releases are reported (never installed here)
+WATCHED_PACKAGES=(next react react-dom)
 
 # Everything runs inside main() so bash has read the whole script before
 # "git merge" replaces this file with a newer version.
@@ -33,6 +35,7 @@ main() {
   new=$(git rev-parse "origin/$BRANCH")
   if [[ "$old" == "$new" && "${1:-}" != "--force" ]]; then
     log "Sin cambios ($(git log -1 --format='%h %s'))."
+    check_updates
     exit 0
   fi
 
@@ -58,6 +61,31 @@ main() {
   pm2 save >/dev/null
 
   log "Desplegado: $(git log -1 --format='%h %s')"
+  check_updates
+}
+
+# Informational only: compares the installed version of each watched package with
+# the latest one on npm. Upgrades must be done in development (commit the new
+# package-lock.json); never run "npm install" on the server. A network failure
+# only skips the check, it never stops the deployment.
+check_updates() {
+  local pkg current latest pending=0
+  log "Comprobando actualizaciones de ${WATCHED_PACKAGES[*]}..."
+  for pkg in "${WATCHED_PACKAGES[@]}"; do
+    current=$(node -p "require('$pkg/package.json').version" 2>/dev/null || echo "")
+    latest=$(npm view "$pkg" version 2>/dev/null || echo "")
+    if [[ -z "$current" || -z "$latest" ]]; then
+      log "  $pkg: no se pudo comprobar (instalada: ${current:-?}, última: ${latest:-?})"
+    elif [[ "$current" != "$latest" ]]; then
+      log "  $pkg: $current -> $latest disponible"
+      pending=1
+    else
+      log "  $pkg: $current (al día)"
+    fi
+  done
+  if (( pending )); then
+    log "Hay actualizaciones: aplícalas en desarrollo y despliega el nuevo package-lock.json."
+  fi
 }
 
 log() { echo "[$(date '+%F %T')] $*"; }
