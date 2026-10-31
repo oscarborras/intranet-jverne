@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
   const { data: owner } = await admin.from("profesores").select("profesor").eq("id", updated.profesor_id).maybeSingle();
   const ownerNombre = owner?.profesor ?? profesorRow?.profesor ?? "";
 
-  if (updated.familiar_email && process.env.RESEND_API_KEY) {
+  if (updated.familiar_email) {
     await sendCanceladaProfesorEmail({
       familiarEmail: updated.familiar_email,
       profesorNombre: nombreConCargo(ownerNombre, updated.cargo),

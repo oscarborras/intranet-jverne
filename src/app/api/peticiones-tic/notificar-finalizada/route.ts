@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { authorizeApi } from "@/lib/auth";
 import { sendPeticionTICFinalizadaEmail } from "@/lib/email";
+import { isEmailEnabled } from "@/lib/emailProviders";
 
 // Called by the client right after a TIC request is moved to "finalizada".
 // Emails the author, unless they finished it themselves. Everything is re-checked
@@ -49,7 +50,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ sent: false, reason: "no_recien_finalizada" });
   }
 
-  if (!process.env.RESEND_API_KEY) {
+  if (!(await isEmailEnabled("peticiones_tic"))) {
     return NextResponse.json({ sent: false, reason: "email_no_configurado" });
   }
 

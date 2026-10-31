@@ -378,6 +378,7 @@ export const CARGOS_DIRECTIVOS = {
   jefatura_adjunta: "Jefatura adjunta",
   secretaria: "Secretaría",
   vicedireccion: "Vicedirección",
+  dace: "DACE",
 } as const;
 
 export type CargoDirectivoClave = keyof typeof CARGOS_DIRECTIVOS;

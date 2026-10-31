@@ -110,7 +110,7 @@ export async function POST(req: NextRequest) {
     .select("*")
     .single();
 
-  if (cita && familiar_email && alumno_nombre && alumno_curso && process.env.RESEND_API_KEY) {
+  if (cita && familiar_email && alumno_nombre && alumno_curso) {
     await sendCitaConfirmadaEmail({
       familiarEmail: familiar_email,
       profesorNombre: profesor.profesor,

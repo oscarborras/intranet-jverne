@@ -113,7 +113,7 @@ export async function POST(req: NextRequest) {
     .select("*")
     .single();
 
-  if (destinatario.email && process.env.RESEND_API_KEY) {
+  if (destinatario.email) {
     await sendNuevaSolicitudEmail({
       profesorEmail: destinatario.email,
       profesorNombre: destinatario.profesor,

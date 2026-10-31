@@ -1,8 +1,6 @@
-import { Resend } from "resend";
+import { sendEmail } from "@/lib/emailProviders";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
-const FROM = "IES Julio Verne <noreply@iesjulioverne.es>";
+// Each email is sent through the provider chosen for its module (Configuración → Envíos emails)
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
 function baseLayout(content: string): string {
@@ -87,8 +85,7 @@ export async function sendNuevaSolicitudEmail(p: NuevaSolicitudParams) {
     </a>
   `);
 
-  return resend.emails.send({
-    from: FROM,
+  return sendEmail("citas_familias", {
     to: p.profesorEmail,
     subject: `Nueva solicitud de cita${p.cargoNombre ? ` (${p.cargoNombre})` : ""} – ${p.alumnoNombre} – ${p.familiarNombre}`,
     html: body,
@@ -141,8 +138,7 @@ export async function sendCitaConfirmadaEmail(p: CitaConfirmadaParams) {
     </a>
   `);
 
-  return resend.emails.send({
-    from: FROM,
+  return sendEmail("citas_familias", {
     to: p.familiarEmail,
     subject: `${p.modificada ? "Cita modificada" : "Cita confirmada"} – ${fechaFormateada} ${formatHora(p.horaInicio)} – ${p.lugar}`,
     html: body,
@@ -179,8 +175,7 @@ export async function sendCanceladaProfesorEmail(p: CancelProfesorParams) {
     </p>
   `);
 
-  return resend.emails.send({
-    from: FROM,
+  return sendEmail("citas_familias", {
     to: p.familiarEmail,
     subject: `Cita cancelada – IES Julio Verne`,
     html: body,
@@ -244,8 +239,7 @@ export async function sendAusenciaRegistradaEmail(p: AusenciaRegistradaParams) {
     </a>
   `);
 
-  return resend.emails.send({
-    from: FROM,
+  return sendEmail("ausencias", {
     to: p.recipientEmails,
     subject: `${multiple ? "Ausencias registradas" : "Ausencia registrada"} – ${p.profesorNombre} – ${fechaFormateada}`,
     html: body,
@@ -281,8 +275,7 @@ export async function sendCanceladaFamiliaEmail(p: CancelFamiliaParams) {
     </table>
   `);
 
-  return resend.emails.send({
-    from: FROM,
+  return sendEmail("citas_familias", {
     to: p.profesorEmail,
     subject: `Cita cancelada por la familia – ${p.alumnoNombre}`,
     html: body,
@@ -353,8 +346,7 @@ export async function sendNuevaPeticionTICEmail(p: NuevaPeticionTICParams) {
     </a>
   `);
 
-  return resend.emails.send({
-    from: FROM,
+  return sendEmail("peticiones_tic", {
     to: p.recipientEmails,
     subject: `Nueva petición TIC ${p.codigo} – ${p.titulo}`,
     html: body,
@@ -391,8 +383,7 @@ export async function sendPeticionTICFinalizadaEmail(p: PeticionTICFinalizadaPar
     </a>
   `);
 
-  return resend.emails.send({
-    from: FROM,
+  return sendEmail("peticiones_tic", {
     to: p.autorEmail,
     subject: `Petición TIC ${p.codigo} finalizada – ${p.titulo}`,
     html: body,
@@ -438,8 +429,7 @@ export async function sendNuevaPeticionMantenimientoEmail(p: NuevaPeticionManten
     </a>
   `);
 
-  return resend.emails.send({
-    from: FROM,
+  return sendEmail("peticiones_mantenimiento", {
     to: p.recipientEmails,
     subject: `Nueva petición de mantenimiento ${p.codigo} – ${p.titulo}`,
     html: body,

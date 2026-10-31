@@ -2,10 +2,19 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Settings, Save, CheckCircle, AlertCircle, SlidersHorizontal, UserX, BookOpen, ChevronDown, Bell, Landmark, Link2 } from "lucide-react";
+import { Settings, Save, CheckCircle, AlertCircle, SlidersHorizontal, UserX, BookOpen, ChevronDown, Bell, Landmark, Link2, Mail } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { CARGOS_DIRECTIVOS, type CargoDirectivo, type CargoDirectivoClave, type ConfigIntranet, type Perfil } from "@/lib/types";
 import { parseNotificationRecipients, serializeNotificationRecipients } from "@/lib/notificationConfig";
+import {
+  DEFAULT_EMAIL_PROVIDER,
+  EMAIL_MODULES,
+  EMAIL_PROVIDERS,
+  emailModuleFromClave,
+  isEmailProvider,
+  isEmailProviderClave,
+  type EmailProvider,
+} from "@/lib/emailConfig";
 
 interface ProfesorCargoOption {
   id: string;
@@ -19,6 +28,8 @@ interface Props {
   perfiles: Pick<Perfil, "id" | "nombre">[];
   cargos: CargoDirectivo[];
   profesores: ProfesorCargoOption[];
+  /** Whether each email provider has its API key in the server environment */
+  emailProvidersReady: Record<EmailProvider, boolean>;
 }
 
 // Display label for each known clave
@@ -103,7 +114,7 @@ function inputToDdmmyyyy(val: string): string {
   return `${d}/${m}/${y}`;
 }
 
-type Tab = "asuntos_propios" | "otros" | "gratuidad_libros" | "notificaciones" | "cargos" | "urls";
+type Tab = "asuntos_propios" | "otros" | "gratuidad_libros" | "notificaciones" | "envios_email" | "cargos" | "urls";
 
 interface TabAccent {
   header: string;
@@ -139,6 +150,14 @@ const TAB_ACCENTS: Record<Tab, TabAccent> = {
     checked: "border-violet-300 bg-violet-50",
     checkbox: "accent-violet-600",
   },
+  envios_email: {
+    header: "bg-rose-50 border-rose-100",
+    iconChip: "bg-rose-100 text-rose-700",
+    activeTab: "text-rose-700",
+    cardBorder: "border-l-rose-400",
+    checked: "border-rose-300 bg-rose-50",
+    checkbox: "accent-rose-600",
+  },
   cargos: {
     header: "bg-indigo-50 border-indigo-100",
     iconChip: "bg-indigo-100 text-indigo-700",
@@ -165,7 +184,7 @@ const TAB_ACCENTS: Record<Tab, TabAccent> = {
   },
 };
 
-export function ConfiguracionClient({ config, perfiles, cargos, profesores }: Props) {
+export function ConfiguracionClient({ config, perfiles, cargos, profesores, emailProvidersReady }: Props) {
   const router = useRouter();
   // Local state: clave → current valor (in input format for dates)
   const [values, setValues] = useState<Record<string, string>>(() => {
@@ -251,12 +270,18 @@ export function ConfiguracionClient({ config, perfiles, cargos, profesores }: Pr
   const gratuidadRows = config.filter((r) => GRATUIDAD_CLAVES.has(r.clave));
   const notificacionRows = config.filter((r) => NOTIFICACION_CLAVES.has(r.clave));
   const urlRows = config.filter((r) => isUrlClave(r.clave));
+  // Known modules only, in EMAIL_MODULES order
+  const emailModuleOrder = Object.keys(EMAIL_MODULES);
+  const emailRows = config
+    .filter((r) => emailModuleFromClave(r.clave) !== null)
+    .sort((a, b) => emailModuleOrder.indexOf(emailModuleFromClave(a.clave) ?? "") - emailModuleOrder.indexOf(emailModuleFromClave(b.clave) ?? ""));
   const otherRows = config.filter(
     (r) =>
       !asuntosRows.includes(r) &&
       !gratuidadRows.includes(r) &&
       !notificacionRows.includes(r) &&
       !urlRows.includes(r) &&
+      !isEmailProviderClave(r.clave) &&
       !HIDDEN_CLAVES.has(r.clave)
   );
 
@@ -352,6 +377,51 @@ export function ConfiguracionClient({ config, perfiles, cargos, profesores }: Pr
 
           {total === 0 && (
             <p className="text-xs text-amber-600 mt-1.5">Ningún perfil ni cargo seleccionado: no se enviarán emails.</p>
+          )}
+        </fieldset>
+      );
+    }
+
+    const emailModule = emailModuleFromClave(row.clave);
+    if (emailModule) {
+      const current = isEmailProvider(values[row.clave]) ? values[row.clave] as EmailProvider : DEFAULT_EMAIL_PROVIDER;
+      return (
+        <fieldset key={row.clave}>
+          <legend className="text-sm font-semibold text-gray-800 mb-1">{EMAIL_MODULES[emailModule]}</legend>
+          <p className="text-xs text-gray-500 mb-2">{row.descripcion}</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {(Object.keys(EMAIL_PROVIDERS) as EmailProvider[]).map((provider) => {
+              const checked = current === provider;
+              const ready = emailProvidersReady[provider];
+              return (
+                <label
+                  key={provider}
+                  className={`flex items-center gap-3 min-h-11 px-3 py-2 border rounded-lg cursor-pointer transition-colors ${
+                    checked ? `${accent.checked} font-medium text-gray-900` : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name={row.clave}
+                    value={provider}
+                    checked={checked}
+                    onChange={() => setValues((v) => ({ ...v, [row.clave]: provider }))}
+                    className={`h-4 w-4 ${accent.checkbox}`}
+                  />
+                  <span className="min-w-0">
+                    <span className="block text-sm">{EMAIL_PROVIDERS[provider].nombre}</span>
+                    {!ready && (
+                      <span className="block text-xs font-normal text-amber-700">Sin API key en el servidor</span>
+                    )}
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+          {!emailProvidersReady[current] && (
+            <p className="text-xs text-amber-600 mt-1.5">
+              {EMAIL_PROVIDERS[current].nombre} no tiene API key configurada: este módulo no enviará emails.
+            </p>
           )}
         </fieldset>
       );
@@ -544,6 +614,13 @@ export function ConfiguracionClient({ config, perfiles, cargos, profesores }: Pr
       icon: <Bell size={15} />,
       rows: notificacionRows,
       description: "Perfiles y cargos directivos que reciben los emails enviados por cada módulo. Se pueden marcar varios.",
+    },
+    {
+      id: "envios_email" as Tab,
+      label: "Envíos emails",
+      icon: <Mail size={15} />,
+      rows: emailRows,
+      description: "Servicio que envía los emails de cada módulo. Las API keys de cada servicio se configuran en el servidor (.env.local).",
     },
     {
       id: "cargos" as Tab,

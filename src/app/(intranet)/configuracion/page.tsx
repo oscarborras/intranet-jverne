@@ -3,6 +3,8 @@ import { ConfiguracionClient } from "./ConfiguracionClient";
 import type { CargoDirectivo, ConfigIntranet, Perfil } from "@/lib/types";
 import { requireRole } from "@/lib/auth";
 import { todayMadrid } from "@/lib/dates";
+import { EMAIL_PROVIDERS, type EmailProvider } from "@/lib/emailConfig";
+import { isEmailProviderReady } from "@/lib/emailProviders";
 
 export default async function ConfiguracionPage() {
   await requireRole(["Admin", "Directiva"]);
@@ -22,12 +24,18 @@ export default async function ConfiguracionPage() {
     .filter((p) => !p.fecha_cese || p.fecha_cese > today || holderIds.has(p.id))
     .map((p) => ({ id: p.id as string, profesor: p.profesor as string, cesado: Boolean(p.fecha_cese && p.fecha_cese <= today) }));
 
+  // Only whether each provider has its API key; the keys never leave the server
+  const emailProvidersReady = Object.fromEntries(
+    (Object.keys(EMAIL_PROVIDERS) as EmailProvider[]).map((p) => [p, isEmailProviderReady(p)])
+  ) as Record<EmailProvider, boolean>;
+
   return (
     <ConfiguracionClient
       config={(config ?? []) as ConfigIntranet[]}
       perfiles={(perfiles ?? []) as Pick<Perfil, "id" | "nombre">[]}
       cargos={(cargos ?? []) as CargoDirectivo[]}
       profesores={profesoresOptions}
+      emailProvidersReady={emailProvidersReady}
     />
   );
 }

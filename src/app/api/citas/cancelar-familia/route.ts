@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
     destinatarioEmail = profesorData?.email ?? null;
   }
 
-  if (destinatarioEmail && process.env.RESEND_API_KEY) {
+  if (destinatarioEmail) {
     await sendCanceladaFamiliaEmail({
       profesorEmail: destinatarioEmail,
       alumnoNombre: cita.alumno_nombre,
