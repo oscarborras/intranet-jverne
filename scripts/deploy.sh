@@ -36,6 +36,7 @@ main() {
   if [[ "$old" == "$new" && "${1:-}" != "--force" ]]; then
     log "Sin cambios ($(git log -1 --format='%h %s'))."
     check_updates
+    check_vulnerabilities
     exit 0
   fi
 
@@ -62,6 +63,7 @@ main() {
 
   log "Desplegado: $(git log -1 --format='%h %s')"
   check_updates
+  check_vulnerabilities
 }
 
 # Informational only: compares the installed version of each watched package with
@@ -90,6 +92,44 @@ check_updates() {
     log "Después haz commit y push de package.json y package-lock.json y vuelve a desplegar."
     log "Un cambio de versión mayor no lo aplica deps:update: revisa antes la guía de migración."
   fi
+}
+
+# Informational only: counts the known vulnerabilities (npm audit) of the installed
+# dependencies, both overall and in the ones the running app uses (no devDependencies).
+# Fixes must be done in development too. A network failure only skips the check.
+check_vulnerabilities() {
+  local all prod
+  log "Comprobando vulnerabilidades (npm audit)..."
+  all=$(audit_summary)
+  prod=$(audit_summary --omit=dev)
+  if [[ -z "$all" ]]; then
+    log "  No se pudo comprobar (¿sin conexión con npm?)."
+    return 0
+  fi
+  log "  Total: $all"
+  log "  En producción (sin devDependencies): ${prod:-no se pudo comprobar}"
+  if [[ "$all" != "0" ]]; then
+    log "Revísalas en desarrollo (nunca en este servidor):"
+    log "  npm audit             muestra el detalle de cada una"
+    log "  npm audit fix         corrige las que no cambian de versión mayor"
+    log "Después haz commit y push de package.json y package-lock.json y vuelve a desplegar."
+  fi
+}
+
+# Prints "0" or "N (x críticas, y altas, ...)"; nothing if npm audit could not run.
+# npm audit exits with 1 when it finds vulnerabilities, hence the "|| true".
+audit_summary() {
+  { npm audit --json "$@" 2>/dev/null || true; } | node -e '
+    let s = "";
+    process.stdin.on("data", (c) => (s += c)).on("end", () => {
+      let v;
+      try { v = JSON.parse(s).metadata.vulnerabilities; } catch { return; }
+      if (!v) return;
+      const names = [["critical", "crítica"], ["high", "alta"], ["moderate", "moderada"], ["low", "baja"], ["info", "informativa"]];
+      const parts = names.filter(([k]) => v[k] > 0).map(([k, n]) => `${v[k]} ${n}${v[k] > 1 ? "s" : ""}`);
+      process.stdout.write(v.total ? `${v.total} (${parts.join(", ")})` : "0");
+    });
+  ' || true
 }
 
 log() { echo "[$(date '+%F %T')] $*"; }
