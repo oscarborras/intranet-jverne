@@ -75,10 +75,23 @@ main() {
     exit 1
   fi
 
-  log "Actualización correcta. Prueba la app con 'npm run dev' y después:"
-  log "  git add package.json package-lock.json"
-  log "  git commit -m \"chore(deps): update ${installs[*]}\""
-  log "  git push origin main   (y en el servidor: scripts/deploy.sh)"
+  log "Actualización instalada y compilada correctamente."
+  # Commit and push are left to the developer on purpose: the app must be tested first
+  cat <<EOF
+
+================================================================================
+  RECORDATORIO: la actualización NO está subida todavía
+================================================================================
+  1. Prueba la app:   npm run dev
+  2. Haz commit:      git add package.json package-lock.json
+                      git commit -m "chore(deps): update ${installs[*]}"
+  3. Súbelo:          git push origin main
+  4. En el servidor:  scripts/deploy.sh
+
+  Hasta que no hagas el push, producción sigue con las versiones anteriores.
+================================================================================
+
+EOF
 }
 
 # Version declared in package.json, without range prefixes such as ^ or ~
