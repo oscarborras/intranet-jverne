@@ -336,7 +336,7 @@ export interface Profesor {
 // ─── Absences ────────────────────────────────────────────────────────────────
 
 export type AusenciaEstado = "activa" | "cancelada";
-export type AusenciaMotivo = "cita_medica" | "enfermedad" | "excursion" | "asuntos_propios";
+export type AusenciaMotivo = "cita_medica" | "enfermedad" | "excursion" | "asuntos_propios" | "otros";
 
 export interface AusenciaProfesorado {
   id: number;

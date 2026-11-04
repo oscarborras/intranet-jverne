@@ -6,6 +6,7 @@ export const AUSENCIA_MOTIVOS: { value: AusenciaMotivo; label: string }[] = [
   { value: "enfermedad", label: "Enfermedad" },
   { value: "excursion", label: "Excursión" },
   { value: "asuntos_propios", label: "Asuntos propios" },
+  { value: "otros", label: "Otros motivos" },
 ];
 
 export function isAusenciaMotivo(value: unknown): value is AusenciaMotivo {

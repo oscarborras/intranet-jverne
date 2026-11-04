@@ -128,6 +128,7 @@ export async function POST(req: NextRequest) {
     recipientEmails,
     profesorNombre: (profesor?.profesor as string | undefined) ?? "Profesor/a",
     fecha: body.fecha,
+    motivo: body.motivo,
     observaciones,
     tramos: [...creadas]
       .sort((a, b) => (tramoMap.get(a.tramo_id)?.orden ?? 0) - (tramoMap.get(b.tramo_id)?.orden ?? 0))

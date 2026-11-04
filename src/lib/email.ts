@@ -1,5 +1,6 @@
 import { sendEmail } from "@/lib/emailProviders";
-import { EXTRAESCOLAR_TIPO } from "@/lib/types";
+import { EXTRAESCOLAR_TIPO, type AusenciaMotivo } from "@/lib/types";
+import { ausenciaMotivoLabel } from "@/lib/ausencias";
 
 // Each email is sent through the provider chosen for its module (Configuración → Envíos emails)
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
@@ -197,6 +198,7 @@ interface AusenciaRegistradaParams {
   recipientEmails: string[];
   profesorNombre: string;
   fecha: string;
+  motivo: AusenciaMotivo;
   observaciones: string | null;
   /** All absences registered for this teacher and date in a single submission */
   tramos: AusenciaRegistradaTramo[];
@@ -232,6 +234,7 @@ export async function sendAusenciaRegistradaEmail(p: AusenciaRegistradaParams) {
     <table cellpadding="0" cellspacing="0" style="width:100%;border-top:1px solid #e5e7eb;padding-top:16px;">
       ${row("Profesor/a", profesor)}
       ${row("Fecha", fechaFormateada)}
+      ${row("Motivo", escapeHtml(ausenciaMotivoLabel(p.motivo)))}
       ${p.observaciones ? row("Observaciones", escapeHtml(p.observaciones).replace(/\n/g, "<br>")) : ""}
     </table>
     ${tramosHtml}
