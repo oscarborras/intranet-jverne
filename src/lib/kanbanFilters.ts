@@ -1,8 +1,11 @@
 import { matchesAllWords, searchWords } from "@/lib/text";
+import { dateStrMadrid } from "@/lib/dates";
 import type { PeticionPrioridad } from "@/lib/types";
 
 // Board filters for the TIC and maintenance kanbans. Kept in the URL so they
 // survive a reload and can be shared: ?q=proyector&prioridad=urgente,alta&mias=1&asignado=me
+// The day filters (?registrada=2026-11-09&resuelta=2026-11-09) are read by the maintenance page
+// too, which loads the old finished requests of that day that are no longer on the board.
 
 export const PRIORIDADES_FILTRO: { id: PeticionPrioridad; label: string }[] = [
   { id: "urgente", label: "Urgente" },
@@ -20,9 +23,22 @@ export interface KanbanFilterState {
   /** Only requests I created */
   mias: boolean;
   asignado: AsignadoFiltro;
+  /** Madrid day the request was created, "YYYY-MM-DD" or "" */
+  registrada: string;
+  /** Madrid day the request was finished, "YYYY-MM-DD" or "" */
+  resuelta: string;
 }
 
-export const EMPTY_KANBAN_FILTERS: KanbanFilterState = { q: "", prioridades: [], mias: false, asignado: "" };
+export const EMPTY_KANBAN_FILTERS: KanbanFilterState = {
+  q: "", prioridades: [], mias: false, asignado: "", registrada: "", resuelta: "",
+};
+
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Valid "YYYY-MM-DD" day or "" */
+export function parseDayParam(value: string | null | undefined): string {
+  return value && DAY_RE.test(value) ? value : "";
+}
 
 const PRIORIDAD_IDS = new Set<string>(PRIORIDADES_FILTRO.map((p) => p.id));
 
@@ -34,6 +50,8 @@ export function parseKanbanFilters(params: URLSearchParams): KanbanFilterState {
       .filter((p): p is PeticionPrioridad => PRIORIDAD_IDS.has(p)),
     mias: params.get("mias") === "1",
     asignado: params.get("asignado") ?? "",
+    registrada: parseDayParam(params.get("registrada")),
+    resuelta: parseDayParam(params.get("resuelta")),
   };
 }
 
@@ -45,17 +63,24 @@ export function writeKanbanFilters(params: URLSearchParams, f: KanbanFilterState
   set("prioridad", f.prioridades.join(","));
   set("mias", f.mias ? "1" : "");
   set("asignado", f.asignado);
+  set("registrada", f.registrada);
+  set("resuelta", f.resuelta);
   return out;
 }
 
 export function isKanbanFilterActive(f: KanbanFilterState): boolean {
-  return f.q.trim() !== "" || f.prioridades.length > 0 || f.mias || f.asignado !== "";
+  return (
+    f.q.trim() !== "" || f.prioridades.length > 0 || f.mias || f.asignado !== "" ||
+    f.registrada !== "" || f.resuelta !== ""
+  );
 }
 
 interface FilterableItem {
   prioridad: PeticionPrioridad;
   autor_id: string;
   asignado_id?: string | null;
+  created_at: string;
+  finalizada_at: string | null;
 }
 
 /**
@@ -75,6 +100,8 @@ export function filterKanbanItems<T extends FilterableItem>(
     if (f.asignado === "me" && item.asignado_id !== userId) return false;
     if (f.asignado === "none" && item.asignado_id) return false;
     if (f.asignado && f.asignado !== "me" && f.asignado !== "none" && item.asignado_id !== f.asignado) return false;
+    if (f.registrada && dateStrMadrid(item.created_at) !== f.registrada) return false;
+    if (f.resuelta && (!item.finalizada_at || dateStrMadrid(item.finalizada_at) !== f.resuelta)) return false;
     return matchesAllWords(searchText(item), words);
   });
 }

@@ -130,11 +130,21 @@ export function PeticionesMantenimientoClient({
     (p) => `${p.codigo} ${p.titulo} ${p.descripcion ?? ""} ${p.ubicacion ?? ""}`
   );
   const items: KanbanItem[] = filtradas.map((p) => ({ ...p, tipo: "MNT" as const }));
-  // The history has its own search: pass the typed text on
-  const busqueda = filters.q.trim();
-  const recientes = peticiones.filter((p) => p.estado === "finalizada").length;
+  // The history has its own search and dates: pass the typed text and the "finished on" day on
+  const historialParams = new URLSearchParams();
+  if (filters.q.trim()) historialParams.set("q", filters.q.trim());
+  if (filters.resuelta) {
+    historialParams.set("desde", filters.resuelta);
+    historialParams.set("hasta", filters.resuelta);
+  }
+  const historialQs = historialParams.toString();
+  // Old finished requests loaded by a day filter are not part of the board's window
+  const windowStart = Date.now() - diasVistaFinalizadas * 24 * 60 * 60 * 1000;
+  const recientes = peticiones.filter(
+    (p) => p.estado === "finalizada" && (!p.finalizada_at || new Date(p.finalizada_at).getTime() >= windowStart)
+  ).length;
   const columnInfo = {
-    finalizada: finalizadasColumnInfo(diasVistaFinalizadas, recientes, finalizadasAntiguas, `/peticiones-mantenimiento/historial${busqueda ? `?q=${encodeURIComponent(busqueda)}` : ""}`),
+    finalizada: finalizadasColumnInfo(diasVistaFinalizadas, recientes, finalizadasAntiguas, `/peticiones-mantenimiento/historial${historialQs ? `?${historialQs}` : ""}`),
   };
 
   async function handleStatusChange(id: number, newStatus: PeticionMantenimientoEstado) {
@@ -271,6 +281,7 @@ export function PeticionesMantenimientoClient({
         shown={filtradas.length}
         total={enTablero.length}
         searchPlaceholder="Buscar por código, título, descripción o ubicación"
+        showDayFilters
       />
 
       {/* Kanban */}

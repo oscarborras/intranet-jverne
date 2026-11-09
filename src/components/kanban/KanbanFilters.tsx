@@ -1,6 +1,6 @@
 "use client";
 
-import { Search, X, User } from "lucide-react";
+import { Search, X, User, CalendarPlus, CalendarCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   EMPTY_KANBAN_FILTERS,
@@ -24,6 +24,8 @@ interface Props {
   searchPlaceholder: string;
   /** Pass the options to show the "Asignado a" selector (TIC only) */
   asignadoOptions?: AsignadoOption[];
+  /** Show the "registered on" / "finished on" day filters (maintenance only) */
+  showDayFilters?: boolean;
 }
 
 const PRIORITY_ACTIVE: Record<PeticionPrioridad, string> = {
@@ -34,7 +36,7 @@ const PRIORITY_ACTIVE: Record<PeticionPrioridad, string> = {
 };
 
 // Search + filter bar shown above a kanban board
-export function KanbanFilters({ value, onChange, shown, total, searchPlaceholder, asignadoOptions }: Props) {
+export function KanbanFilters({ value, onChange, shown, total, searchPlaceholder, asignadoOptions, showDayFilters }: Props) {
   const active = isKanbanFilterActive(value);
 
   function togglePrioridad(p: PeticionPrioridad) {
@@ -120,6 +122,25 @@ export function KanbanFilters({ value, onChange, shown, total, searchPlaceholder
         )}
       </div>
 
+      {showDayFilters && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <DayFilter
+            id="filtro-registrada"
+            label="Registradas el"
+            icon={<CalendarPlus size={14} />}
+            value={value.registrada}
+            onChange={(registrada) => onChange({ ...value, registrada })}
+          />
+          <DayFilter
+            id="filtro-resuelta"
+            label="Resueltas el"
+            icon={<CalendarCheck size={14} />}
+            value={value.resuelta}
+            onChange={(resuelta) => onChange({ ...value, resuelta })}
+          />
+        </div>
+      )}
+
       {active && (
         <div className="flex items-center justify-between gap-3 text-xs">
           <p className="text-gray-500" aria-live="polite">
@@ -133,6 +154,46 @@ export function KanbanFilters({ value, onChange, shown, total, searchPlaceholder
             <X size={12} /> Limpiar filtros
           </button>
         </div>
+      )}
+    </div>
+  );
+}
+
+interface DayFilterProps {
+  id: string;
+  label: string;
+  icon: React.ReactNode;
+  /** "YYYY-MM-DD" or "" */
+  value: string;
+  onChange: (value: string) => void;
+}
+
+// Single-day date picker with a clear button
+function DayFilter({ id, label, icon, value, onChange }: DayFilterProps) {
+  return (
+    <div className="flex items-center gap-2 min-w-0">
+      <label htmlFor={id} className="flex items-center gap-1.5 text-xs font-medium text-gray-600 whitespace-nowrap">
+        {icon} {label}
+      </label>
+      <input
+        id={id}
+        type="date"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className={cn(
+          "flex-1 min-w-0 border rounded-lg px-3 py-2 min-h-[38px] text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-500",
+          value ? "border-blue-300 text-gray-900" : "border-gray-200 text-gray-500"
+        )}
+      />
+      {value && (
+        <button
+          type="button"
+          onClick={() => onChange("")}
+          aria-label={`Quitar filtro: ${label.toLowerCase()}`}
+          className="p-2 rounded-md text-gray-400 hover:text-gray-700 hover:bg-gray-100"
+        >
+          <X size={14} />
+        </button>
       )}
     </div>
   );

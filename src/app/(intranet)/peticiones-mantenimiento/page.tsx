@@ -4,9 +4,18 @@ import { resolveAutorNames } from "@/lib/resolveAutorNames";
 import { getFinalizadasCutoff } from "@/lib/peticiones";
 import type { PeticionMantenimiento } from "@/lib/types";
 import { requireAuth } from "@/lib/auth";
+import { parseDayParam } from "@/lib/kanbanFilters";
+import { addDaysToDateStr } from "@/lib/dates";
 
-export default async function PeticionesMantenimientoPage() {
+interface PageProps {
+  searchParams: Promise<{ registrada?: string; resuelta?: string }>;
+}
+
+export default async function PeticionesMantenimientoPage({ searchParams }: PageProps) {
   const { user, roles } = await requireAuth();
+  const sp = await searchParams;
+  const registrada = parseDayParam(sp.registrada);
+  const resuelta = parseDayParam(sp.resuelta);
   const supabase = await createClient();
 
   const { dias, cutoff } = await getFinalizadasCutoff(supabase);
@@ -30,7 +39,27 @@ export default async function PeticionesMantenimientoPage() {
       .eq("estado", "finalizada")
       .lt("finalizada_at", cutoff),
   ]);
-  const peticionesRaw = [...(activas ?? []), ...(finalizadas ?? [])];
+
+  // Day filters: also load the finished requests of that day that are older than the window.
+  // Timestamps without offset are read in the DB timezone (Europe/Madrid).
+  const dayFiltered = await Promise.all(
+    ([["created_at", registrada], ["finalizada_at", resuelta]] as const)
+      .filter(([, day]) => day)
+      .map(([column, day]) =>
+        supabase
+          .from("peticiones_mantenimiento")
+          .select("*")
+          .eq("estado", "finalizada")
+          .lt("finalizada_at", cutoff)
+          .gte(column, `${day}T00:00:00`)
+          .lt(column, `${addDaysToDateStr(day, 1)}T00:00:00`)
+      )
+  );
+  const peticionesRaw = [
+    ...new Map(
+      [...(activas ?? []), ...(finalizadas ?? []), ...dayFiltered.flatMap((r) => r.data ?? [])].map((p) => [p.id, p])
+    ).values(),
+  ];
 
   const uniqueAutorIds = [...new Set([...peticionesRaw.map((p) => p.autor_id as string), user.id])];
   const autorNames = await resolveAutorNames(supabase, uniqueAutorIds);
