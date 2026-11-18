@@ -1,6 +1,6 @@
 {
   "name": "intranet-jv",
-  "version": "1.18.5",
+  "version": "1.18.6",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -28,7 +28,7 @@
     "clsx": "^2.1.1",
     "jsbarcode": "^3.12.3",
     "lucide-react": "^1.8.0",
-    "next": "16.4.3",
+    "next": "16.4.6",
     "react": "19.3.1",
     "react-dom": "19.3.1",
     "recharts": "^3.8.1",
