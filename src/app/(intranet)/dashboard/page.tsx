@@ -19,6 +19,9 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import type { Anuncio, PeticionTIC, PeticionMantenimiento } from "@/lib/types";
 import { ProximasReservas, type ReservaDashboard } from "./ProximasReservas";
+import { EstadoConserjeriaBanner } from "./EstadoConserjeriaBanner";
+import { EstadoConserjeriaSelector } from "./EstadoConserjeriaSelector";
+import { ESTADO_CONSERJERIA_SELECT, type EstadoConserjeria } from "@/lib/conserjeria";
 import { todayMadrid, addDaysToDateStr } from "@/lib/dates";
 import { requireAuth } from "@/lib/auth";
 import { CARGOS_DIRECTIVOS, type CargoDirectivoClave, type CitaTipo } from "@/lib/types";
@@ -247,6 +250,7 @@ export default async function DashboardPage() {
     ausenciasProximasResult,
     ausenciasHoyResult,
     sancionesResult,
+    conserjeriaResult,
   ] = await Promise.all([
     showAnuncios
       ? supabase.from("anuncios").select("id, titulo, prioridad, created_at, autor_id").or(`visible_hasta.is.null,visible_hasta.gte.${todayStr}`).order("created_at", { ascending: false }).limit(3)
@@ -287,9 +291,11 @@ export default async function DashboardPage() {
     showSanciones
       ? supabase.from("v_sanciones_detalladas").select("id, alumno, unidad, fecha_inicio, fecha_fin, tipo").gte("fecha_fin", todayStr).order("fecha_inicio", { ascending: true }).order("alumno", { ascending: true })
       : Promise.resolve({ data: [] }),
+    supabase.from("estado_conserjeria").select(ESTADO_CONSERJERIA_SELECT).eq("fecha", todayStr).maybeSingle(),
   ]);
 
   const anuncios = anunciosResult.data;
+  const estadoConserjeria = (conserjeriaResult.data ?? null) as EstadoConserjeria | null;
 
   const reservasCarros: ReservaDashboard[] = ((reservasCarrosResult.data ?? []) as Record<string, unknown>[]).map((r) => {
     const carro = r.carros as { nombre: string } | null;
@@ -478,6 +484,9 @@ export default async function DashboardPage() {
         <h1 className="text-2xl font-bold">Bienvenido/a {userName}</h1>
       </div>
 
+      {/* Ordenanza: today's number of caretakers on duty */}
+      {isOrdenanzaView && <EstadoConserjeriaSelector initialEstado={estadoConserjeria} />}
+
       {/* Modules grid */}
       <section className={`${!mostrarGridDashboard ? "hidden" : ""} ${!mostrarGridMovil ? "hidden md:block" : ""}`}>
         <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
@@ -506,6 +515,11 @@ export default async function DashboardPage() {
           })}
         </div>
       </section>
+
+      {/* Caretaker's office status: Directiva and Admin can change it, everyone else only sees it */}
+      {!isOrdenanzaView && (roleNames.some((r) => ["Directiva", "Admin"].includes(r))
+        ? <EstadoConserjeriaSelector initialEstado={estadoConserjeria} />
+        : <EstadoConserjeriaBanner estado={estadoConserjeria} />)}
 
       {/*
         Widgets: a single grid holding every visible module in priority order,
