@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Deploys the latest commit of origin/main: pull, install, build and reload PM2.
-# Usage: scripts/deploy.sh          (does nothing if there are no new commits)
-#        scripts/deploy.sh --force  (rebuilds even without new commits)
+# Usage: scripts/deploy.sh          (does nothing if the latest commit is already deployed)
+#        scripts/deploy.sh --force  (rebuilds even if it is already deployed)
+# The last fully deployed commit is stored in .git/deployed-commit (written only after
+# PM2 reloads), so an interrupted run is completed by the next one without --force.
 # See doc/Install_produccion_frontend.md
 set -euo pipefail
 
@@ -14,6 +16,7 @@ WATCHED_PACKAGES=(next react react-dom)
 # "git merge" replaces this file with a newer version.
 main() {
   cd "$(dirname "$(readlink -f "$0")")/.."
+  DEPLOYED_FILE="$(git rev-parse --git-dir)/deployed-commit"
 
   # Avoid two deployments running at the same time
   exec 9>/tmp/deploy-intranet.lock
@@ -28,24 +31,38 @@ main() {
     exit 1
   fi
 
-  # 2. Fetch and check whether there is anything new
+  # 2. Fetch and compare with the last fully deployed commit (not with HEAD: an
+  #    interrupted run may have merged the code without building or reloading)
   git fetch --quiet origin "$BRANCH"
-  local old new
-  old=$(git rev-parse HEAD)
+  local head new deployed base
+  head=$(git rev-parse HEAD)
   new=$(git rev-parse "origin/$BRANCH")
-  if [[ "$old" == "$new" && "${1:-}" != "--force" ]]; then
+  deployed=$(cat "$DEPLOYED_FILE" 2>/dev/null || true)
+  if [[ "$deployed" == "$new" && "${1:-}" != "--force" ]]; then
     log "Sin cambios ($(git log -1 --format='%h %s'))."
     check_updates
     check_vulnerabilities
     exit 0
   fi
 
-  log "Actualizando ${old:0:7} -> ${new:0:7}"
-  git merge --ff-only --quiet "origin/$BRANCH"
+  if [[ "$head" != "$new" ]]; then
+    log "Actualizando ${head:0:7} -> ${new:0:7}"
+    git merge --ff-only --quiet "origin/$BRANCH"
+  elif [[ -n "$deployed" && "$deployed" != "$new" ]]; then
+    log "El despliegue anterior no terminó (desplegado: ${deployed:0:7}). Se completa ahora."
+  fi
+
+  # Base to detect dependency changes: the last deployed commit if it is known,
+  # otherwise the commit the server had before this run
+  if [[ -n "$deployed" ]] && git cat-file -e "${deployed}^{commit}" 2>/dev/null; then
+    base="$deployed"
+  else
+    base="$head"
+  fi
 
   # 3. Dependencies: only when package-lock.json changed (npm ci wipes node_modules,
   #    which the running app still uses) or node_modules is missing
-  if [[ ! -d node_modules ]] || ! git diff --quiet "$old" "$new" -- package-lock.json; then
+  if [[ ! -d node_modules ]] || ! git diff --quiet "$base" "$new" -- package-lock.json; then
     log "Instalando dependencias (npm ci)..."
     npm ci --include=dev
   else
@@ -60,6 +77,7 @@ main() {
   log "Recargando PM2..."
   TZ=Europe/Madrid pm2 reload "$APP_NAME" --update-env
   pm2 save >/dev/null
+  echo "$new" > "$DEPLOYED_FILE"
 
   log "Desplegado: $(git log -1 --format='%h %s')"
   check_updates
