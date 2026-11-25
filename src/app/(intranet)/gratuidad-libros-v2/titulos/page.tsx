@@ -22,7 +22,12 @@ export default async function TitulosV2Page() {
   // Programme courses first; every other course can also be given a lot
   const filas = (todosCursos ?? []) as { nombre: string; gratuidad: boolean | null }[];
   const cursos = filas.filter((c) => c.gratuidad).map((c) => c.nombre);
-  const otrosCursos = filas.filter((c) => !c.gratuidad).map((c) => c.nombre);
+  // Groups students are in (from the Séneca import) that are missing from the courses table
+  const enTabla = new Set(filas.map((c) => c.nombre));
+  const otrosCursos = [
+    ...filas.filter((c) => !c.gratuidad).map((c) => c.nombre),
+    ...Object.keys(alumnosPorCurso).filter((g) => !enTabla.has(g)),
+  ].sort((a, b) => a.localeCompare(b, "es"));
 
   return (
     <TitulosClient
