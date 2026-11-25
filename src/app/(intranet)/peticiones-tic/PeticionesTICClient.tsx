@@ -52,6 +52,7 @@ export function PeticionesTICClient({
   const [foto, setFoto] = useState<File | null>(null);
   const fotoInputRef = useRef<HTMLInputElement>(null);
   const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
   const [selectedPeticion, setSelectedPeticion] = useState<PeticionTIC | null>(null);
 
   useEffect(() => {
@@ -60,6 +61,7 @@ export function PeticionesTICClient({
       setSoloUsuario(null);
       setForm({ titulo: "", descripcion: "", prioridad: "normal" });
       setFoto(null);
+      setFormError(null);
       setShowForm(true);
       router.replace(pathname);
     }
@@ -111,7 +113,12 @@ export function PeticionesTICClient({
   }
 
   async function handleCreate() {
-    if (!form.titulo.trim()) return;
+    // The title is required by the API: say so instead of silently ignoring the click
+    if (!form.titulo.trim()) {
+      setFormError("El título es obligatorio.");
+      return;
+    }
+    setFormError(null);
     setSaving(true);
     const supabase = createClient();
 
@@ -131,10 +138,15 @@ export function PeticionesTICClient({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...form, solo_usuario: soloUsuario ?? false, foto_path, foto_nombre }),
     });
-    if (res.ok) {
-      const { peticion } = (await res.json()) as { peticion: PeticionTIC };
-      setPeticiones((prev) => [{ ...peticion, autor: { full_name: myDisplayName } }, ...prev]);
+    if (!res.ok) {
+      // Keep the form open with what was typed, and show why it failed
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      setFormError(data.error ?? "No se ha podido crear la petición. Inténtalo de nuevo.");
+      setSaving(false);
+      return;
     }
+    const { peticion } = (await res.json()) as { peticion: PeticionTIC };
+    setPeticiones((prev) => [{ ...peticion, autor: { full_name: myDisplayName } }, ...prev]);
     setSaving(false);
     setShowForm(false);
     setFormStep(1);
@@ -253,7 +265,7 @@ export function PeticionesTICClient({
                 </div>
                 <div className="px-6 py-4 border-t border-gray-100 flex justify-end">
                   <button
-                    onClick={() => { setShowForm(false); setFormStep(1); setSoloUsuario(null); }}
+                    onClick={() => { setShowForm(false); setFormStep(1); setSoloUsuario(null); setFormError(null); }}
                     className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg"
                   >
                     Cancelar
@@ -270,8 +282,11 @@ export function PeticionesTICClient({
                     </div>
                   )}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Título</label>
+                    <label htmlFor="tic-titulo" className="block text-sm font-medium text-gray-700 mb-1">Título <span className="text-red-500">*</span></label>
                     <input
+                      id="tic-titulo"
+                      required
+                      aria-invalid={formError !== null && !form.titulo.trim()}
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                       value={form.titulo}
                       onChange={(e) => setForm((f) => ({ ...f, titulo: e.target.value }))}
@@ -331,16 +346,21 @@ export function PeticionesTICClient({
                     </div>
                   </div>
                 </div>
+                {formError && (
+                  <p role="alert" className="mx-6 mb-3 text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+                    {formError}
+                  </p>
+                )}
                 <div className="px-6 py-4 border-t border-gray-100 flex justify-between gap-3">
                   <button
-                    onClick={() => setFormStep(1)}
+                    onClick={() => { setFormStep(1); setFormError(null); }}
                     className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg"
                   >
                     Atrás
                   </button>
                   <div className="flex gap-3">
                     <button
-                      onClick={() => { setShowForm(false); setFormStep(1); setSoloUsuario(null); setForm({ titulo: "", descripcion: "", prioridad: "normal" }); setFoto(null); if (fotoInputRef.current) fotoInputRef.current.value = ""; }}
+                      onClick={() => { setShowForm(false); setFormStep(1); setSoloUsuario(null); setFormError(null); setForm({ titulo: "", descripcion: "", prioridad: "normal" }); setFoto(null); if (fotoInputRef.current) fotoInputRef.current.value = ""; }}
                       className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg"
                     >
                       Cancelar
