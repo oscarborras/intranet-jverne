@@ -20,7 +20,12 @@ interface Props {
   titulos: TituloV2[];
   lotes: TituloCursoV2[];
   resumen: ResumenTituloV2[];
+  /** Courses in the free-textbook programme */
   cursos: string[];
+  /** Other school courses that can also be given a lot */
+  otrosCursos: string[];
+  /** Active students per group */
+  alumnosPorCurso: Record<string, number>;
 }
 
 interface FormTitulo {
@@ -45,7 +50,9 @@ interface ImportResult {
   lotes: TituloCursoV2[];
 }
 
-export function TitulosClient({ titulos: initialTitulos, lotes: initialLotes, resumen: initialResumen, cursos }: Props) {
+export function TitulosClient({
+  titulos: initialTitulos, lotes: initialLotes, resumen: initialResumen, cursos, otrosCursos, alumnosPorCurso,
+}: Props) {
   const supabase = createClient();
   const router = useRouter();
 
@@ -88,7 +95,14 @@ export function TitulosClient({ titulos: initialTitulos, lotes: initialLotes, re
   const [importando, setImportando] = useState(false);
   const [importMsg, setImportMsg] = useState<string | null>(null);
 
-  const niveles = useMemo(() => agruparPorNivel(cursos).map((n) => n.nivel), [cursos]);
+  const todosLosCursos = useMemo(() => [...cursos, ...otrosCursos], [cursos, otrosCursos]);
+  // Level filter: programme levels plus any other level that already has a title
+  const niveles = useMemo(() => {
+    const enUso = new Set(Object.values(lotes).flat());
+    return agruparPorNivel(todosLosCursos)
+      .filter((n) => cursos.includes(n.cursos[0]) || n.cursos.some((c) => enUso.has(c)))
+      .map((n) => n.nivel);
+  }, [todosLosCursos, cursos, lotes]);
 
   const porFiltros = useMemo(() => {
     return titulos.filter((t) => {
@@ -362,7 +376,7 @@ export function TitulosClient({ titulos: initialTitulos, lotes: initialLotes, re
         <ul className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100">
           {visibles.map((t) => {
             const r = resumen[t.id] ?? { titulo_id: t.id, ...RESUMEN_VACIO };
-            const lote = resumenLote(lotes[t.id] ?? [], cursos);
+            const lote = resumenLote(lotes[t.id] ?? [], todosLosCursos);
             return (
               <li key={t.id} className={`flex flex-col md:flex-row md:items-center gap-3 px-4 py-3 ${!t.activo ? "opacity-50" : ""}`}>
                 <div className="min-w-0 flex-1">
@@ -438,7 +452,10 @@ export function TitulosClient({ titulos: initialTitulos, lotes: initialLotes, re
             <div>
               <p className="text-sm font-medium text-gray-700 mb-1">Lote: cursos que usan este libro</p>
               <p className="text-xs text-gray-400 mb-2">Pulsa el nivel para marcar todos sus grupos, o elige grupos sueltos.</p>
-              <CursosSelector cursos={cursos} seleccion={formCursos} onChange={setFormCursos} />
+              <CursosSelector
+                cursos={cursos} otrosCursos={otrosCursos} alumnosPorCurso={alumnosPorCurso}
+                seleccion={formCursos} onChange={setFormCursos}
+              />
               <label className="flex items-start gap-2 mt-3 text-sm text-gray-700 cursor-pointer">
                 <input
                   type="checkbox"

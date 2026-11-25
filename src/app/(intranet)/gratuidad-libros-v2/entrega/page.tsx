@@ -23,11 +23,6 @@ export default async function EntregaV2Page({ searchParams }: Props) {
     supabase.from("profesores").select("profesor").ilike("email", user.email ?? "").maybeSingle(),
   ]);
 
-  let grupos = (cursosGratuidad ?? []).map((c: { nombre: string }) => c.nombre);
-  if (grupos.length === 0) {
-    const { data: todos } = await supabase.from("cursos").select("nombre").order("nombre");
-    grupos = (todos ?? []).map((c: { nombre: string }) => c.nombre);
-  }
 
   // Lot of each group: active titles assigned to it
   type TituloRow = Omit<TituloLote, "optativo"> & { activo: boolean };
@@ -46,6 +41,17 @@ export default async function EntregaV2Page({ searchParams }: Props) {
   // Compulsory titles first, then optional ones, each alphabetically
   Object.values(lotePorGrupo).forEach((list) =>
     list.sort((a, b) => Number(a.optativo) - Number(b.optativo) || a.titulo.localeCompare(b.titulo, "es")));
+
+  // Programme courses first, then any other group that has been given a lot (FP Básica, Bachillerato…)
+  const enGratuidad = (cursosGratuidad ?? []).map((c: { nombre: string }) => c.nombre);
+  const otrosConLote = Object.keys(lotePorGrupo)
+    .filter((g) => !enGratuidad.includes(g))
+    .sort((a, b) => a.localeCompare(b, "es"));
+  let grupos = [...enGratuidad, ...otrosConLote];
+  if (grupos.length === 0) {
+    const { data: todos } = await supabase.from("cursos").select("nombre").order("nombre");
+    grupos = (todos ?? []).map((c: { nombre: string }) => c.nombre);
+  }
 
   return (
     <EntregaClient

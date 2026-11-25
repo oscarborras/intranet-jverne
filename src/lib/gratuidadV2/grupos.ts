@@ -20,3 +20,22 @@ export async function gruposConLibrosPrestados(supabase: SupabaseClient, incluir
   }
   return [...grupos].sort((a, b) => a.localeCompare(b, "es"));
 }
+
+/** Active students per group (alumnos.unidad), paged past the 1000-row limit. */
+export async function contarAlumnosPorGrupo(supabase: SupabaseClient): Promise<Record<string, number>> {
+  const cuenta: Record<string, number> = {};
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await supabase
+      .from("alumnos")
+      .select("unidad")
+      .is("estado_matricula", null)
+      .neq("unidad", "")
+      .order("id")
+      .range(from, from + 999);
+    if (error) break;
+    const filas = (data ?? []) as { unidad: string }[];
+    filas.forEach((r) => { cuenta[r.unidad] = (cuenta[r.unidad] ?? 0) + 1; });
+    if (filas.length < 1000) break;
+  }
+  return cuenta;
+}
